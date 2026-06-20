@@ -8,21 +8,47 @@ let childDraft = {};
 let loginError = "";
 let globalMessage = "";
 let qrErrorMessage = "";
+let pendingRecoveryKey = "";
+let securityMessage = "";
+let resetMessage = "";
+let scannerMode = "child";
+let scannerStream = null;
+let scannerTimer = null;
+let barcodeDetector = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
 async function initApp() {
   state = await storage.load();
+  await migrateSecurityState();
   if (state.setupComplete) {
     await persist(state);
   }
-  const qrToken = new URL(window.location.href).searchParams.get("qr");
-  if (qrToken && state.setupComplete) {
-    await startQrFlow(qrToken);
+  if (pendingRecoveryKey) {
+    screen = "recoveryReveal";
+    render();
     return;
   }
   screen = state.setupComplete ? "start" : "setup";
   render();
+}
+
+async function migrateSecurityState() {
+  if (!state.setupComplete) return;
+  let changed = false;
+  if (!state.pinHash && state.pin) {
+    state.pinHash = await hashSecret(state.pin, "pin");
+    delete state.pin;
+    changed = true;
+  }
+  if (!state.recoveryKeyHash) {
+    pendingRecoveryKey = makeRecoveryKey();
+    state.recoveryKeyHash = await hashSecret(pendingRecoveryKey, "recovery");
+    changed = true;
+  }
+  if (changed) {
+    state = await storage.save(state);
+  }
 }
 
 async function persist(nextState = state) {
@@ -43,8 +69,25 @@ function render() {
     app.innerHTML = renderSetup();
     return;
   }
+  if (screen === "recoveryReveal") {
+    app.innerHTML = renderRecoveryReveal();
+    return;
+  }
   if (screen === "qrInvalid") {
     app.innerHTML = renderQrInvalid();
+    return;
+  }
+  if (screen === "forgotPin") {
+    app.innerHTML = `<main class="app-shell">${renderTopbar("PIN zurücksetzen")}${renderForgotPin()}</main>`;
+    return;
+  }
+  if (screen === "childStart") {
+    app.innerHTML = `<main class="app-shell child">${renderTopbar("Kinderbereich")}${renderChildStart()}</main>`;
+    return;
+  }
+  if (screen === "qrScanner") {
+    app.innerHTML = `<main class="app-shell child">${renderTopbar(scannerMode === "test" ? "QR-Scanner testen" : "Kinderbereich")}${renderQrScanner()}</main>`;
+    startQrScanner();
     return;
   }
   if (screen.startsWith("child")) {
@@ -122,8 +165,33 @@ async function completeSetup(event) {
     return;
   }
 
-  state = createInitialState({ pin, className, description });
+  pendingRecoveryKey = makeRecoveryKey();
+  state = createInitialState({
+    pinHash: await hashSecret(pin, "pin"),
+    recoveryKeyHash: await hashSecret(pendingRecoveryKey, "recovery"),
+    className,
+    description
+  });
   await persist(state);
+  screen = "recoveryReveal";
+  render();
+}
+
+function renderRecoveryReveal() {
+  return `
+    <main class="app-shell setup-shell">
+      <section class="setup-card">
+        <h1 class="brand-title">Wiederherstellungsschlüssel</h1>
+        <p class="privacy-text">Bitte notiere diesen Wiederherstellungsschlüssel. Mit ihm kannst du deine PIN zurücksetzen, falls du sie vergisst. Der Schlüssel wird aus Sicherheitsgründen nicht im Klartext gespeichert.</p>
+        <div class="recovery-key-box">${escapeHtml(pendingRecoveryKey)}</div>
+        <button class="primary" type="button" onclick="finishRecoveryReveal()">Ich habe den Schlüssel notiert</button>
+      </section>
+    </main>
+  `;
+}
+
+function finishRecoveryReveal() {
+  pendingRecoveryKey = "";
   screen = "start";
   render();
 }
@@ -155,8 +223,9 @@ function renderStart() {
 }
 
 function startChildFlow() {
+  stopQrScanner();
   childDraft = {};
-  screen = "childAnimal";
+  screen = "childStart";
   render();
 }
 
@@ -183,19 +252,12 @@ function openLogin() {
 }
 
 function goHome() {
+  stopQrScanner();
   childDraft = {};
   loginError = "";
   qrErrorMessage = "";
   screen = "start";
-  clearQrParameter();
   render();
-}
-
-function clearQrParameter() {
-  if (!window.location.search.includes("qr=")) return;
-  const url = new URL(window.location.href);
-  url.searchParams.delete("qr");
-  window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
 }
 
 function renderQrInvalid() {
@@ -220,6 +282,26 @@ function renderChildScreen() {
   if (screen === "childStatus") return renderStatusSelection();
   if (screen === "childConfirm") return renderConfirmation();
   return "";
+}
+
+function renderChildStart() {
+  return `
+    <section class="step-wrap child-start-wrap">
+      <h2 class="child-title">Wie möchtest du starten?</h2>
+      <div class="start-grid child-choice-grid">
+        ${state.qrScannerEnabled ? `
+          <button class="start-card primary-child-card" type="button" onclick="openQrScanner('child')">
+            <span class="icon">📷</span>
+            <strong>QR-Code scannen</strong>
+          </button>
+        ` : ""}
+        <button class="start-card" type="button" onclick="setChildScreen('childAnimal')">
+          <span class="icon">🐾</span>
+          <strong>Tier auswählen</strong>
+        </button>
+      </div>
+    </section>
+  `;
 }
 
 function renderBackButton(target) {
@@ -400,29 +482,225 @@ function startQrAgain() {
 }
 
 function renderLogin() {
+  const loginMessageClass = loginError.includes("zurückgesetzt") ? "success" : "error";
   return `
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
         <div class="lock-icon">🔒</div>
         <h2 class="child-title compact-title">Lehrerinnenbereich</h2>
         <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
-        ${loginError ? `<p class="message error">${escapeHtml(loginError)}</p>` : ""}
+        ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
+        <button class="link-button" type="button" onclick="openForgotPin()">PIN vergessen?</button>
       </form>
     </section>
   `;
 }
 
-function checkPin(event) {
+async function checkPin(event) {
   event.preventDefault();
   const pin = document.querySelector("#pinInput").value.trim();
-  if (pin === state.pin) {
+  if ((await hashSecret(pin, "pin")) === state.pinHash) {
     teacherTab = "overview";
     loginError = "";
     screen = "teacher";
   } else {
     loginError = "Die PIN stimmt nicht.";
   }
+  render();
+}
+
+function openForgotPin() {
+  resetMessage = "";
+  screen = "forgotPin";
+  render();
+}
+
+function openQrScanner(mode = "child") {
+  stopQrScanner();
+  scannerMode = mode;
+  globalMessage = "";
+  screen = "qrScanner";
+  render();
+}
+
+function renderQrScanner() {
+  return `
+    <section class="step-wrap">
+      <div class="step-actions">
+        <button class="secondary" type="button" onclick="closeQrScanner()">Zurück</button>
+      </div>
+      <h2 class="child-title">${scannerMode === "test" ? "QR-Scanner testen" : "QR-Code scannen"}</h2>
+      <div class="scanner-panel">
+        <video id="qrVideo" class="qr-video" autoplay playsinline muted></video>
+        <canvas id="qrCanvas" class="qr-canvas"></canvas>
+        <p class="message" id="scannerMessage">Kamera wird geöffnet...</p>
+      </div>
+      <p class="privacy-text">Die Erkennung läuft lokal im Browser. Es werden keine Fotos gespeichert und keine Daten übertragen.</p>
+    </section>
+  `;
+}
+
+async function startQrScanner() {
+  const message = document.querySelector("#scannerMessage");
+  const video = document.querySelector("#qrVideo");
+  if (!message || !video) return;
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("no-camera");
+    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    video.srcObject = scannerStream;
+    await video.play();
+    message.textContent = "Halte die QR-Karte vor die Kamera.";
+    if ("BarcodeDetector" in window) {
+      try {
+        barcodeDetector = new BarcodeDetector({ formats: ["qr_code"] });
+      } catch {
+        barcodeDetector = null;
+      }
+    }
+    scanQrFrame();
+  } catch {
+    message.textContent = "Die Kamera konnte nicht geöffnet werden. Bitte prüfe die Berechtigung oder wähle dein Tier über die Tierauswahl.";
+  }
+}
+
+async function scanQrFrame() {
+  if (screen !== "qrScanner") return;
+  const video = document.querySelector("#qrVideo");
+  const canvas = document.querySelector("#qrCanvas");
+  const message = document.querySelector("#scannerMessage");
+  if (!video || !canvas || !message) return;
+
+  try {
+    let token = "";
+    if (barcodeDetector && video.readyState >= 2) {
+      const codes = await barcodeDetector.detect(video);
+      token = codes[0]?.rawValue || "";
+    } else if (window.jsQR && video.videoWidth && video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      token = window.jsQR(imageData.data, imageData.width, imageData.height)?.data || "";
+    } else if (!("BarcodeDetector" in window)) {
+      message.textContent = "QR-Erkennung ist in diesem Browser nicht verfügbar. Bitte wähle dein Tier über die Tierauswahl.";
+    }
+
+    if (token) {
+      await handleScannedQrToken(token.trim());
+      return;
+    }
+  } catch {
+    message.textContent = "Der QR-Code konnte nicht gelesen werden. Bitte erneut versuchen.";
+  }
+  scannerTimer = window.setTimeout(scanQrFrame, 350);
+}
+
+async function handleScannedQrToken(token) {
+  const animal = state.animals.find((item) => item.aktiv && item.qrToken === token);
+  stopQrScanner();
+  if (scannerMode === "test") {
+    globalMessage = animal
+      ? `QR-Code erkannt: ${animal.tierEmoji} ${animal.tierName}`
+      : "QR-Code wurde erkannt, gehört aber zu keinem Tier der gespeicherten Klassen.";
+    screen = "teacher";
+    teacherTab = "qrCards";
+    render();
+    return;
+  }
+  if (!animal) {
+    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrerin.";
+    screen = "qrInvalid";
+    render();
+    return;
+  }
+  childDraft = { animalId: animal.id, fromQr: true };
+  if (state.activeClassId !== animal.classId) {
+    await persist({ ...state, activeClassId: animal.classId });
+  }
+  screen = "childSubject";
+  render();
+}
+
+function closeQrScanner() {
+  stopQrScanner();
+  if (scannerMode === "test") {
+    screen = "teacher";
+    teacherTab = "qrCards";
+  } else {
+    screen = "childStart";
+  }
+  render();
+}
+
+function stopQrScanner() {
+  if (scannerTimer) {
+    window.clearTimeout(scannerTimer);
+    scannerTimer = null;
+  }
+  if (scannerStream) {
+    scannerStream.getTracks().forEach((track) => track.stop());
+    scannerStream = null;
+  }
+  barcodeDetector = null;
+}
+
+function renderForgotPin() {
+  return `
+    <section class="center-stage">
+      <form class="setup-card setup-form" onsubmit="resetPinWithRecovery(event)">
+        <h2 class="child-title compact-title">PIN zurücksetzen</h2>
+        <p class="privacy-text">Gib deinen Wiederherstellungsschlüssel ein, um eine neue PIN festzulegen.</p>
+        <label class="field">Wiederherstellungsschlüssel
+          <input class="text-input" id="recoveryInput" autocomplete="off">
+        </label>
+        <label class="field">Neue PIN
+          <input class="text-input" id="resetPin" type="password" autocomplete="new-password">
+        </label>
+        <label class="field">Neue PIN wiederholen
+          <input class="text-input" id="resetPinRepeat" type="password" autocomplete="new-password">
+        </label>
+        ${resetMessage ? `<p class="message ${resetMessage.includes("nicht") || resetMessage.includes("prüfen") ? "error" : "success"}">${escapeHtml(resetMessage)}</p>` : ""}
+        <button class="primary" type="submit">PIN zurücksetzen</button>
+        <button class="secondary" type="button" onclick="openLogin()">Zur PIN-Anmeldung</button>
+        <div class="danger-zone">
+          <p class="message">Nutze diese Funktion nur, wenn du kein Backup und keinen Wiederherstellungsschlüssel mehr hast.</p>
+          <button class="danger" type="button" onclick="resetWholeAppFromLogin()">App zurücksetzen</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+async function resetPinWithRecovery(event) {
+  event.preventDefault();
+  const recovery = document.querySelector("#recoveryInput").value;
+  const newPin = document.querySelector("#resetPin").value.trim();
+  const repeat = document.querySelector("#resetPinRepeat").value.trim();
+  if ((await hashSecret(recovery, "recovery")) !== state.recoveryKeyHash) {
+    resetMessage = "Der Wiederherstellungsschlüssel wurde nicht erkannt.";
+    render();
+    return;
+  }
+  if (newPin.length < 4 || newPin !== repeat) {
+    resetMessage = "Bitte neue PIN prüfen.";
+    render();
+    return;
+  }
+  await persist({ ...state, pinHash: await hashSecret(newPin, "pin") });
+  screen = "login";
+  loginError = "PIN wurde zurückgesetzt.";
+  render();
+}
+
+async function resetWholeAppFromLogin() {
+  if (!confirm("Dadurch werden alle lokal gespeicherten Klassen, Tiere, Materialien und Arbeitsstände gelöscht. Fortfahren?")) return;
+  if (!confirm("Bitte bestätige: App wirklich zurücksetzen.")) return;
+  await storage.clear();
+  state = emptyState();
+  pendingRecoveryKey = "";
+  screen = "setup";
   render();
 }
 
@@ -435,6 +713,8 @@ function renderTeacher() {
     ["classes", "Klassen & Gruppen"],
     ["resources", "Tiere & Materialien"],
     ["qrCards", "QR-Karten"],
+    ["security", "PIN & Sicherheit"],
+    ["storageStatus", "Speicherstatus"],
     ["backup", "Datensicherung"],
     ["privacy", "Datenschutz & Zweck"]
   ];
@@ -456,6 +736,7 @@ function renderTeacher() {
 }
 
 function setTeacherTab(tab) {
+  stopQrScanner();
   teacherTab = tab;
   globalMessage = "";
   render();
@@ -469,6 +750,8 @@ function renderTeacherTab() {
   if (teacherTab === "classes") return renderClasses();
   if (teacherTab === "resources") return renderResources();
   if (teacherTab === "qrCards") return renderQrCards();
+  if (teacherTab === "security") return renderSecurity();
+  if (teacherTab === "storageStatus") return renderStorageStatus();
   if (teacherTab === "backup") return renderBackup();
   if (teacherTab === "privacy") return renderPrivacy();
   return "";
@@ -785,7 +1068,7 @@ async function addAnimal(event) {
   if (!tierEmoji || !tierName) return;
   await persistAndRender({
     ...state,
-    animals: [...state.animals, { id: makeId(), classId: state.activeClassId, tierName, tierEmoji, aktiv: true, qrToken: makeQrToken() }]
+    animals: [...state.animals, { id: makeId(), classId: state.activeClassId, tierName, tierEmoji, aktiv: true, qrToken: makeUniqueQrToken() }]
   });
 }
 
@@ -856,9 +1139,11 @@ function renderQrCards() {
   return `
     <section class="panel">
       <h2>QR-Karten</h2>
-      <p class="message">QR-Codes sind Schnellzugänge. Sie enthalten keine Namen und keine Arbeitsstände, sondern nur einen zufälligen technischen Zugangscode.</p>
+      <p class="message">Die QR-Codes enthalten keine Kindernamen und keine Leistungsdaten. Sie enthalten nur einen technischen Tier-Code. Die Zuordnung Tier zu Kind bleibt analog bei der Lehrkraft.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="printAllQrCards()">Alle QR-Karten der aktiven Klasse drucken</button>
+        <button class="secondary" type="button" onclick="openQrScanner('test')">QR-Scanner testen</button>
+        <label class="toggle-label qr-toggle"><input type="checkbox" ${state.qrScannerEnabled ? "checked" : ""} onchange="setQrScannerEnabled(this.checked)"> QR-Scanner im Kinderbereich anzeigen</label>
       </div>
     </section>
     <section class="qr-card-grid">
@@ -869,14 +1154,14 @@ function renderQrCards() {
 }
 
 function renderQrCardPreview(animal) {
-  const qrUrl = getQrUrl(animal.qrToken);
   return `
-    <article class="qr-card-preview" data-qr-url="${escapeAttribute(qrUrl)}">
+    <article class="qr-card-preview" data-qr-token="${escapeAttribute(animal.qrToken)}">
       <div class="qr-animal">
         <span class="qr-animal-emoji">${escapeHtml(animal.tierEmoji)}</span>
         <strong>${escapeHtml(animal.tierName)}</strong>
       </div>
-      <div class="qr-code-wrap">${makeQrSvg(qrUrl, { scale: 4 })}</div>
+      <div class="qr-code-wrap">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
+      <p class="qr-token">${escapeHtml(animal.qrToken)}</p>
       <p class="qr-small">Arbeitsheft-Kompass</p>
       <div class="qr-actions">
         <button class="secondary" type="button" onclick="regenerateQrToken('${animal.id}')">QR-Code neu erzeugen</button>
@@ -888,8 +1173,12 @@ function renderQrCardPreview(animal) {
 
 async function regenerateQrToken(animalId) {
   if (!confirm("Der alte QR-Code funktioniert danach nicht mehr. Fortfahren?")) return;
-  const animals = state.animals.map((animal) => animal.id === animalId ? { ...animal, qrToken: makeQrToken() } : animal);
+  const animals = state.animals.map((animal) => animal.id === animalId ? { ...animal, qrToken: makeUniqueQrToken(animalId) } : animal);
   await persistAndRender({ ...state, animals });
+}
+
+async function setQrScannerEnabled(enabled) {
+  await persist({ ...state, qrScannerEnabled: Boolean(enabled) });
 }
 
 function printSingleQrCard(animalId) {
@@ -911,13 +1200,100 @@ function printQrCards(animals) {
         <article class="qr-print-card">
           <div class="qr-print-emoji">${escapeHtml(animal.tierEmoji)}</div>
           <div class="qr-print-name">${escapeHtml(animal.tierName)}</div>
-          <div class="qr-print-code">${makeQrSvg(getQrUrl(animal.qrToken), { scale: 4 })}</div>
+          <div class="qr-print-code">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
           <div class="qr-print-title">Arbeitsheft-Kompass</div>
         </article>
       `).join("")}
     </div>
   `;
   window.print();
+}
+
+function makeUniqueQrToken(exceptAnimalId = "") {
+  const usedTokens = new Set(state.animals.filter((animal) => animal.id !== exceptAnimalId).map((animal) => animal.qrToken).filter(Boolean));
+  const token = makeQrToken(usedTokens);
+  usedTokens.add(token);
+  return token;
+}
+
+function renderSecurity() {
+  return `
+    <section class="panel">
+      <h2>PIN & Sicherheit</h2>
+      <form class="filters" onsubmit="changePin(event)">
+        <label class="field">Aktuelle PIN<input class="text-input" id="currentPin" type="password" autocomplete="current-password"></label>
+        <label class="field">Neue PIN<input class="text-input" id="newPin" type="password" autocomplete="new-password"></label>
+        <label class="field">Neue PIN wiederholen<input class="text-input" id="newPinRepeat" type="password" autocomplete="new-password"></label>
+        <button class="primary" type="submit">PIN ändern</button>
+      </form>
+      ${securityMessage ? `<p class="message ${securityMessage.includes("wurde") || securityMessage.includes("notiere") ? "success" : "error"}">${escapeHtml(securityMessage)}</p>` : ""}
+    </section>
+    <section class="panel">
+      <h2>Wiederherstellungsschlüssel</h2>
+      <p class="privacy-text">Die PIN schützt den Lehrerinnenbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
+      <button class="secondary" type="button" onclick="regenerateRecoveryKey()">Neuen Wiederherstellungsschlüssel erzeugen</button>
+      ${pendingRecoveryKey ? `
+        <div class="recovery-key-panel">
+          <p>Bitte notiere den neuen Wiederherstellungsschlüssel. Er wird nicht im Klartext gespeichert.</p>
+          <div class="recovery-key-box">${escapeHtml(pendingRecoveryKey)}</div>
+          <button class="primary" type="button" onclick="hideRecoveryKey()">Ich habe den Schlüssel notiert</button>
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+async function changePin(event) {
+  event.preventDefault();
+  const currentPin = document.querySelector("#currentPin").value.trim();
+  const newPin = document.querySelector("#newPin").value.trim();
+  const repeat = document.querySelector("#newPinRepeat").value.trim();
+  if ((await hashSecret(currentPin, "pin")) !== state.pinHash) {
+    securityMessage = "Die aktuelle PIN stimmt nicht.";
+    render();
+    return;
+  }
+  if (newPin.length < 4 || newPin !== repeat) {
+    securityMessage = "Bitte neue PIN prüfen.";
+    render();
+    return;
+  }
+  await persist({ ...state, pinHash: await hashSecret(newPin, "pin") });
+  securityMessage = "PIN wurde geändert.";
+  render();
+}
+
+async function regenerateRecoveryKey() {
+  if (!confirm("Der alte Wiederherstellungsschlüssel funktioniert danach nicht mehr. Fortfahren?")) return;
+  pendingRecoveryKey = makeRecoveryKey();
+  await persist({ ...state, recoveryKeyHash: await hashSecret(pendingRecoveryKey, "recovery") });
+  securityMessage = "Bitte notiere den neuen Wiederherstellungsschlüssel.";
+  render();
+}
+
+function hideRecoveryKey() {
+  pendingRecoveryKey = "";
+  render();
+}
+
+function renderStorageStatus() {
+  return `
+    <section class="panel">
+      <h2>Speicherstatus</h2>
+      <div class="status-grid">
+        <div>Einrichtung gefunden</div><strong>${state.setupComplete ? "ja" : "nein"}</strong>
+        <div>Speicherart</div><strong>${escapeHtml(storage.getStorageType())}</strong>
+        <div>aktive Klasse</div><strong>${escapeHtml(activeClass()?.name || "keine")}</strong>
+        <div>Anzahl Klassen</div><strong>${state.classes.length}</strong>
+        <div>Anzahl Tiere</div><strong>${state.animals.length}</strong>
+        <div>Anzahl Materialien</div><strong>${state.materials.length}</strong>
+        <div>Anzahl Arbeitsstände</div><strong>${state.entries.length}</strong>
+        <div>letzte lokale Speicherung</div><strong>${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</strong>
+        <div>QR-Scanner aktiviert</div><strong>${state.qrScannerEnabled ? "ja" : "nein"}</strong>
+      </div>
+      <p class="privacy-text">Die Daten werden lokal auf diesem iPad/in diesem Browser gespeichert. GitHub speichert nur die App-Dateien, nicht die Einträge.</p>
+    </section>
+  `;
 }
 
 async function exportActiveClassBackup() {

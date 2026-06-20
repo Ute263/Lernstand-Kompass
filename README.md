@@ -12,6 +12,8 @@ Diese Dateien müssen direkt im Repository liegen:
 - `storage.js`
 - `export.js`
 - `qrcode.js`
+- `jsqr.js`
+- `jsqr-LICENSE.txt`
 - `app.js`
 - `pwa.js`
 - `manifest.json`
@@ -41,7 +43,15 @@ Diese Dateien müssen direkt im Repository liegen:
 
 ## QR-Karten
 
-Im Lehrerinnenbereich gibt es den Tab `QR-Karten`. Dort können QR-Karten für die aktive Klasse angezeigt, neu erzeugt und gedruckt werden. Die QR-Codes enthalten keine Kindernamen und keine Arbeitsstände, sondern nur eine App-URL mit zufälligem Token.
+Im Lehrerinnenbereich gibt es den Tab `QR-Karten`. Dort können QR-Karten für die aktive Klasse angezeigt, neu erzeugt und gedruckt werden. Die QR-Codes enthalten keine Kindernamen und keine Arbeitsstände, sondern nur einen zufälligen Tier-Code wie `ak-8F3KQ2M9`.
+
+Der Kinderbereich kann diesen QR-Code direkt in der App scannen. Dafür wird die Kamera nur während des Scans geöffnet. Es werden keine Fotos gespeichert.
+
+Die QR-Erkennung nutzt zuerst die lokale Browser-Funktion `BarcodeDetector`, falls verfügbar. Wenn nicht, nutzt die App die lokal mitgelieferte Datei `jsqr.js`. Es wird kein CDN und kein externer QR-Dienst verwendet.
+
+## PIN und Wiederherstellung
+
+Die App speichert keine Klartext-PIN. Nach der ersten Einrichtung wird ein Wiederherstellungsschlüssel einmalig angezeigt. Er muss analog notiert werden, weil in der App nur ein Hash gespeichert wird.
 
 ## Schrift
 

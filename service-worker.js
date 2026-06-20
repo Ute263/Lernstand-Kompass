@@ -1,4 +1,4 @@
-const CACHE_NAME = "arbeitsheft-kompass-cache-v4";
+const CACHE_NAME = "arbeitsheft-kompass-cache-v6";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const APP_FILES = [
   "./storage.js",
   "./export.js",
   "./qrcode.js",
+  "./jsqr.js",
   "./app.js",
   "./pwa.js",
   "./manifest.json",

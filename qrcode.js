@@ -1,11 +1,3 @@
-function getQrUrl(token) {
-  const url = new URL(window.location.href);
-  url.search = "";
-  url.hash = "";
-  url.searchParams.set("qr", token);
-  return url.toString();
-}
-
 function makeQrSvg(text, options = {}) {
   const qr = makeQrMatrix(text);
   const scale = options.scale || 5;

@@ -174,6 +174,11 @@ button:disabled {
   line-height: 1.12;
 }
 
+.primary-child-card {
+  background: #f1fff9;
+  box-shadow: 0 16px 34px rgba(22, 138, 74, 0.14);
+}
+
 .step-wrap {
   max-width: 1120px;
   margin: 0 auto;
@@ -575,6 +580,19 @@ th {
   font-weight: 800;
 }
 
+.qr-token {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.qr-toggle {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .qr-actions {
   display: grid;
   gap: 10px;
@@ -614,6 +632,90 @@ th {
 
 .message.error {
   color: var(--red);
+}
+
+.message.success {
+  color: var(--green);
+}
+
+.link-button {
+  min-height: auto;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--brand-dark);
+  font-weight: 850;
+  text-decoration: underline;
+}
+
+.danger-zone,
+.recovery-key-panel {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.recovery-key-panel {
+  padding: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.recovery-key-box {
+  width: 100%;
+  padding: 20px;
+  border: 2px dashed #8aa1b8;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.scanner-panel {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 18px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(40, 74, 105, 0.08);
+}
+
+.qr-video {
+  width: min(100%, 640px);
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  background: #17324d;
+  object-fit: cover;
+}
+
+.qr-canvas {
+  display: none;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(120px, 2fr);
+  gap: 10px 16px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.status-grid div {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.status-grid strong {
+  overflow-wrap: anywhere;
 }
 
 .privacy-text,
