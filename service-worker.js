@@ -1,4 +1,4 @@
-const CACHE_NAME = "arbeitsheft-kompass-cache-v6";
+const CACHE_NAME = "arbeitsheft-kompass-cache-v8";
 const APP_FILES = [
   "./",
   "./index.html",

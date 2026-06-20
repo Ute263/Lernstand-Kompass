@@ -41,6 +41,16 @@ Diese Dateien müssen direkt im Repository liegen:
 - keine externe Datenbank
 - keine Cloud-Synchronisation
 
+## Excel-Export
+
+Im Lehrerinnenbereich gibt es den Tab `Excel-Export`. Dort können CSV-Listen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden. Die Dateien verwenden Semikolon-Trennung und UTF-8 mit BOM, damit sie in deutschem Excel gut lesbar sind.
+
+Zusätzlich kann eine Excel-Arbeitsmappe mit den Blättern `Arbeitsstände`, `Fortschritt` und `Tier-Verläufe` erstellt werden. Sie enthält keine Kindernamen und keine QR-Tokens.
+
+## Fortschritt
+
+Im Lehrerinnenbereich gibt es den Tab `Fortschritt`. Dort werden Arbeitsstände chronologisch und neutral ausgewertet: letzte Aktivität, Seitenfortschritt, Gruppenschnitt, Soll-Seiten und offene Hilfe-/Kontrollwünsche. Soll-Seiten und Fortschritts-Einstellungen werden unter `Tiere & Materialien` verwaltet.
+
 ## QR-Karten
 
 Im Lehrerinnenbereich gibt es den Tab `QR-Karten`. Dort können QR-Karten für die aktive Klasse angezeigt, neu erzeugt und gedruckt werden. Die QR-Codes enthalten keine Kindernamen und keine Arbeitsstände, sondern nur einen zufälligen Tier-Code wie `ak-8F3KQ2M9`.

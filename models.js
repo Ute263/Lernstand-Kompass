@@ -32,6 +32,15 @@ const DEFAULT_MATERIALS = [
   ["Mathe", "Zusatzaufgabe"]
 ];
 
+const DEFAULT_PROGRESS_SETTINGS = {
+  staleDays: 5,
+  groupLookThreshold: 4,
+  groupFarThreshold: 8,
+  aheadThreshold: 5,
+  showGroupComparison: true,
+  showGoalComparison: true
+};
+
 function makeId() {
   if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -69,6 +78,8 @@ function emptyState() {
     animals: [],
     materials: [],
     entries: [],
+    goals: [],
+    progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     lastSavedAt: null
   };
@@ -122,6 +133,8 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     animals: createDefaultAnimals(firstClass.id),
     materials: createDefaultMaterials(firstClass.id),
     entries: [],
+    goals: [],
+    progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     lastSavedAt: null
   };
@@ -139,6 +152,11 @@ function normalizeState(candidate) {
     animals: Array.isArray(candidate.animals) ? candidate.animals : [],
     materials: Array.isArray(candidate.materials) ? candidate.materials : [],
     entries: Array.isArray(candidate.entries) ? candidate.entries : [],
+    goals: Array.isArray(candidate.goals) ? candidate.goals : [],
+    progressSettings: {
+      ...DEFAULT_PROGRESS_SETTINGS,
+      ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
+    },
     qrScannerEnabled: candidate.qrScannerEnabled !== false
   };
 
