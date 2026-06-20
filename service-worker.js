@@ -1,10 +1,12 @@
-const CACHE_NAME = "arbeitsheft-kompass-cache-v8";
+const CACHE_NAME = "arbeitsheft-kompass-cache-v9";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./models.js",
   "./storage.js",
+  "./exceljs.min.js",
+  "./exceljs-LICENSE.txt",
   "./export.js",
   "./qrcode.js",
   "./jsqr.js",

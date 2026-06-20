@@ -870,7 +870,7 @@ function renderProgress() {
         </label>
       </form>
       <div class="backup-actions progress-actions">
-        <button class="primary" type="button" onclick="exportProgressExcelWorkbook()">Fortschritt als Excel-Arbeitsmappe erstellen</button>
+        <button class="primary" type="button" onclick="exportBeautifulExcel('active')">Schöne Excel-Datei aktive Klasse</button>
       </div>
     </section>
     <section class="panel">
@@ -1472,15 +1472,23 @@ function renderExcelExport() {
   return `
     <section class="panel">
       <h2>Excel-Export</h2>
-      <p class="privacy-text">Erstellt Excel-lesbare CSV-Dateien aus den lokal gespeicherten Arbeitsständen. Es werden keine Kindernamen, Fotos oder KI-Daten exportiert.</p>
+      <p class="privacy-text">Erstellt eine gestaltete Excel-Datei als Lernstands- und Arbeitsheft-Planer. Es werden keine Kindernamen, QR-Tokens, Fotos oder KI-Daten exportiert.</p>
       <div class="backup-actions">
-        <button class="primary" type="button" onclick="exportExcelActiveClass()">Excel-Liste aktive Klasse erstellen</button>
-        <button class="primary" type="button" onclick="exportExcelAllClasses()">Excel-Liste alle Klassen erstellen</button>
-        <button class="secondary" type="button" onclick="exportExcelToday()">Tagesliste erstellen</button>
-        <button class="secondary" type="button" onclick="exportExcelHelpControl()">Hilfe-/Kontrollliste erstellen</button>
-        <button class="primary" type="button" onclick="exportProgressExcelWorkbook()">Excel-Arbeitsmappe mit Fortschritt erstellen</button>
+        <button class="primary" type="button" onclick="exportBeautifulExcel('active')">Schöne Excel-Datei aktive Klasse</button>
+        <button class="primary" type="button" onclick="exportBeautifulExcel('all')">Schöne Excel-Datei alle Klassen</button>
+        <button class="secondary" type="button" onclick="exportBeautifulExcel('today')">Schöne Tagesliste</button>
+        <button class="secondary" type="button" onclick="exportBeautifulExcel('help')">Schöne Hilfe-/Kontrollliste</button>
       </div>
-      <p class="message">Die Tabellen werden mit Semikolon-Trennung und UTF-8 gespeichert, damit deutsches Excel Umlaute und Tier-Emojis korrekt anzeigen kann.</p>
+      <p class="message">Die Datei wird lokal im Browser als echte .xlsx-Arbeitsmappe erzeugt. Falls das nicht klappt, erscheint ein Hinweis für den einfachen CSV-Export.</p>
+      <details class="fallback-export">
+        <summary>Einfache CSV-Dateien als Fallback</summary>
+        <div class="backup-actions">
+          <button class="secondary" type="button" onclick="exportExcelActiveClass()">CSV aktive Klasse</button>
+          <button class="secondary" type="button" onclick="exportExcelAllClasses()">CSV alle Klassen</button>
+          <button class="secondary" type="button" onclick="exportExcelToday()">CSV heute</button>
+          <button class="secondary" type="button" onclick="exportExcelHelpControl()">CSV Hilfe/Kontrolle</button>
+        </div>
+      </details>
     </section>
   `;
 }
@@ -1679,6 +1687,219 @@ async function exportActiveClassCsv() {
     globalMessage = "Die Datei konnte nicht erstellt werden.";
   }
   render();
+}
+
+async function exportBeautifulExcel(mode) {
+  try {
+    const report = buildBeautifulExcelReport(mode);
+    await exportBeautifulWorkbook(report);
+    globalMessage = "Schöne Excel-Datei wurde erstellt.";
+  } catch (error) {
+    console.error(error);
+    globalMessage = "Die schöne Excel-Datei konnte nicht erstellt werden. Du kannst stattdessen eine einfache CSV-Datei exportieren.";
+  }
+  render();
+}
+
+function buildBeautifulExcelReport(mode) {
+  const now = new Date();
+  const active = activeClass();
+  const allClassIds = state.classes.map((item) => item.id);
+  const classIds = mode === "active" ? [state.activeClassId] : allClassIds;
+  const baseEntries = state.entries.filter((entry) => classIds.includes(entry.classId));
+  const todayKey = now.toDateString();
+  const entries = baseEntries.filter((entry) => {
+    if (mode === "today") return new Date(entry.datumUhrzeit).toDateString() === todayKey;
+    if (mode === "help") return !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren");
+    return true;
+  });
+  const scopeLabel = mode === "active"
+    ? active?.name || "aktive Klasse"
+    : mode === "today"
+      ? "Tagesliste"
+      : mode === "help"
+        ? "Hilfe & Kontrolle"
+        : "Alle Klassen";
+  const filename = mode === "active"
+    ? `arbeitsheft-kompass-${safeFilePart(active?.name)}-${formatFileDate(now)}.xlsx`
+    : mode === "today"
+      ? `arbeitsheft-kompass-heute-${formatFileDate(now)}.xlsx`
+      : mode === "help"
+        ? `arbeitsheft-kompass-hilfe-kontrolle-${formatFileDate(now)}.xlsx`
+        : `arbeitsheft-kompass-alle-klassen-${formatFileDate(now)}.xlsx`;
+  const animals = state.animals.filter((animal) => classIds.includes(animal.classId) && animal.aktiv);
+  const materials = state.materials.filter((material) => classIds.includes(material.classId));
+  const reportEntries = decorateEntries(entries).sort(sortNewest);
+  const overviewRows = buildBeautifulOverviewRows(animals, baseEntries);
+  const progressRows = buildBeautifulProgressRows(classIds, mode === "today" ? entries : baseEntries);
+  const todayEntries = decorateEntries(baseEntries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === todayKey)).sort(sortNewest);
+  const helpEntries = decorateEntries(baseEntries.filter((entry) => !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren"))).sort(sortNewest);
+  const trailEntries = decorateEntries(entries).sort(sortEntriesByClassAnimalDate);
+  const allEntries = reportEntries;
+  const printRows = buildPrintRows(animals, baseEntries);
+  return {
+    filename,
+    scopeLabel,
+    generatedAt: now.toISOString(),
+    mode,
+    entries: reportEntries,
+    classes: state.classes.filter((item) => classIds.includes(item.id)),
+    animals,
+    materials,
+    overviewRows,
+    progressRows,
+    trailEntries,
+    todayEntries,
+    helpEntries,
+    allEntries,
+    printRows,
+    stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now })
+  };
+}
+
+function decorateEntries(entries) {
+  return entries.map((entry) => ({
+    ...entry,
+    klasseName: getClassNameForEntry(entry),
+    tierLabel: `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim()
+  }));
+}
+
+function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now }) {
+  const today = now.toDateString();
+  const metricEntries = entries;
+  const latest = [...metricEntries].sort(sortNewest)[0] || null;
+  const materialCounts = new Map();
+  metricEntries.forEach((entry) => materialCounts.set(entry.materialName, (materialCounts.get(entry.materialName) || 0) + 1));
+  const mostMaterial = [...materialCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return {
+    animalsWithEntry: new Set(metricEntries.map((entry) => entry.tierID)).size,
+    todayCount: baseEntries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === today).length,
+    openHelp: baseEntries.filter((entry) => !entry.erledigt && entry.status === "brauche Hilfe").length,
+    openCheck: baseEntries.filter((entry) => !entry.erledigt && entry.status === "bitte kontrollieren").length,
+    staleAnimals: animals.filter((animal) => {
+      const latestAnimalEntry = baseEntries.filter((entry) => entry.tierID === animal.id).sort(sortNewest)[0];
+      return latestAnimalEntry && daysSince(latestAnimalEntry.datumUhrzeit) >= (state.progressSettings || DEFAULT_PROGRESS_SETTINGS).staleDays;
+    }).length,
+    latestEntry: latest ? `${formatGermanDate(latest.datumUhrzeit)} ${formatTime(latest.datumUhrzeit)} · ${latest.tierEmojiSnapshot || ""} ${latest.tierNameSnapshot || ""}`.trim() : "–",
+    mostMaterial: mostMaterial ? `${mostMaterial[0]} (${mostMaterial[1]})` : "–",
+    classCount: classIds.length,
+    materialCount: materials.length,
+    openTasks: baseEntries.filter((entry) => !entry.erledigt && entry.status !== "fertig").length,
+    exportedEntryCount: entries.length
+  };
+}
+
+function buildBeautifulOverviewRows(animals, entries) {
+  return animals
+    .map((animal) => {
+      const animalEntries = entries.filter((entry) => entry.tierID === animal.id).sort(sortNewest);
+      const deutsch = animalEntries.find((entry) => entry.fach === "Deutsch");
+      const mathe = animalEntries.find((entry) => entry.fach === "Mathe");
+      const latest = animalEntries[0] || null;
+      const open = animalEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
+      const stale = latest && daysSince(latest.datumUhrzeit) >= (state.progressSettings || DEFAULT_PROGRESS_SETTINGS).staleDays;
+      return {
+        animal,
+        klasse: getClassNameById(animal.classId),
+        deutsch: deutsch ? `${deutsch.materialName} S. ${deutsch.seite}` : "–",
+        mathe: mathe ? `${mathe.materialName} S. ${mathe.seite}` : "–",
+        latestActivity: latest ? relativeActivity(latest.datumUhrzeit) : "–",
+        status: open?.status || latest?.status || "–",
+        hint: open?.status === "brauche Hilfe"
+          ? "Hilfewunsch offen"
+          : open?.status === "bitte kontrollieren"
+            ? "Kontrolle offen"
+            : stale
+              ? "länger kein Eintrag"
+              : latest
+                ? "im Plan"
+                : "kein Eintrag"
+      };
+    })
+    .sort((a, b) => a.klasse.localeCompare(b.klasse, "de") || a.animal.tierName.localeCompare(b.animal.tierName, "de"));
+}
+
+function buildBeautifulProgressRows(classIds, entries) {
+  return classIds.flatMap((classId) => buildProgressRowsForEntries(classId, entries)).sort((a, b) => (
+    getClassNameById(a.classId).localeCompare(getClassNameById(b.classId), "de")
+    || a.animal.tierName.localeCompare(b.animal.tierName, "de")
+    || a.fach.localeCompare(b.fach, "de")
+    || a.material.localeCompare(b.material, "de")
+  ));
+}
+
+function buildProgressRowsForEntries(classId, entries) {
+  const animals = state.animals.filter((animal) => animal.classId === classId && animal.aktiv);
+  const materials = dedupeMaterials(state.materials.filter((material) => material.classId === classId && material.aktiv));
+  const classEntries = entries.filter((entry) => entry.classId === classId);
+  const groupAverages = calculateGroupAverages(classEntries);
+  return animals.flatMap((animal) => materials.map((material) => {
+    const rowEntries = classEntries
+      .filter((entry) => entry.tierID === animal.id && entry.fach === material.fach && entry.materialName === material.materialName)
+      .sort((a, b) => new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit));
+    const pages = rowEntries.map((entry) => Number(entry.seite)).filter((page) => Number.isFinite(page));
+    const firstEntry = rowEntries[0] || null;
+    const lastEntry = rowEntries[rowEntries.length - 1] || null;
+    const minPage = pages.length ? Math.min(...pages) : null;
+    const maxPage = pages.length ? Math.max(...pages) : null;
+    const openEntry = rowEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
+    const groupAverage = groupAverages.get(progressKey(material.fach, material.materialName)) ?? null;
+    const groupDistance = lastEntry && groupAverage != null ? Number(lastEntry.seite) - groupAverage : null;
+    const goal = currentGoal(classId, material.fach, material.materialName);
+    const goalDistance = lastEntry && goal ? Number(lastEntry.seite) - Number(goal.sollSeite) : null;
+    const row = {
+      classId,
+      animal,
+      fach: material.fach,
+      material: material.materialName,
+      entries: rowEntries,
+      entryCount: rowEntries.length,
+      firstEntry,
+      lastEntry,
+      minPage,
+      maxPage,
+      progressPages: pages.length > 1 ? maxPage - minPage : 0,
+      lastActivity: lastEntry?.datumUhrzeit || null,
+      openEntry,
+      groupAverage,
+      groupDistance,
+      groupLabel: groupComparisonLabel(groupDistance),
+      goal,
+      goalDistance,
+      goalDistanceLabel: goalComparisonLabel(goal, goalDistance)
+    };
+    row.hints = progressHints(row);
+    return row;
+  }));
+}
+
+function buildPrintRows(animals, entries) {
+  return animals
+    .map((animal) => {
+      const animalEntries = entries.filter((entry) => entry.tierID === animal.id).sort(sortNewest);
+      const deutsch = animalEntries.find((entry) => entry.fach === "Deutsch");
+      const mathe = animalEntries.find((entry) => entry.fach === "Mathe");
+      const latest = animalEntries[0] || null;
+      const open = animalEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
+      return {
+        tier: `${animal.tierEmoji} ${animal.tierName}`,
+        deutsch: deutsch ? `${deutsch.materialName} S. ${deutsch.seite}` : "–",
+        mathe: mathe ? `${mathe.materialName} S. ${mathe.seite}` : "–",
+        latestActivity: latest ? relativeActivity(latest.datumUhrzeit) : "–",
+        open: open ? open.status : "–",
+        note: ""
+      };
+    })
+    .sort((a, b) => a.tier.localeCompare(b.tier, "de"));
+}
+
+function sortEntriesByClassAnimalDate(a, b) {
+  const classCompare = (a.klasseName || getClassNameForEntry(a)).localeCompare(b.klasseName || getClassNameForEntry(b), "de");
+  if (classCompare) return classCompare;
+  const animalCompare = (a.tierLabel || entryAnimal(a)).localeCompare(b.tierLabel || entryAnimal(b), "de");
+  if (animalCompare) return animalCompare;
+  return new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit);
 }
 
 function exportExcelActiveClass() {

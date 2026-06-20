@@ -10,6 +10,8 @@ Diese Dateien müssen direkt im Repository liegen:
 - `styles.css`
 - `models.js`
 - `storage.js`
+- `exceljs.min.js`
+- `exceljs-LICENSE.txt`
 - `export.js`
 - `qrcode.js`
 - `jsqr.js`
@@ -43,9 +45,11 @@ Diese Dateien müssen direkt im Repository liegen:
 
 ## Excel-Export
 
-Im Lehrerinnenbereich gibt es den Tab `Excel-Export`. Dort können CSV-Listen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden. Die Dateien verwenden Semikolon-Trennung und UTF-8 mit BOM, damit sie in deutschem Excel gut lesbar sind.
+Im Lehrerinnenbereich gibt es den Tab `Excel-Export`. Dort können gestaltete `.xlsx`-Arbeitsmappen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden.
 
-Zusätzlich kann eine Excel-Arbeitsmappe mit den Blättern `Arbeitsstände`, `Fortschritt` und `Tier-Verläufe` erstellt werden. Sie enthält keine Kindernamen und keine QR-Tokens.
+Die Arbeitsmappe enthält die Blätter `Start Dashboard`, `Übersicht`, `Fortschritt`, `Tier-Verläufe`, `Heute`, `Hilfe & Kontrolle`, `Alle Einträge` und `Druckliste`. Sie enthält keine Kindernamen und keine QR-Tokens.
+
+Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` erzeugt. Es wird kein CDN zur Laufzeit verwendet. Falls die `.xlsx`-Erzeugung in einem Browser nicht klappt, stehen einfache CSV-Exporte als Fallback bereit.
 
 ## Fortschritt
 
