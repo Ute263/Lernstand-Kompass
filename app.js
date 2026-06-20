@@ -1,91 +1,131 @@
-const STORAGE_KEY = "arbeitsheft-kompass-v1";
-
-const defaultAnimals = [
-  ["Fuchs", "🦊"], ["Schildkröte", "🐢"], ["Eule", "🦉"], ["Frosch", "🐸"], ["Bär", "🐻"],
-  ["Igel", "🦔"], ["Hase", "🐰"], ["Pinguin", "🐧"], ["Tiger", "🐯"], ["Löwe", "🦁"],
-  ["Koala", "🐨"], ["Panda", "🐼"], ["Affe", "🐵"], ["Schmetterling", "🦋"], ["Marienkäfer", "🐞"],
-  ["Delfin", "🐬"], ["Wal", "🐳"], ["Giraffe", "🦒"], ["Zebra", "🦓"], ["Elefant", "🐘"],
-  ["Eichhörnchen", "🐿️"], ["Waschbär", "🦝"], ["Faultier", "🦥"], ["Flamingo", "🦩"], ["Robbe", "🦭"],
-  ["Krake", "🐙"], ["Krebs", "🦀"], ["Fisch", "🐠"], ["Ente", "🦆"], ["Adler", "🦅"]
-];
-
-const defaultMaterials = [
-  ["Deutsch", "Arbeitsheft Blau"], ["Deutsch", "Arbeitsheft Rot"], ["Deutsch", "Schreibheft"],
-  ["Deutsch", "Lesebuch"], ["Deutsch", "Zusatzaufgabe"], ["Mathe", "Arbeitsheft"],
-  ["Mathe", "Buch"], ["Mathe", "Rechenheft"], ["Mathe", "Zusatzaufgabe"]
-];
-
-const statusMeta = {
-  fertig: { label: "fertig", childLabel: "fertig", icon: "✅", className: "done" },
-  "brauche Hilfe": { label: "brauche Hilfe", childLabel: "ich brauche Hilfe", icon: "🟡", className: "help" },
-  "bitte kontrollieren": { label: "bitte kontrollieren", childLabel: "bitte kontrollieren", icon: "🔵", className: "check" }
-};
-
+const storage = new AppStorage();
 const app = document.querySelector("#app");
-let state = loadState();
-let screen = "start";
+
+let state = emptyState();
+let screen = "loading";
 let teacherTab = "overview";
 let childDraft = {};
-let loginPin = "";
 let loginError = "";
+let globalMessage = "";
+let qrErrorMessage = "";
 
-function makeId() {
-  if (crypto.randomUUID) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
+document.addEventListener("DOMContentLoaded", initApp);
 
-function defaultState() {
-  return {
-    pin: "2468",
-    animals: defaultAnimals.map(([tierName, tierEmoji]) => ({ id: makeId(), tierName, tierEmoji, aktiv: true })),
-    materials: defaultMaterials.map(([fach, materialName]) => ({ id: makeId(), fach, materialName, aktiv: true })),
-    entries: []
-  };
-}
-
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved || !Array.isArray(saved.animals) || !Array.isArray(saved.materials) || !Array.isArray(saved.entries)) {
-      return defaultState();
-    }
-    return { pin: saved.pin || "2468", animals: saved.animals, materials: saved.materials, entries: saved.entries };
-  } catch {
-    return defaultState();
+async function initApp() {
+  state = await storage.load();
+  if (state.setupComplete) {
+    await persist(state);
   }
+  const qrToken = new URL(window.location.href).searchParams.get("qr");
+  if (qrToken && state.setupComplete) {
+    await startQrFlow(qrToken);
+    return;
+  }
+  screen = state.setupComplete ? "start" : "setup";
+  render();
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function persist(nextState = state) {
+  state = await storage.save(nextState);
 }
 
-function setScreen(nextScreen) {
-  screen = nextScreen;
+async function persistAndRender(nextState = state) {
+  await persist(nextState);
   render();
 }
 
 function render() {
-  if (screen.startsWith("child")) {
-    app.innerHTML = `<main class="app-shell child">${renderTopbar("Arbeitsheft-Kompass", "Kinderbereich")}${renderChildScreen()}</main>`;
-  } else if (screen === "login") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Arbeitsheft-Kompass", "Geschützter Bereich")}${renderLogin()}</main>`;
-  } else if (screen === "teacher") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Arbeitsheft-Kompass", "Lehrerinnenbereich")}${renderTeacher()}</main>`;
-  } else {
-    app.innerHTML = renderStart();
+  if (screen === "loading") {
+    app.innerHTML = `<main class="app-shell"><div class="empty">App wird geladen...</div></main>`;
+    return;
   }
+  if (!state.setupComplete || screen === "setup") {
+    app.innerHTML = renderSetup();
+    return;
+  }
+  if (screen === "qrInvalid") {
+    app.innerHTML = renderQrInvalid();
+    return;
+  }
+  if (screen.startsWith("child")) {
+    app.innerHTML = `<main class="app-shell child">${renderTopbar("Kinderbereich")}${renderChildScreen()}</main>`;
+    return;
+  }
+  if (screen === "login") {
+    app.innerHTML = `<main class="app-shell">${renderTopbar("Geschützter Bereich")}${renderLogin()}</main>`;
+    return;
+  }
+  if (screen === "teacher") {
+    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrerinnenbereich")}${renderTeacher()}</main>`;
+    return;
+  }
+  app.innerHTML = renderStart();
 }
 
-function renderTopbar(title, subtitle) {
+function renderTopbar(subtitle) {
   return `
     <header class="topbar">
       <div class="brand">
-        <h1 class="brand-title">${title}</h1>
-        <p class="brand-subtitle">${subtitle}</p>
+        <h1 class="brand-title">Arbeitsheft-Kompass</h1>
+        <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
       </div>
       <button class="secondary" type="button" onclick="goHome()">Start</button>
     </header>
   `;
+}
+
+function renderSetup() {
+  return `
+    <main class="app-shell setup-shell">
+      <section class="setup-card">
+        <h1 class="brand-title">Arbeitsheft-Kompass einrichten</h1>
+        <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
+        <form class="setup-form" onsubmit="completeSetup(event)">
+          <label class="field">Lehrerinnen-PIN festlegen
+            <input class="text-input" id="setupPin" type="password" autocomplete="new-password" inputmode="numeric">
+          </label>
+          <label class="field">PIN wiederholen
+            <input class="text-input" id="setupPinRepeat" type="password" autocomplete="new-password" inputmode="numeric">
+          </label>
+          <label class="field">Name der ersten Klasse oder Lerngruppe
+            <input class="text-input" id="setupClassName" placeholder="Klasse 1a" autocomplete="off">
+          </label>
+          <label class="field">Optionale Beschreibung
+            <input class="text-input" id="setupDescription" placeholder="Deutsch und Mathe" autocomplete="off">
+          </label>
+          <p class="message error" id="setupError"></p>
+          <button class="primary" type="submit">Einrichtung abschließen</button>
+        </form>
+      </section>
+    </main>
+  `;
+}
+
+async function completeSetup(event) {
+  event.preventDefault();
+  const pin = document.querySelector("#setupPin").value.trim();
+  const pinRepeat = document.querySelector("#setupPinRepeat").value.trim();
+  const className = document.querySelector("#setupClassName").value.trim();
+  const description = document.querySelector("#setupDescription").value.trim();
+  const error = document.querySelector("#setupError");
+
+  if (pin.length < 4) {
+    error.textContent = "Die PIN muss mindestens 4 Zeichen haben.";
+    return;
+  }
+  if (pin !== pinRepeat) {
+    error.textContent = "Die PINs stimmen nicht überein.";
+    return;
+  }
+  if (!className) {
+    error.textContent = "Bitte gib einen Namen für die Klasse oder Lerngruppe ein.";
+    return;
+  }
+
+  state = createInitialState({ pin, className, description });
+  await persist(state);
+  screen = "start";
+  render();
 }
 
 function renderStart() {
@@ -93,9 +133,10 @@ function renderStart() {
     <main class="app-shell">
       <section class="center-stage">
         <div>
-          <div class="brand" style="text-align:center;margin-bottom:34px">
+          <div class="brand start-brand">
             <h1 class="brand-title">Arbeitsheft-Kompass</h1>
             <p class="brand-subtitle">Arbeitsstände einfach festhalten</p>
+            <p class="active-note">Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
           </div>
           <div class="start-grid">
             <button class="start-card" type="button" onclick="startChildFlow()">
@@ -104,7 +145,7 @@ function renderStart() {
             </button>
             <button class="start-card" type="button" onclick="openLogin()">
               <span class="icon">🔒</span>
-              <strong>Lehrerinnenbereich</strong>
+              <strong>Lehrerinnenbereich 🔒</strong>
             </button>
           </div>
         </div>
@@ -115,19 +156,60 @@ function renderStart() {
 
 function startChildFlow() {
   childDraft = {};
-  setScreen("childAnimal");
+  screen = "childAnimal";
+  render();
+}
+
+async function startQrFlow(qrToken) {
+  const animal = state.animals.find((item) => item.aktiv && item.qrToken === qrToken);
+  if (!animal || !state.classes.some((item) => item.id === animal.classId)) {
+    qrErrorMessage = "Dieser QR-Code wurde nicht erkannt. Bitte wende dich an die Lehrkraft.";
+    screen = "qrInvalid";
+    render();
+    return;
+  }
+  childDraft = { animalId: animal.id, fromQr: true };
+  if (state.activeClassId !== animal.classId) {
+    await persist({ ...state, activeClassId: animal.classId });
+  }
+  screen = "childSubject";
+  render();
 }
 
 function openLogin() {
-  loginPin = "";
   loginError = "";
-  setScreen("login");
+  screen = "login";
+  render();
 }
 
 function goHome() {
   childDraft = {};
+  loginError = "";
+  qrErrorMessage = "";
   screen = "start";
+  clearQrParameter();
   render();
+}
+
+function clearQrParameter() {
+  if (!window.location.search.includes("qr=")) return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("qr");
+  window.history.replaceState({}, "", url.pathname + (url.search ? url.search : "") + url.hash);
+}
+
+function renderQrInvalid() {
+  return `
+    <main class="app-shell child">
+      <section class="center-stage">
+        <div class="setup-card qr-error-card">
+          <h1 class="brand-title">QR-Code</h1>
+          <p class="privacy-text">${escapeHtml(qrErrorMessage || "Dieser QR-Code wurde nicht erkannt. Bitte wende dich an die Lehrkraft.")}</p>
+          <button class="primary" type="button" onclick="goHome()">Zur Startseite</button>
+        </div>
+      </section>
+    </main>
+  `;
 }
 
 function renderChildScreen() {
@@ -141,11 +223,16 @@ function renderChildScreen() {
 }
 
 function renderBackButton(target) {
-  return `<div class="step-actions"><button class="secondary" type="button" onclick="setScreen('${target}')">Zurück</button></div>`;
+  return `<div class="step-actions"><button class="secondary" type="button" onclick="setChildScreen('${target}')">Zurück</button></div>`;
+}
+
+function setChildScreen(nextScreen) {
+  screen = nextScreen;
+  render();
 }
 
 function renderAnimalSelection() {
-  const animals = state.animals.filter((animal) => animal.aktiv);
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   return `
     <section class="step-wrap">
       <h2 class="child-title">Wer bist du?</h2>
@@ -163,21 +250,23 @@ function renderAnimalSelection() {
 
 function selectAnimal(animalId) {
   childDraft.animalId = animalId;
-  setScreen("childSubject");
+  screen = "childSubject";
+  render();
 }
 
 function renderSubjectSelection() {
+  const animal = selectedAnimal();
+  const qrGreeting = childDraft.fromQr && animal
+    ? `<p class="qr-greeting">Hallo, <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>!</p>`
+    : "";
   return `
     <section class="step-wrap">
-      ${renderBackButton("childAnimal")}
+      ${childDraft.fromQr ? "" : renderBackButton("childAnimal")}
+      ${qrGreeting}
       <h2 class="child-title">Was hast du bearbeitet?</h2>
       <div class="subject-grid">
-        <button class="subject-button" type="button" onclick="selectSubject('Deutsch')">
-          <span class="subject-icon">📘</span>Deutsch
-        </button>
-        <button class="subject-button" type="button" onclick="selectSubject('Mathe')">
-          <span class="subject-icon">🔢</span>Mathe
-        </button>
+        <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
+        <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
       </div>
     </section>
   `;
@@ -185,20 +274,19 @@ function renderSubjectSelection() {
 
 function selectSubject(subject) {
   childDraft.fach = subject;
-  setScreen("childMaterial");
+  screen = "childMaterial";
+  render();
 }
 
 function renderMaterialSelection() {
-  const materials = state.materials.filter((material) => material.aktiv && material.fach === childDraft.fach);
+  const materials = materialsForActiveClass().filter((material) => material.aktiv && material.fach === childDraft.fach);
   return `
     <section class="step-wrap">
       ${renderBackButton("childSubject")}
       <h2 class="child-title">Was hast du bearbeitet?</h2>
       <div class="material-grid">
         ${materials.map((material) => `
-          <button class="material-button" type="button" onclick="selectMaterial('${material.id}')">
-            ${escapeHtml(material.materialName)}
-          </button>
+          <button class="material-button" type="button" onclick="selectMaterial('${material.id}')">${escapeHtml(material.materialName)}</button>
         `).join("")}
       </div>
     </section>
@@ -206,10 +294,11 @@ function renderMaterialSelection() {
 }
 
 function selectMaterial(materialId) {
-  const material = state.materials.find((item) => item.id === materialId);
+  const material = state.materials.find((item) => item.id === materialId && item.classId === state.activeClassId);
   if (!material) return;
   childDraft.materialName = material.materialName;
-  setScreen("childPage");
+  screen = "childPage";
+  render();
 }
 
 function renderPageInput() {
@@ -218,9 +307,9 @@ function renderPageInput() {
       ${renderBackButton("childMaterial")}
       <h2 class="child-title">Welche Seite?</h2>
       <form class="page-form" onsubmit="savePage(event)">
-        <input class="page-input" id="pageInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="Seite" placeholder="Seite" autocomplete="off">
+        <input class="page-input" id="pageInput" type="text" inputmode="numeric" pattern="[0-9]*" aria-label="Seite" placeholder="Seite" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
         <button class="primary" type="submit">Weiter</button>
-        <p class="message" id="pageMessage"></p>
+        <p class="message error" id="pageMessage"></p>
       </form>
     </section>
   `;
@@ -228,14 +317,14 @@ function renderPageInput() {
 
 function savePage(event) {
   event.preventDefault();
-  const input = document.querySelector("#pageInput");
-  const page = Number(String(input.value).replace(/\D/g, ""));
+  const page = Number(document.querySelector("#pageInput").value);
   if (!page || page < 1) {
     document.querySelector("#pageMessage").textContent = "Bitte gib eine Seitenzahl größer als 0 ein.";
     return;
   }
   childDraft.seite = page;
-  setScreen("childStatus");
+  screen = "childStatus";
+  render();
 }
 
 function renderStatusSelection() {
@@ -244,9 +333,9 @@ function renderStatusSelection() {
       ${renderBackButton("childPage")}
       <h2 class="child-title">Wie ist dein Stand?</h2>
       <div class="status-list">
-        ${Object.entries(statusMeta).map(([status, meta]) => `
+        ${STATUSES.map((status) => `
           <button class="status-button" type="button" onclick="saveEntry('${status}')">
-            <span class="status-icon">${meta.icon}</span>${meta.childLabel}
+            <span class="status-icon">${STATUS_META[status].icon}</span>${STATUS_META[status].childLabel}
           </button>
         `).join("")}
       </div>
@@ -254,11 +343,13 @@ function renderStatusSelection() {
   `;
 }
 
-function saveEntry(status) {
-  const animal = state.animals.find((item) => item.id === childDraft.animalId);
+async function saveEntry(status) {
+  const animal = state.animals.find((item) => item.id === childDraft.animalId && item.classId === state.activeClassId);
   if (!animal || !childDraft.fach || !childDraft.materialName || !childDraft.seite) return;
-  state.entries.push({
+
+  const entry = {
     id: makeId(),
+    classId: state.activeClassId,
     tierID: animal.id,
     tierNameSnapshot: animal.tierName,
     tierEmojiSnapshot: animal.tierEmoji,
@@ -266,17 +357,33 @@ function saveEntry(status) {
     materialName: childDraft.materialName,
     seite: childDraft.seite,
     status,
-    erledigt: false,
-    datumUhrzeit: new Date().toISOString()
-  });
-  saveState();
-  setScreen("childConfirm");
-  window.setTimeout(() => {
-    if (screen === "childConfirm") startChildFlow();
-  }, 2000);
+    datumUhrzeit: nowIso(),
+    erledigt: false
+  };
+
+  await persist({ ...state, entries: [...state.entries, entry] });
+  screen = "childConfirm";
+  render();
+  if (!childDraft.fromQr) {
+    window.setTimeout(() => {
+      if (screen === "childConfirm") startChildFlow();
+    }, 2000);
+  }
 }
 
 function renderConfirmation() {
+  if (childDraft.fromQr) {
+    return `
+      <section class="confirm-box">
+        <div class="confirm-icon">✅</div>
+        <h2 class="confirm-title">Danke! Dein Stand ist gespeichert.</h2>
+        <div class="confirm-actions">
+          <button class="primary" type="button" onclick="startQrAgain()">Noch etwas eintragen</button>
+          <button class="secondary" type="button" onclick="goHome()">Zur Startseite</button>
+        </div>
+      </section>
+    `;
+  }
   return `
     <section class="confirm-box">
       <div class="confirm-icon">✅</div>
@@ -286,14 +393,20 @@ function renderConfirmation() {
   `;
 }
 
+function startQrAgain() {
+  childDraft = { animalId: childDraft.animalId, fromQr: true };
+  screen = "childSubject";
+  render();
+}
+
 function renderLogin() {
   return `
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
-        <div style="font-size:4.4rem">🔒</div>
-        <h2 class="child-title" style="margin:0">Lehrerinnenbereich</h2>
-        <input class="pin-input" id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="PIN" value="${escapeAttribute(loginPin)}" autocomplete="off">
-        ${loginError ? `<p class="message error">${loginError}</p>` : ""}
+        <div class="lock-icon">🔒</div>
+        <h2 class="child-title compact-title">Lehrerinnenbereich</h2>
+        <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+        ${loginError ? `<p class="message error">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
       </form>
     </section>
@@ -302,15 +415,15 @@ function renderLogin() {
 
 function checkPin(event) {
   event.preventDefault();
-  const value = document.querySelector("#pinInput").value.replace(/\D/g, "");
-  if (value === state.pin) {
+  const pin = document.querySelector("#pinInput").value.trim();
+  if (pin === state.pin) {
     teacherTab = "overview";
-    setScreen("teacher");
+    loginError = "";
+    screen = "teacher";
   } else {
-    loginPin = value;
     loginError = "Die PIN stimmt nicht.";
-    render();
   }
+  render();
 }
 
 function renderTeacher() {
@@ -319,9 +432,13 @@ function renderTeacher() {
     ["today", "Heute"],
     ["help", "Hilfe/Kontrolle"],
     ["history", "Verlauf"],
-    ["settings", "Einstellungen"],
-    ["export", "Export"]
+    ["classes", "Klassen & Gruppen"],
+    ["resources", "Tiere & Materialien"],
+    ["qrCards", "QR-Karten"],
+    ["backup", "Datensicherung"],
+    ["privacy", "Datenschutz & Zweck"]
   ];
+
   return `
     <section class="teacher-layout">
       <nav class="tabs" aria-label="Lehrerinnenbereich">
@@ -329,13 +446,18 @@ function renderTeacher() {
           <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
         `).join("")}
       </nav>
-      <div>${renderTeacherTab()}</div>
+      <div>
+        <div class="active-class-banner">Aktive Klasse: <strong>${escapeHtml(activeClass()?.name || "keine")}</strong></div>
+        ${globalMessage ? `<div class="toast">${escapeHtml(globalMessage)}</div>` : ""}
+        ${renderTeacherTab()}
+      </div>
     </section>
   `;
 }
 
 function setTeacherTab(tab) {
   teacherTab = tab;
+  globalMessage = "";
   render();
 }
 
@@ -344,17 +466,20 @@ function renderTeacherTab() {
   if (teacherTab === "today") return renderToday();
   if (teacherTab === "help") return renderHelp();
   if (teacherTab === "history") return renderHistory();
-  if (teacherTab === "settings") return renderSettings();
-  if (teacherTab === "export") return renderExport();
+  if (teacherTab === "classes") return renderClasses();
+  if (teacherTab === "resources") return renderResources();
+  if (teacherTab === "qrCards") return renderQrCards();
+  if (teacherTab === "backup") return renderBackup();
+  if (teacherTab === "privacy") return renderPrivacy();
   return "";
 }
 
 function renderOverview() {
-  const rows = state.animals.filter((animal) => animal.aktiv).map((animal) => {
+  const rows = animalsForActiveClass().filter((animal) => animal.aktiv).map((animal) => {
     const deutsch = latestEntry(animal.id, "Deutsch");
     const mathe = latestEntry(animal.id, "Mathe");
     const latest = latestEntry(animal.id);
-    const open = state.entries
+    const open = entriesForActiveClass()
       .filter((entry) => entry.tierID === animal.id && !entry.erledigt && entry.status !== "fertig")
       .sort(sortNewest)[0];
     const statusEntry = open || latest;
@@ -363,7 +488,7 @@ function renderOverview() {
         <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
         <td>${deutsch ? `${escapeHtml(deutsch.materialName)} S. ${deutsch.seite}` : "noch kein Eintrag"}</td>
         <td>${mathe ? `${escapeHtml(mathe.materialName)} S. ${mathe.seite}` : "noch kein Eintrag"}</td>
-        <td>${latest ? formatDateTime(latest.datumUhrzeit) : "noch kein Eintrag"}</td>
+        <td>${latest ? formatSmartDate(latest.datumUhrzeit) : "noch kein Eintrag"}</td>
         <td>${statusEntry ? statusBadge(statusEntry.status, statusEntry.erledigt) : "noch kein Eintrag"}</td>
       </tr>
     `;
@@ -374,8 +499,8 @@ function renderOverview() {
       <h2>Übersicht</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Tier</th><th>Deutsch</th><th>Mathe</th><th>letzter Eintrag</th><th>Status</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th>Tier</th><th>Deutsch: letzter Stand</th><th>Mathe: letzter Stand</th><th>letzter Eintrag</th><th>offener Status</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="5">noch kein Eintrag</td></tr>`}</tbody>
         </table>
       </div>
     </section>
@@ -384,17 +509,18 @@ function renderOverview() {
 
 function renderToday() {
   const today = new Date().toDateString();
-  const entries = state.entries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === today).sort(sortNewest);
+  const entries = entriesForActiveClass().filter((entry) => new Date(entry.datumUhrzeit).toDateString() === today).sort(sortNewest);
   return renderEntryTable("Heute", entries, false);
 }
 
 function renderHelp() {
-  const entries = state.entries
+  const entries = entriesForActiveClass()
     .filter((entry) => !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren"))
     .sort(sortNewest);
   if (!entries.length) {
     return `<section class="panel"><h2>Hilfe/Kontrolle</h2><div class="empty">Keine offenen Hilfe- oder Kontrollwünsche.</div></section>`;
   }
+
   return `
     <section class="panel">
       <h2>Hilfe/Kontrolle</h2>
@@ -405,8 +531,8 @@ function renderHelp() {
             ${entries.map((entry) => `
               <tr>
                 <td>${formatDateTime(entry.datumUhrzeit)}</td>
-                <td>${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</td>
-                <td>${entry.fach}</td>
+                <td>${entryAnimal(entry)}</td>
+                <td>${escapeHtml(entry.fach)}</td>
                 <td>${escapeHtml(entry.materialName)}</td>
                 <td>S. ${entry.seite}</td>
                 <td>${statusBadge(entry.status, entry.erledigt)}</td>
@@ -420,18 +546,14 @@ function renderHelp() {
   `;
 }
 
-function markEntryDone(entryId) {
-  const entry = state.entries.find((item) => item.id === entryId);
-  if (entry) {
-    entry.erledigt = true;
-    saveState();
-    render();
-  }
+async function markEntryDone(entryId) {
+  const entries = state.entries.map((entry) => entry.id === entryId ? { ...entry, erledigt: true } : entry);
+  await persistAndRender({ ...state, entries });
 }
 
 function renderHistory() {
-  const animalOptions = state.animals.map((animal) => `<option value="${animal.id}">${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("");
-  const materialOptions = [...new Set(state.materials.map((material) => material.materialName))]
+  const animalOptions = animalsForActiveClass().map((animal) => `<option value="${animal.id}">${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("");
+  const materialOptions = [...new Set(materialsForActiveClass().map((material) => material.materialName))]
     .sort((a, b) => a.localeCompare(b, "de"))
     .map((name) => `<option value="${escapeAttribute(name)}">${escapeHtml(name)}</option>`)
     .join("");
@@ -443,12 +565,12 @@ function renderHistory() {
         <label class="field">Tier<select class="select-input" id="filterAnimal"><option value="">Alle Tiere</option>${animalOptions}</select></label>
         <label class="field">Fach<select class="select-input" id="filterSubject"><option value="">Alle Fächer</option><option>Deutsch</option><option>Mathe</option></select></label>
         <label class="field">Material<select class="select-input" id="filterMaterial"><option value="">Alle Materialien</option>${materialOptions}</select></label>
-        <label class="field">Status<select class="select-input" id="filterStatus"><option value="">Alle Status</option><option>fertig</option><option>brauche Hilfe</option><option>bitte kontrollieren</option></select></label>
+        <label class="field">Status<select class="select-input" id="filterStatus"><option value="">Alle Status</option>${STATUSES.map((status) => `<option>${status}</option>`).join("")}</select></label>
         <label class="field">Zeitraum<select class="select-input" id="filterPeriod"><option value="all">alle</option><option value="today">heute</option><option value="week">diese Woche</option></select></label>
         <button class="primary" type="submit">Anzeigen</button>
       </form>
     </section>
-    <section class="panel" id="historyResults">${renderHistoryRows(state.entries.sort(sortNewest))}</section>
+    <section class="panel" id="historyResults">${renderHistoryRows(entriesForActiveClass().sort(sortNewest))}</section>
   `;
 }
 
@@ -459,8 +581,7 @@ function renderHistoryResults() {
   const status = document.querySelector("#filterStatus").value;
   const period = document.querySelector("#filterPeriod").value;
   const now = new Date();
-
-  const entries = state.entries.filter((entry) => {
+  const entries = entriesForActiveClass().filter((entry) => {
     const date = new Date(entry.datumUhrzeit);
     if (animal && entry.tierID !== animal) return false;
     if (subject && entry.fach !== subject) return false;
@@ -470,7 +591,6 @@ function renderHistoryResults() {
     if (period === "week" && !sameWeek(date, now)) return false;
     return true;
   }).sort(sortNewest);
-
   document.querySelector("#historyResults").innerHTML = renderHistoryRows(entries);
 }
 
@@ -484,8 +604,8 @@ function renderHistoryRows(entries) {
           ${entries.map((entry) => `
             <tr>
               <td>${formatDateTime(entry.datumUhrzeit)}</td>
-              <td>${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</td>
-              <td>${entry.fach}</td>
+              <td>${entryAnimal(entry)}</td>
+              <td>${escapeHtml(entry.fach)}</td>
               <td>${escapeHtml(entry.materialName)}</td>
               <td>S. ${entry.seite}</td>
               <td>${statusBadge(entry.status, entry.erledigt)}</td>
@@ -498,9 +618,7 @@ function renderHistoryRows(entries) {
 }
 
 function renderEntryTable(title, entries, showDate) {
-  if (!entries.length) {
-    return `<section class="panel"><h2>${title}</h2><div class="empty">Keine Einträge vorhanden.</div></section>`;
-  }
+  if (!entries.length) return `<section class="panel"><h2>${title}</h2><div class="empty">Keine Einträge vorhanden.</div></section>`;
   return `
     <section class="panel">
       <h2>${title}</h2>
@@ -511,8 +629,8 @@ function renderEntryTable(title, entries, showDate) {
             ${entries.map((entry) => `
               <tr>
                 <td>${showDate ? formatDateTime(entry.datumUhrzeit) : formatTime(entry.datumUhrzeit)}</td>
-                <td>${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</td>
-                <td>${entry.fach}</td>
+                <td>${entryAnimal(entry)}</td>
+                <td>${escapeHtml(entry.fach)}</td>
                 <td>${escapeHtml(entry.materialName)}</td>
                 <td>S. ${entry.seite}</td>
                 <td>${statusBadge(entry.status, entry.erledigt)}</td>
@@ -525,202 +643,400 @@ function renderEntryTable(title, entries, showDate) {
   `;
 }
 
-function renderSettings() {
+function renderClasses() {
   return `
-    ${renderAnimalSettings()}
-    ${renderMaterialSettings()}
-    ${renderPinSettings()}
     <section class="panel">
-      <h2>Datenschutz</h2>
-      <p class="privacy-text">Diese App speichert nur Tier-Pseudonyme, Fach, Material, Seite, Status und Datum lokal auf diesem iPad. Es werden keine Namen, Fotos oder Daten in eine Cloud übertragen.</p>
+      <h2>Klassen & Gruppen</h2>
+      <p class="message">Aktive Klasse für Kinderbereich: <strong>${escapeHtml(activeClass()?.name || "keine")}</strong></p>
+      <div class="class-list">
+        ${state.classes.map((classItem) => `
+          <div class="manage-row">
+            <input class="text-input" value="${escapeAttribute(classItem.name)}" aria-label="Name" onchange="updateClassItem('${classItem.id}', 'name', this.value)">
+            <input class="text-input" value="${escapeAttribute(classItem.beschreibung || "")}" aria-label="Beschreibung" placeholder="Beschreibung optional" onchange="updateClassItem('${classItem.id}', 'beschreibung', this.value)">
+            <button class="small-button" type="button" onclick="useClass('${classItem.id}')" ${classItem.id === state.activeClassId ? "disabled" : ""}>Als aktive Klasse verwenden</button>
+            <button class="danger" type="button" onclick="deleteEntriesForClass('${classItem.id}')">Arbeitsstände dieser Klasse löschen</button>
+            <button class="danger" type="button" onclick="deleteClassItem('${classItem.id}')">Klasse löschen</button>
+          </div>
+        `).join("")}
+      </div>
     </section>
     <section class="panel">
-      <h2>Daten löschen</h2>
-      <button class="danger" type="button" onclick="deleteEntries()">Alle Einträge löschen</button>
-      <button class="danger" type="button" onclick="resetApp()" style="margin-left:10px">App vollständig zurücksetzen</button>
+      <h2>Neue Klasse/Lerngruppe anlegen</h2>
+      <form class="inline-form" onsubmit="addClassItem(event)">
+        <label class="field">Name<input class="text-input" id="newClassName" autocomplete="off"></label>
+        <label class="field">Beschreibung optional<input class="text-input" id="newClassDescription" autocomplete="off"></label>
+        <button class="primary" type="submit">Anlegen</button>
+      </form>
     </section>
   `;
 }
 
-function renderAnimalSettings() {
+async function useClass(classId) {
+  await persistAndRender({ ...state, activeClassId: classId });
+}
+
+async function addClassItem(event) {
+  event.preventDefault();
+  const name = document.querySelector("#newClassName").value.trim();
+  const beschreibung = document.querySelector("#newClassDescription").value.trim();
+  if (!name) return;
+  const classItem = createClassItem(name, beschreibung);
+  await persistAndRender({
+    ...state,
+    activeClassId: classItem.id,
+    classes: [...state.classes, classItem],
+    animals: [...state.animals, ...createDefaultAnimals(classItem.id)],
+    materials: [...state.materials, ...createDefaultMaterials(classItem.id)]
+  });
+}
+
+async function updateClassItem(classId, field, value) {
+  const cleanValue = String(value).trim();
+  if (field === "name" && !cleanValue) return render();
+  const classes = state.classes.map((item) => item.id === classId ? { ...item, [field]: cleanValue } : item);
+  await persist({ ...state, classes });
+}
+
+async function deleteEntriesForClass(classId) {
+  if (!confirm("Alle Arbeitsstände dieser Klasse löschen? Tiere und Materialien bleiben erhalten.")) return;
+  await persistAndRender({ ...state, entries: state.entries.filter((entry) => entry.classId !== classId) });
+}
+
+async function deleteClassItem(classId) {
+  if (state.classes.length <= 1) {
+    alert("Die letzte Klasse kann nicht gelöscht werden.");
+    return;
+  }
+  if (!confirm("Diese Klasse und alle dazugehörigen Arbeitsstände werden gelöscht. Fortfahren?")) return;
+  if (!confirm("Bitte bestätige: Klasse wirklich löschen.")) return;
+  const classes = state.classes.filter((item) => item.id !== classId);
+  const activeClassId = state.activeClassId === classId ? classes[0]?.id || null : state.activeClassId;
+  await persistAndRender({
+    ...state,
+    activeClassId,
+    classes,
+    animals: state.animals.filter((item) => item.classId !== classId),
+    materials: state.materials.filter((item) => item.classId !== classId),
+    entries: state.entries.filter((item) => item.classId !== classId)
+  });
+}
+
+function renderResources() {
+  const animals = animalsForActiveClass();
   return `
     <section class="panel">
       <h2>Tiere verwalten</h2>
-      <p class="message">Keine Kindernamen verwenden.</p>
-      ${state.animals.map((animal) => `
+      <p class="message">Bitte keine Kindernamen verwenden. Die Zuordnung Tier zu Kind bleibt analog.</p>
+      ${animals.map((animal) => `
         <div class="editor-row">
-          <input class="text-input" value="${escapeAttribute(animal.tierEmoji)}" aria-label="Tier-Emoji" onchange="updateAnimal('${animal.id}', 'tierEmoji', this.value)">
+          <input class="text-input emoji-input" value="${escapeAttribute(animal.tierEmoji)}" aria-label="Tier-Emoji" onchange="updateAnimal('${animal.id}', 'tierEmoji', this.value)">
           <input class="text-input" value="${escapeAttribute(animal.tierName)}" aria-label="Tiername" onchange="updateAnimal('${animal.id}', 'tierName', this.value)">
           <label class="toggle-label"><input type="checkbox" ${animal.aktiv ? "checked" : ""} onchange="updateAnimal('${animal.id}', 'aktiv', this.checked)"> aktiv</label>
+          <button class="danger" type="button" onclick="deleteAnimal('${animal.id}')">löschen</button>
         </div>
       `).join("")}
       <form class="inline-form" onsubmit="addAnimal(event)">
-        <input class="text-input" id="newAnimalEmoji" placeholder="Emoji" aria-label="Neues Tier-Emoji">
+        <input class="text-input emoji-input" id="newAnimalEmoji" placeholder="Emoji" aria-label="Neues Tier-Emoji">
         <input class="text-input" id="newAnimalName" placeholder="Neues Tier" aria-label="Neues Tier">
-        <button class="primary" type="submit">Hinzufügen</button>
+        <button class="primary" type="submit">Tier hinzufügen</button>
       </form>
     </section>
-  `;
-}
-
-function updateAnimal(id, field, value) {
-  const animal = state.animals.find((item) => item.id === id);
-  if (!animal) return;
-  animal[field] = typeof value === "string" ? value.trim() : value;
-  saveState();
-}
-
-function addAnimal(event) {
-  event.preventDefault();
-  const emoji = document.querySelector("#newAnimalEmoji").value.trim();
-  const name = document.querySelector("#newAnimalName").value.trim();
-  if (!emoji || !name) return;
-  state.animals.push({ id: makeId(), tierName: name, tierEmoji: emoji, aktiv: true });
-  saveState();
-  render();
-}
-
-function renderMaterialSettings() {
-  return `
     <section class="panel">
       <h2>Materialien verwalten</h2>
-      ${["Deutsch", "Mathe"].map((subject) => `
-        <h3>${subject}</h3>
-        ${state.materials.filter((material) => material.fach === subject).map((material) => `
-          <div class="editor-row material-row">
-            <input class="text-input" value="${escapeAttribute(material.materialName)}" aria-label="Material" onchange="updateMaterial('${material.id}', 'materialName', this.value)">
-            <label class="toggle-label"><input type="checkbox" ${material.aktiv ? "checked" : ""} onchange="updateMaterial('${material.id}', 'aktiv', this.checked)"> aktiv</label>
-          </div>
-        `).join("")}
-        <form class="inline-form" onsubmit="addMaterial(event, '${subject}')">
-          <input class="text-input" id="newMaterial${subject}" placeholder="Neues Material" aria-label="Neues Material">
-          <button class="primary" type="submit">Hinzufügen</button>
-        </form>
-      `).join("")}
+      ${SUBJECTS.map((subject) => renderMaterialGroup(subject)).join("")}
     </section>
   `;
 }
 
-function updateMaterial(id, field, value) {
-  const material = state.materials.find((item) => item.id === id);
-  if (!material) return;
-  material[field] = typeof value === "string" ? value.trim() : value;
-  saveState();
+function renderMaterialGroup(subject) {
+  const materials = materialsForActiveClass().filter((material) => material.fach === subject);
+  return `
+    <div class="resource-group">
+      <h3>${subject}</h3>
+      ${materials.map((material) => `
+        <div class="editor-row material-row">
+          <input class="text-input" value="${escapeAttribute(material.materialName)}" aria-label="Material" onchange="updateMaterial('${material.id}', 'materialName', this.value)">
+          <label class="toggle-label"><input type="checkbox" ${material.aktiv ? "checked" : ""} onchange="updateMaterial('${material.id}', 'aktiv', this.checked)"> aktiv</label>
+          <button class="danger" type="button" onclick="deleteMaterial('${material.id}')">löschen</button>
+        </div>
+      `).join("")}
+      <form class="inline-form" onsubmit="addMaterial(event, '${subject}')">
+        <input class="text-input" id="newMaterial${subject}" placeholder="Neues Material" aria-label="Neues Material">
+        <button class="primary" type="submit">Material hinzufügen</button>
+      </form>
+    </div>
+  `;
 }
 
-function addMaterial(event, subject) {
+async function updateAnimal(animalId, field, value) {
+  const animals = state.animals.map((animal) => {
+    if (animal.id !== animalId) return animal;
+    if (field === "aktiv") return { ...animal, aktiv: Boolean(value) };
+    const cleanValue = String(value).trim();
+    return cleanValue ? { ...animal, [field]: cleanValue } : animal;
+  });
+  await persist({ ...state, animals });
+}
+
+async function addAnimal(event) {
+  event.preventDefault();
+  const tierEmoji = document.querySelector("#newAnimalEmoji").value.trim();
+  const tierName = document.querySelector("#newAnimalName").value.trim();
+  if (!tierEmoji || !tierName) return;
+  await persistAndRender({
+    ...state,
+    animals: [...state.animals, { id: makeId(), classId: state.activeClassId, tierName, tierEmoji, aktiv: true, qrToken: makeQrToken() }]
+  });
+}
+
+async function deleteAnimal(animalId) {
+  if (!confirm("Dieses Tier löschen? Bestehende Einträge bleiben im Verlauf mit dem gespeicherten Tier-Pseudonym erhalten.")) return;
+  await persistAndRender({ ...state, animals: state.animals.filter((animal) => animal.id !== animalId) });
+}
+
+async function updateMaterial(materialId, field, value) {
+  const materials = state.materials.map((material) => {
+    if (material.id !== materialId) return material;
+    if (field === "aktiv") return { ...material, aktiv: Boolean(value) };
+    const cleanValue = String(value).trim();
+    return cleanValue ? { ...material, [field]: cleanValue } : material;
+  });
+  await persist({ ...state, materials });
+}
+
+async function addMaterial(event, subject) {
   event.preventDefault();
   const input = document.querySelector(`#newMaterial${subject}`);
-  const name = input.value.trim();
-  if (!name) return;
-  state.materials.push({ id: makeId(), fach: subject, materialName: name, aktiv: true });
-  saveState();
-  render();
+  const materialName = input.value.trim();
+  if (!materialName) return;
+  await persistAndRender({
+    ...state,
+    materials: [...state.materials, { id: makeId(), classId: state.activeClassId, fach: subject, materialName, aktiv: true }]
+  });
 }
 
-function renderPinSettings() {
+async function deleteMaterial(materialId) {
+  if (!confirm("Dieses Material löschen? Bestehende Einträge bleiben im Verlauf erhalten.")) return;
+  await persistAndRender({ ...state, materials: state.materials.filter((material) => material.id !== materialId) });
+}
+
+function renderBackup() {
   return `
     <section class="panel">
-      <h2>PIN ändern</h2>
-      <form class="filters" onsubmit="changePin(event)">
-        <label class="field">Alte PIN<input class="text-input" id="oldPin" type="password" inputmode="numeric"></label>
-        <label class="field">Neue PIN<input class="text-input" id="newPin" type="password" inputmode="numeric"></label>
-        <label class="field">Neue PIN bestätigen<input class="text-input" id="confirmPin" type="password" inputmode="numeric"></label>
-        <button class="primary" type="submit">PIN speichern</button>
+      <h2>Datensicherung</h2>
+      <p class="privacy-text">Die Arbeitsstände werden lokal auf diesem iPad/in diesem Browser gespeichert. GitHub speichert nur die App-Dateien, nicht die Einträge. Erstelle regelmäßig ein Backup und speichere es an einem geschützten Ort.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="exportActiveClassBackup()">Backup aktive Klasse speichern</button>
+        <button class="primary" type="button" onclick="exportFullBackup()">Gesamtbackup speichern</button>
+        <button class="secondary" type="button" onclick="exportActiveClassCsv()">CSV aktive Klasse speichern</button>
+      </div>
+      <p class="message">Letzte lokale Speicherung: ${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</p>
+    </section>
+    <section class="panel">
+      <h2>Backup importieren</h2>
+      <p class="message">Dadurch können vorhandene Daten überschrieben oder ergänzt werden. Fortfahren?</p>
+      <form class="filters" onsubmit="importBackup(event)">
+        <label class="field">Import-Art
+          <select class="select-input" id="importMode">
+            <option value="newClass">als neue Klasse importieren</option>
+            <option value="restoreAll">Gesamtbackup wiederherstellen</option>
+          </select>
+        </label>
+        <label class="field">JSON-Datei
+          <input class="text-input" id="backupFile" type="file" accept="application/json,.json">
+        </label>
+        <button class="primary" type="submit">Import starten</button>
       </form>
-      <p class="message" id="pinMessage"></p>
     </section>
   `;
 }
 
-function changePin(event) {
-  event.preventDefault();
-  const oldPin = document.querySelector("#oldPin").value.replace(/\D/g, "");
-  const newPin = document.querySelector("#newPin").value.replace(/\D/g, "");
-  const confirmPin = document.querySelector("#confirmPin").value.replace(/\D/g, "");
-  const message = document.querySelector("#pinMessage");
-  if (oldPin !== state.pin || newPin.length < 4 || newPin !== confirmPin) {
-    message.textContent = "Bitte Eingaben prüfen.";
-    message.className = "message error";
-    return;
-  }
-  state.pin = newPin;
-  saveState();
-  message.textContent = "Die PIN wurde gespeichert.";
-  message.className = "message success";
-  event.target.reset();
-}
-
-function deleteEntries() {
-  if (!confirm("Wirklich alle Arbeitsstand-Einträge löschen? Tiere und Materialien bleiben erhalten.")) return;
-  state.entries = [];
-  saveState();
-  render();
-}
-
-function resetApp() {
-  if (!confirm("Wirklich alle Daten löschen und App zurücksetzen?")) return;
-  state = defaultState();
-  saveState();
-  render();
-}
-
-function renderExport() {
+function renderQrCards() {
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   return `
-    <section class="export-box big-card">
-      <div style="font-size:4.4rem">📄</div>
-      <h2 class="child-title" style="margin:0">CSV-Export</h2>
-      <p class="message">${state.entries.length} Einträge werden exportiert.</p>
-      <button class="primary" type="button" onclick="exportCsv()" ${state.entries.length ? "" : "disabled"}>CSV teilen oder herunterladen</button>
-      <p class="message">Datum, Uhrzeit, Tier, Fach, Material, Seite, Status, Erledigt</p>
+    <section class="panel">
+      <h2>QR-Karten</h2>
+      <p class="message">QR-Codes sind Schnellzugänge. Sie enthalten keine Namen und keine Arbeitsstände, sondern nur einen zufälligen technischen Zugangscode.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="printAllQrCards()">Alle QR-Karten der aktiven Klasse drucken</button>
+      </div>
+    </section>
+    <section class="qr-card-grid">
+      ${animals.map((animal) => renderQrCardPreview(animal)).join("") || `<div class="empty">Keine aktiven Tiere vorhanden.</div>`}
+    </section>
+    <div id="printArea" class="print-area" aria-hidden="true"></div>
+  `;
+}
+
+function renderQrCardPreview(animal) {
+  const qrUrl = getQrUrl(animal.qrToken);
+  return `
+    <article class="qr-card-preview" data-qr-url="${escapeAttribute(qrUrl)}">
+      <div class="qr-animal">
+        <span class="qr-animal-emoji">${escapeHtml(animal.tierEmoji)}</span>
+        <strong>${escapeHtml(animal.tierName)}</strong>
+      </div>
+      <div class="qr-code-wrap">${makeQrSvg(qrUrl, { scale: 4 })}</div>
+      <p class="qr-small">Arbeitsheft-Kompass</p>
+      <div class="qr-actions">
+        <button class="secondary" type="button" onclick="regenerateQrToken('${animal.id}')">QR-Code neu erzeugen</button>
+        <button class="primary" type="button" onclick="printSingleQrCard('${animal.id}')">QR-Karte drucken</button>
+      </div>
+    </article>
+  `;
+}
+
+async function regenerateQrToken(animalId) {
+  if (!confirm("Der alte QR-Code funktioniert danach nicht mehr. Fortfahren?")) return;
+  const animals = state.animals.map((animal) => animal.id === animalId ? { ...animal, qrToken: makeQrToken() } : animal);
+  await persistAndRender({ ...state, animals });
+}
+
+function printSingleQrCard(animalId) {
+  const animal = state.animals.find((item) => item.id === animalId && item.classId === state.activeClassId);
+  if (!animal) return;
+  printQrCards([animal]);
+}
+
+function printAllQrCards() {
+  printQrCards(animalsForActiveClass().filter((animal) => animal.aktiv));
+}
+
+function printQrCards(animals) {
+  const printArea = document.querySelector("#printArea");
+  if (!printArea) return;
+  printArea.innerHTML = `
+    <div class="qr-print-page">
+      ${animals.map((animal) => `
+        <article class="qr-print-card">
+          <div class="qr-print-emoji">${escapeHtml(animal.tierEmoji)}</div>
+          <div class="qr-print-name">${escapeHtml(animal.tierName)}</div>
+          <div class="qr-print-code">${makeQrSvg(getQrUrl(animal.qrToken), { scale: 4 })}</div>
+          <div class="qr-print-title">Arbeitsheft-Kompass</div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+  window.print();
+}
+
+async function exportActiveClassBackup() {
+  try {
+    const classItem = activeClass();
+    const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-backup-${formatFileDate(new Date())}.json`;
+    const content = JSON.stringify(makeActiveClassBackup(state, state.activeClassId), null, 2);
+    globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
+  } catch {
+    globalMessage = "Die Datei konnte nicht erstellt werden.";
+  }
+  render();
+}
+
+async function exportFullBackup() {
+  try {
+    const filename = `arbeitsheft-kompass-gesamtbackup-${formatFileDate(new Date())}.json`;
+    const content = JSON.stringify(makeFullBackup(state), null, 2);
+    globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
+  } catch {
+    globalMessage = "Die Datei konnte nicht erstellt werden.";
+  }
+  render();
+}
+
+async function exportActiveClassCsv() {
+  try {
+    const classItem = activeClass();
+    const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-export-${formatFileDate(new Date())}.csv`;
+    globalMessage = await saveFileWithPickerOrDownload(filename, "text/csv", makeCsvForClass(state, state.activeClassId));
+  } catch {
+    globalMessage = "Die Datei konnte nicht erstellt werden.";
+  }
+  render();
+}
+
+async function importBackup(event) {
+  event.preventDefault();
+  const file = document.querySelector("#backupFile").files[0];
+  const mode = document.querySelector("#importMode").value;
+  if (!file) return;
+  if (!confirm("Dadurch können vorhandene Daten überschrieben oder ergänzt werden. Fortfahren?")) return;
+
+  try {
+    const backup = JSON.parse(await file.text());
+    const nextState = mode === "restoreAll" ? restoreFullBackup(backup) : importActiveClassAsNew(state, backup);
+    await persist(nextState);
+    globalMessage = "Backup wurde importiert.";
+  } catch (error) {
+    globalMessage = error.message || "Backup konnte nicht importiert werden.";
+  }
+  render();
+}
+
+function renderPrivacy() {
+  return `
+    <section class="panel privacy-panel">
+      <h2>Datenschutz & Zweck</h2>
+      <p>Diese App dient der Dokumentation von Arbeitsständen in Deutsch und Mathe zur Unterrichtsorganisation. Es werden keine Klarnamen der Kinder gespeichert. Die Kinder arbeiten mit Tier-Pseudonymen. Die Zuordnung Tier zu Kind wird nicht digital gespeichert, sondern bleibt ausschließlich analog bei der Lehrkraft.</p>
+      <p>Für jedes Tier kann ein QR-Code erzeugt werden. Der QR-Code enthält keinen Kindernamen und keine Leistungsdaten, sondern nur einen zufälligen technischen Zugangscode. Die Zuordnung Tier zu Kind bleibt weiterhin ausschließlich analog bei der Lehrkraft.</p>
+      <h3>Gespeichert werden nur:</h3>
+      <ul>
+        <li>Klasse/Lerngruppe</li>
+        <li>Tier-Pseudonym</li>
+        <li>Fach</li>
+        <li>Material</li>
+        <li>Seite</li>
+        <li>Status</li>
+        <li>Datum/Uhrzeit</li>
+        <li>erledigt-Status</li>
+      </ul>
+      <h3>Nicht gespeichert werden:</h3>
+      <ul>
+        <li>Namen</li>
+        <li>Fotos</li>
+        <li>Handschrift</li>
+        <li>Noten</li>
+        <li>freie Leistungs- oder Verhaltenskommentare</li>
+        <li>KI-Auswertungen</li>
+      </ul>
+      <p>Die Daten werden lokal auf diesem iPad/in diesem Browser gespeichert. Backups sollen nur an einem geschützten Speicherort abgelegt werden.</p>
     </section>
   `;
 }
 
-async function exportCsv() {
-  const csv = makeCsv();
-  const fileName = `arbeitsheft-kompass-export-${formatFileDate(new Date())}.csv`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const file = new File([blob], fileName, { type: "text/csv" });
-
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: "Arbeitsheft-Kompass Export" });
-    return;
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+function activeClass() {
+  return state.classes.find((item) => item.id === state.activeClassId);
 }
 
-function makeCsv() {
-  const header = ["Datum", "Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"];
-  const rows = state.entries.sort((a, b) => new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit)).map((entry) => [
-    formatFileDate(new Date(entry.datumUhrzeit)),
-    formatTime(entry.datumUhrzeit),
-    `${entry.tierEmojiSnapshot} ${entry.tierNameSnapshot}`,
-    entry.fach,
-    entry.materialName,
-    entry.seite,
-    entry.status,
-    entry.erledigt ? "ja" : "nein"
-  ]);
-  return [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+function selectedAnimal() {
+  return state.animals.find((item) => item.id === childDraft.animalId && item.classId === state.activeClassId);
+}
+
+function animalsForActiveClass() {
+  return state.animals.filter((item) => item.classId === state.activeClassId);
+}
+
+function materialsForActiveClass() {
+  return state.materials.filter((item) => item.classId === state.activeClassId);
+}
+
+function entriesForActiveClass() {
+  return state.entries.filter((item) => item.classId === state.activeClassId);
 }
 
 function latestEntry(animalId, subject) {
-  return state.entries
+  return entriesForActiveClass()
     .filter((entry) => entry.tierID === animalId && (!subject || entry.fach === subject))
     .sort(sortNewest)[0];
 }
 
 function statusBadge(status, finished) {
   if (finished) return `<span class="badge finished">erledigt</span>`;
-  const meta = statusMeta[status] || statusMeta.fertig;
-  return `<span class="badge ${meta.className}">${meta.label}</span>`;
+  const meta = STATUS_META[status] || STATUS_META.fertig;
+  return `<span class="badge ${meta.className}">${escapeHtml(meta.label)}</span>`;
+}
+
+function entryAnimal(entry) {
+  return `${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}`;
 }
 
 function sortNewest(a, b) {
@@ -746,6 +1062,13 @@ function formatDateTime(value) {
   return new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function formatSmartDate(value) {
+  const date = new Date(value);
+  const today = new Date().toDateString();
+  const label = date.toDateString() === today ? "heute" : new Intl.DateTimeFormat("de-DE", { dateStyle: "short" }).format(date);
+  return `${label} ${formatTime(value)}`;
+}
+
 function formatTime(value) {
   return new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
@@ -755,12 +1078,6 @@ function formatFileDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) return `"${text.replaceAll('"', '""')}"`;
-  return text;
 }
 
 function escapeHtml(value) {
@@ -775,5 +1092,3 @@ function escapeHtml(value) {
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("\n", " ");
 }
-
-render();

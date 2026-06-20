@@ -1,0 +1,24 @@
+{
+  "name": "Arbeitsheft-Kompass",
+  "short_name": "Heft-Kompass",
+  "display": "standalone",
+  "start_url": "./",
+  "scope": "./",
+  "theme_color": "#dff3ff",
+  "background_color": "#eaf7ff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Grundschrift";
+  src:
+    local("Grundschrift"),
+    url("fonts/Grundschrift.woff2") format("woff2");
+  font-display: swap;
+}
+
 :root {
   --bg: #eaf7ff;
   --child-bg: #eafbf6;
@@ -14,7 +22,8 @@
   --blue: #1f66c2;
   --blue-bg: #e0eeff;
   --red: #c83b3b;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --red-bg: #ffe7e7;
+  font-family: "Grundschrift", "Comic Sans MS", "Trebuchet MS", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -41,7 +50,7 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: 0.52;
 }
 
 .app-shell {
@@ -51,6 +60,34 @@ button:disabled {
 
 .app-shell.child {
   background: var(--child-bg);
+}
+
+.setup-shell {
+  display: grid;
+  place-items: center;
+}
+
+.setup-card,
+.big-card,
+.panel {
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 16px 34px rgba(40, 74, 105, 0.12);
+}
+
+.setup-card {
+  width: min(100%, 820px);
+  padding: 30px;
+}
+
+.setup-form,
+.login-box,
+.page-form,
+.status-list,
+.confirm-box,
+.export-box {
+  display: grid;
+  gap: 18px;
 }
 
 .topbar {
@@ -67,6 +104,11 @@ button:disabled {
   gap: 4px;
 }
 
+.start-brand {
+  margin-bottom: 34px;
+  text-align: center;
+}
+
 .brand-title {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.4rem);
@@ -74,11 +116,12 @@ button:disabled {
   letter-spacing: 0;
 }
 
-.brand-subtitle {
+.brand-subtitle,
+.active-note {
   margin: 0;
   color: var(--muted);
   font-size: clamp(1rem, 2vw, 1.35rem);
-  font-weight: 650;
+  font-weight: 750;
 }
 
 .center-stage {
@@ -95,19 +138,22 @@ button:disabled {
 }
 
 .start-card,
-.big-card {
-  min-height: 260px;
-  padding: 30px;
+.animal-button,
+.material-button,
+.subject-button,
+.status-button {
   border-radius: 8px;
   background: var(--panel);
   color: var(--text);
-  box-shadow: 0 16px 34px rgba(40, 74, 105, 0.12);
+  box-shadow: 0 10px 24px rgba(40, 74, 105, 0.1);
 }
 
 .start-card {
+  min-height: 260px;
   display: grid;
   place-items: center;
   gap: 22px;
+  padding: 30px;
   text-align: center;
 }
 
@@ -128,11 +174,26 @@ button:disabled {
   line-height: 1.12;
 }
 
+.step-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.step-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
 .child-title {
   margin: 0 0 24px;
-  font-size: clamp(2.3rem, 4.5vw, 3.8rem);
+  font-size: clamp(2.25rem, 4.5vw, 3.8rem);
   line-height: 1.05;
   letter-spacing: 0;
+}
+
+.compact-title {
+  margin: 0;
 }
 
 .animal-grid,
@@ -141,16 +202,6 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 18px;
-}
-
-.animal-button,
-.material-button,
-.subject-button,
-.status-button {
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: 0 10px 24px rgba(40, 74, 105, 0.1);
 }
 
 .animal-button {
@@ -168,20 +219,9 @@ button:disabled {
 .animal-name {
   display: block;
   font-size: 1.24rem;
-  font-weight: 800;
+  font-weight: 850;
   line-height: 1.15;
   overflow-wrap: anywhere;
-}
-
-.step-wrap {
-  max-width: 1120px;
-  margin: 0 auto;
-}
-
-.step-actions {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 22px;
 }
 
 .subject-grid {
@@ -197,7 +237,7 @@ button:disabled {
   font-weight: 850;
 }
 
-.subject-button .subject-icon {
+.subject-icon {
   display: block;
   margin-bottom: 20px;
   font-size: 4rem;
@@ -219,17 +259,15 @@ button:disabled {
 .confirm-box,
 .login-box,
 .export-box {
-  display: grid;
   justify-items: center;
-  gap: 22px;
   max-width: 660px;
   margin: 0 auto;
 }
 
-.page-input,
-.pin-input,
 .text-input,
-.select-input {
+.select-input,
+.page-input,
+.pin-input {
   width: 100%;
   min-height: 54px;
   padding: 12px 14px;
@@ -255,11 +293,16 @@ button:disabled {
   font-weight: 800;
 }
 
+.emoji-input {
+  text-align: center;
+}
+
 .status-list {
   align-items: stretch;
 }
 
 .status-button {
+  width: min(100%, 660px);
   min-height: 100px;
   padding: 20px 28px;
   text-align: left;
@@ -267,7 +310,7 @@ button:disabled {
   font-weight: 850;
 }
 
-.status-button .status-icon {
+.status-icon {
   margin-right: 14px;
 }
 
@@ -277,8 +320,16 @@ button:disabled {
   text-align: center;
 }
 
-.confirm-icon {
-  font-size: 5.8rem;
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.confirm-icon,
+.lock-icon {
+  font-size: 5rem;
 }
 
 .confirm-title {
@@ -294,16 +345,12 @@ button:disabled {
   min-height: 46px;
   padding: 12px 18px;
   border-radius: 8px;
-  font-weight: 800;
+  font-weight: 850;
 }
 
 .primary {
   background: var(--brand);
   color: #fff;
-}
-
-.primary:active {
-  background: var(--brand-dark);
 }
 
 .secondary {
@@ -327,7 +374,7 @@ button:disabled {
 
 .teacher-layout {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: 238px minmax(0, 1fr);
   gap: 22px;
 }
 
@@ -350,7 +397,7 @@ button:disabled {
   background: transparent;
   color: var(--text);
   text-align: left;
-  font-weight: 800;
+  font-weight: 850;
 }
 
 .tab-button.active {
@@ -358,15 +405,24 @@ button:disabled {
   color: var(--brand-dark);
 }
 
-.panel {
-  padding: 18px;
+.active-class-banner,
+.toast {
+  margin-bottom: 14px;
+  padding: 12px 14px;
   border-radius: 8px;
-  background: var(--panel);
-  box-shadow: 0 12px 28px rgba(40, 74, 105, 0.08);
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 8px 18px rgba(40, 74, 105, 0.08);
 }
 
-.panel + .panel {
-  margin-top: 18px;
+.toast {
+  color: var(--green);
+  font-weight: 850;
+}
+
+.panel {
+  padding: 18px;
+  margin-bottom: 18px;
 }
 
 .panel h2,
@@ -410,7 +466,8 @@ th {
   white-space: nowrap;
 }
 
-.badge.done {
+.badge.done,
+.badge.finished {
   color: var(--green);
   background: var(--green-bg);
 }
@@ -425,52 +482,129 @@ th {
   background: var(--blue-bg);
 }
 
-.badge.finished {
-  color: var(--green);
-  background: var(--green-bg);
-}
-
 .empty {
   min-height: 220px;
   display: grid;
   place-items: center;
   color: var(--muted);
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 750;
   text-align: center;
 }
 
-.filters,
-.editor-row,
-.inline-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  align-items: end;
-}
-
-.editor-row {
-  grid-template-columns: 86px minmax(170px, 1fr) 110px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.material-row {
-  grid-template-columns: minmax(170px, 1fr) 110px;
-}
-
-.field label,
+.field,
 .toggle-label {
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-weight: 800;
+  font-weight: 850;
 }
 
 .toggle-label {
   grid-template-columns: auto 1fr;
   align-items: center;
   color: var(--text);
+}
+
+.filters,
+.inline-form,
+.backup-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.qr-greeting {
+  margin: 0 0 12px;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  color: var(--brand-dark);
+}
+
+.qr-error-card {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+
+.qr-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.qr-card-preview {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 18px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(40, 74, 105, 0.08);
+  text-align: center;
+}
+
+.qr-animal {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  font-size: 1.35rem;
+}
+
+.qr-animal-emoji {
+  font-size: 3.7rem;
+  line-height: 1;
+}
+
+.qr-code-wrap {
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qr-svg {
+  display: block;
+  width: min(100%, 190px);
+  height: auto;
+}
+
+.qr-small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.qr-actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.print-area {
+  display: none;
+}
+
+.class-list,
+.resource-group {
+  display: grid;
+  gap: 12px;
+}
+
+.manage-row,
+.editor-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.editor-row {
+  grid-template-columns: 86px minmax(170px, 1fr) 110px auto;
+}
+
+.material-row {
+  grid-template-columns: minmax(170px, 1fr) 110px auto;
 }
 
 .message {
@@ -482,30 +616,19 @@ th {
   color: var(--red);
 }
 
-.message.success {
-  color: var(--green);
-}
-
-.privacy-text {
+.privacy-text,
+.privacy-panel p,
+.privacy-panel li {
   color: var(--muted);
   font-size: 1.05rem;
   line-height: 1.55;
 }
 
-@media (max-width: 850px) {
-  .app-shell {
-    padding: 18px;
-  }
-
+@media (max-width: 920px) {
   .start-grid,
   .subject-grid,
   .teacher-layout {
     grid-template-columns: 1fr;
-  }
-
-  .start-card,
-  .subject-button {
-    min-height: 190px;
   }
 
   .tabs {
@@ -516,9 +639,19 @@ th {
   .tab-button {
     text-align: center;
   }
+
+  .manage-row,
+  .editor-row,
+  .material-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
+  .app-shell {
+    padding: 18px;
+  }
+
   .animal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -526,9 +659,64 @@ th {
   .tabs {
     grid-template-columns: 1fr;
   }
+}
 
-  .editor-row,
-  .material-row {
-    grid-template-columns: 1fr;
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #printArea,
+  #printArea * {
+    visibility: visible;
+  }
+
+  #printArea {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: #fff;
+  }
+
+  .qr-print-page {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10mm;
+    padding: 12mm;
+  }
+
+  .qr-print-card {
+    min-height: 118mm;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    justify-items: center;
+    align-items: center;
+    gap: 4mm;
+    padding: 8mm;
+    border: 1.5pt dashed #8aa1b8;
+    border-radius: 6mm;
+    break-inside: avoid;
+    color: #17324d;
+    background: #fff;
+  }
+
+  .qr-print-emoji {
+    font-size: 44pt;
+    line-height: 1;
+  }
+
+  .qr-print-name {
+    font-size: 22pt;
+    font-weight: 850;
+  }
+
+  .qr-print-code .qr-svg {
+    width: 42mm;
+    height: 42mm;
+  }
+
+  .qr-print-title {
+    font-size: 11pt;
+    font-weight: 800;
   }
 }

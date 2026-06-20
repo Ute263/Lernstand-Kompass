@@ -1,30 +1,54 @@
 # Arbeitsheft-Kompass
 
-Eine einfache lokale iPad-Web-App für GitHub Pages.
+Eine GitHub-Pages-App für eine einzelne Lehrkraft. GitHub speichert nur diese App-Dateien. Die Arbeitsstände werden lokal auf dem iPad/in diesem Browser gespeichert.
 
-## So nutzt du sie mit GitHub
+## Dateien für GitHub Pages
 
-1. Erstelle bei GitHub ein neues Repository.
-2. Lade diese Dateien hoch:
-   - `index.html`
-   - `styles.css`
-   - `app.js`
-3. Öffne im Repository `Settings`.
-4. Öffne `Pages`.
-5. Wähle bei `Build and deployment` den Branch `main` und den Ordner `/root`.
-6. Speichern.
+Diese Dateien müssen direkt im Repository liegen:
 
-Nach kurzer Zeit zeigt GitHub einen Link an. Diesen Link kannst du auf dem iPad öffnen.
+- `index.html`
+- `styles.css`
+- `models.js`
+- `storage.js`
+- `export.js`
+- `qrcode.js`
+- `app.js`
+- `pwa.js`
+- `manifest.json`
+- `service-worker.js`
+- `.nojekyll`
+- `icons/icon-192.svg`
+- `icons/icon-512.svg`
 
-## Wichtig
+## GitHub Pages aktivieren
 
-- Die App speichert Daten nur lokal im Browser des iPads.
-- Es gibt keine Anmeldung mit echten Namen.
-- Es gibt keine Fotos, keine Cloud, keine KI und keine externe Datenübertragung.
-- Standard-PIN: `2468`
+1. Repository öffnen.
+2. `Settings` öffnen.
+3. Links `Pages` öffnen.
+4. Bei `Build and deployment` auswählen:
+   - `Source`: `Deploy from a branch`
+   - `Branch`: `main`
+   - Ordner: `/(root)`
+5. Speichern.
 
-## Dateien
+## Speicherung
 
-- `index.html`: Startdatei
-- `styles.css`: Gestaltung
-- `app.js`: App-Logik und lokale Speicherung
+- bevorzugt IndexedDB
+- fallback über localStorage
+- Speicherung nach jeder Änderung
+- keine externe Datenbank
+- keine Cloud-Synchronisation
+
+## QR-Karten
+
+Im Lehrerinnenbereich gibt es den Tab `QR-Karten`. Dort können QR-Karten für die aktive Klasse angezeigt, neu erzeugt und gedruckt werden. Die QR-Codes enthalten keine Kindernamen und keine Arbeitsstände, sondern nur eine App-URL mit zufälligem Token.
+
+## Schrift
+
+Die App ist auf `Grundschrift` eingestellt. Wenn eine passende Schriftdatei vorhanden ist, lege sie so ab:
+
+```text
+fonts/Grundschrift.woff2
+```
+
+Ohne diese Datei nutzt der Browser automatisch eine freundliche Ersatzschrift.
