@@ -49,6 +49,10 @@ Im Lehrerinnenbereich gibt es den Tab `Excel-Export`. Dort können gestaltete `.
 
 Die Arbeitsmappe enthält die Blätter `Start`, `Klassenübersicht`, `Fortschritt`, `Hilfe & Kontrolle`, `Heute`, `Druckübersicht` und `Daten`. Sie enthält keine Kindernamen und keine QR-Tokens.
 
+## Druckansicht / PDF
+
+Im Lehrerinnenbereich gibt es den Tab `Druckansicht / PDF`. Dort können Tagesübersicht, Wochenübersicht, Hilfe & Kontrolle, Fortschritt und Gesamtbericht direkt in der App als gestaltete Druckvorschau geöffnet werden. Über den Browser-Druckdialog kann die Lehrkraft die Ansicht drucken oder als PDF speichern.
+
 Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` erzeugt. Es wird kein CDN zur Laufzeit verwendet. Falls die `.xlsx`-Erzeugung in einem Browser nicht klappt, stehen einfache CSV-Exporte als Fallback bereit.
 
 ## Fortschritt

@@ -16,6 +16,7 @@ let scannerStream = null;
 let scannerTimer = null;
 let barcodeDetector = null;
 let progressDetailAnimalId = "";
+let currentPrintType = "";
 let progressFilters = {
   classId: "",
   fach: "",
@@ -110,6 +111,10 @@ function render() {
   }
   if (screen === "teacher") {
     app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrerinnenbereich")}${renderTeacher()}</main>`;
+    return;
+  }
+  if (screen === "printView") {
+    app.innerHTML = renderPrintScreen();
     return;
   }
   app.innerHTML = renderStart();
@@ -727,6 +732,7 @@ function renderTeacher() {
     ["security", "PIN & Sicherheit"],
     ["storageStatus", "Speicherstatus"],
     ["excelExport", "Excel-Export"],
+    ["printPdf", "Druckansicht / PDF"],
     ["backup", "Datensicherung"],
     ["privacy", "Datenschutz & Zweck"]
   ];
@@ -766,6 +772,7 @@ function renderTeacherTab() {
   if (teacherTab === "security") return renderSecurity();
   if (teacherTab === "storageStatus") return renderStorageStatus();
   if (teacherTab === "excelExport") return renderExcelExport();
+  if (teacherTab === "printPdf") return renderPrintPdf();
   if (teacherTab === "backup") return renderBackup();
   if (teacherTab === "privacy") return renderPrivacy();
   return "";
@@ -1490,6 +1497,603 @@ function renderExcelExport() {
         </div>
       </details>
     </section>
+  `;
+}
+
+function renderPrintPdf() {
+  return `
+    <section class="panel">
+      <h2>Druckansicht / PDF</h2>
+      <p class="privacy-text">Öffnet eine gestaltete Druckansicht direkt aus der App. Im Druckdialog kann die Übersicht auch als PDF gespeichert werden. Es werden keine Kindernamen, QR-Tokens, Fotos oder KI-Daten angezeigt.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="renderPrintView('today')">Tagesübersicht drucken</button>
+        <button class="primary" type="button" onclick="renderPrintView('week')">Wochenübersicht drucken</button>
+        <button class="secondary" type="button" onclick="renderPrintView('helpControl')">Hilfe & Kontrolle drucken</button>
+        <button class="secondary" type="button" onclick="renderPrintView('progress')">Fortschritt drucken</button>
+        <button class="primary" type="button" onclick="renderPrintView('report')">Gesamtbericht drucken</button>
+      </div>
+      <p class="message">Die Druckansicht liest nur die lokal gespeicherten Daten und verändert keine Arbeitsstände.</p>
+    </section>
+  `;
+}
+
+function renderPrintView(type) {
+  currentPrintType = type;
+  screen = "printView";
+  render();
+}
+
+function closePrintView() {
+  currentPrintType = "";
+  screen = "teacher";
+  teacherTab = "printPdf";
+  render();
+}
+
+function renderPrintScreen() {
+  const classItem = activeClass();
+  const className = classItem?.name || "keine aktive Klasse";
+  const generatedAt = new Date();
+  const context = buildPrintContext(classItem, generatedAt);
+  const titles = {
+    today: "Arbeitsheft-Kompass – Tagesübersicht",
+    week: "Arbeitsheft-Kompass – Wochenübersicht",
+    helpControl: "Offene Hilfe und Kontrolle",
+    progress: "Fortschritt und Arbeitstempo",
+    report: "Arbeitsheft-Kompass – Gesamtbericht"
+  };
+  const type = currentPrintType || "today";
+  return `
+    <style>${printViewCss()}</style>
+    <div class="print-toolbar" aria-label="Druckwerkzeuge">
+      <strong>${escapeHtml(titles[type] || "Druckansicht")}</strong>
+      <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
+      <button type="button" onclick="closePrintView()">Zurück</button>
+      <button type="button" onclick="closePrintView()">Fenster schließen</button>
+    </div>
+    <main class="print-page">
+      ${type === "today" ? renderPrintToday(context, className, generatedAt) : ""}
+      ${type === "week" ? renderPrintWeek(context, className, generatedAt) : ""}
+      ${type === "helpControl" ? renderPrintHelpControl(context, className, generatedAt) : ""}
+      ${type === "progress" ? renderPrintProgress(context, className, generatedAt) : ""}
+      ${type === "report" ? renderPrintReport(context, className, generatedAt) : ""}
+    </main>
+  `;
+}
+
+function buildPrintContext(classItem, generatedAt) {
+  const classId = classItem?.id || state.activeClassId;
+  const animals = state.animals.filter((animal) => animal.classId === classId && animal.aktiv);
+  const entries = state.entries.filter((entry) => entry.classId === classId);
+  const todayStart = new Date(generatedAt);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = addDays(todayStart, 1);
+  const weekStart = startOfWeek(generatedAt);
+  const weekEnd = addDays(weekStart, 7);
+  const todayEntries = entries.filter((entry) => {
+    const date = new Date(entry.datumUhrzeit);
+    return date >= todayStart && date < todayEnd;
+  }).sort(sortNewest);
+  const weekEntries = entries.filter((entry) => {
+    const date = new Date(entry.datumUhrzeit);
+    return date >= weekStart && date < weekEnd;
+  }).sort(sortNewest);
+  const openEntries = entries
+    .filter((entry) => !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren"))
+    .sort(sortNewest);
+  const staleAnimals = animals.filter((animal) => {
+    const latest = entries.filter((entry) => entry.tierID === animal.id).sort(sortNewest)[0];
+    return !latest || daysSince(latest.datumUhrzeit) >= (state.progressSettings || DEFAULT_PROGRESS_SETTINGS).staleDays;
+  });
+  const progressRows = sortProgressRows(buildProgressRows({
+    classId,
+    fach: "",
+    material: "",
+    animalId: "",
+    period: "week"
+  }), "animal");
+  const overviewRows = buildBeautifulOverviewRows(animals, entries);
+  return {
+    classId,
+    animals,
+    entries,
+    todayEntries,
+    weekEntries,
+    openEntries,
+    staleAnimals,
+    progressRows,
+    overviewRows
+  };
+}
+
+function renderPrintToday(context, className, generatedAt) {
+  return `
+    ${printHero("Arbeitsheft-Kompass – Tagesübersicht", `Klasse: ${className} · Datum: ${formatGermanDate(generatedAt)}`)}
+    ${renderPrintKpis([
+      ["Einträge heute", context.todayEntries.length, "neutral"],
+      ["Offene Hilfe", context.openEntries.filter((entry) => entry.status === "brauche Hilfe").length, "help"],
+      ["Offene Kontrolle", context.openEntries.filter((entry) => entry.status === "bitte kontrollieren").length, "check"],
+      ["Länger kein Eintrag", context.staleAnimals.length, "stale"]
+    ])}
+    <section class="print-section">
+      <h2>Heute bearbeitet</h2>
+      ${context.todayEntries.length ? renderPrintEntryTable(context.todayEntries, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status"], false) : printEmpty("Heute wurden noch keine Arbeitsstände eingetragen.")}
+    </section>
+  `;
+}
+
+function renderPrintWeek(context, className, generatedAt) {
+  return `
+    ${printHero("Arbeitsheft-Kompass – Wochenübersicht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    ${renderPrintKpis([
+      ["Tiere mit Eintrag", new Set(context.weekEntries.map((entry) => entry.tierID)).size, "neutral"],
+      ["Einträge diese Woche", context.weekEntries.length, "neutral"],
+      ["Offene Hilfe", context.openEntries.filter((entry) => entry.status === "brauche Hilfe").length, "help"],
+      ["Offene Kontrolle", context.openEntries.filter((entry) => entry.status === "bitte kontrollieren").length, "check"],
+      ["Deutsch Durchschnitt", formatAverage(latestPagesByAnimalSubject(context.entries, "Deutsch")), "deutsch"],
+      ["Mathe Durchschnitt", formatAverage(latestPagesByAnimalSubject(context.entries, "Mathe")), "mathe"]
+    ])}
+    ${renderPrintOverviewSection(context.overviewRows)}
+  `;
+}
+
+function renderPrintHelpControl(context, className, generatedAt) {
+  return `
+    ${printHero("Offene Hilfe und Kontrolle", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    <section class="print-section">
+      ${context.openEntries.length ? renderPrintHelpCards(context.openEntries) : printEmpty("Keine offenen Hilfe- oder Kontrollwünsche.")}
+    </section>
+  `;
+}
+
+function renderPrintProgress(context, className, generatedAt) {
+  return `
+    ${printHero("Fortschritt und Arbeitstempo", `Klasse: ${className} · Zeitraum: diese Woche · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    <section class="print-section">
+      ${renderPrintProgressTable(context.progressRows)}
+    </section>
+  `;
+}
+
+function renderPrintReport(context, className, generatedAt) {
+  const dataRows = context.entries.slice().sort(sortNewest).slice(0, 20);
+  return `
+    ${printHero("Arbeitsheft-Kompass – Gesamtbericht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    ${renderPrintKpis([
+      ["Aktive Tiere", context.animals.length, "neutral"],
+      ["Einträge diese Woche", context.weekEntries.length, "neutral"],
+      ["Einträge heute", context.todayEntries.length, "neutral"],
+      ["Offene Hilfe", context.openEntries.filter((entry) => entry.status === "brauche Hilfe").length, "help"],
+      ["Offene Kontrolle", context.openEntries.filter((entry) => entry.status === "bitte kontrollieren").length, "check"],
+      ["Länger kein Eintrag", context.staleAnimals.length, "stale"]
+    ])}
+    ${renderPrintOverviewSection(context.overviewRows)}
+    <div class="page-break"></div>
+    ${printSectionTitle("Hilfe & Kontrolle")}
+    ${context.openEntries.length ? renderPrintHelpCards(context.openEntries) : printEmpty("Keine offenen Hilfe- oder Kontrollwünsche.")}
+    <div class="page-break"></div>
+    ${printSectionTitle("Fortschritt")}
+    ${renderPrintProgressTable(context.progressRows)}
+    ${dataRows.length ? `
+      <div class="page-break"></div>
+      ${printSectionTitle("Kurze Rohdatenübersicht")}
+      ${renderPrintEntryTable(dataRows, ["Datum", "Tier", "Fach", "Material", "Seite", "Status"], true)}
+    ` : ""}
+  `;
+}
+
+function renderPrintOverviewSection(rows) {
+  return `
+    <section class="print-section">
+      <h2>Übersicht pro Tier</h2>
+      <table class="planner-table">
+        <thead>
+          <tr><th>Tier</th><th>Deutsch letzter Stand</th><th>Mathe letzter Stand</th><th>letzte Aktivität</th><th>offener Status</th><th>Hinweis</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td class="print-animal">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</td>
+              <td>${escapeHtml(row.deutsch)}</td>
+              <td>${escapeHtml(row.mathe)}</td>
+              <td>${escapeHtml(row.latestActivity)}</td>
+              <td>${printStatusPill(row.status)}</td>
+              <td>${printHintPill(row.hint)}</td>
+            </tr>
+          `).join("") || `<tr><td colspan="6">Noch keine Tiere vorhanden.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderPrintProgressTable(rows) {
+  const visibleRows = rows.filter((row) => row.entryCount || row.openEntry || row.hints.some((hint) => hint !== "kein Eintrag"));
+  if (!visibleRows.length) return printEmpty("Für diese Woche gibt es noch keine Fortschrittseinträge.");
+  return `
+    <table class="planner-table progress-print-table">
+      <thead>
+        <tr>
+          <th>Tier</th><th>Fach</th><th>Material</th><th>erste Seite</th><th>aktuelle Seite</th><th>Fortschritt</th>
+          <th>Gruppenschnitt</th><th>Abstand zur Gruppe</th><th>letzte Aktivität</th><th>Hinweis</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${visibleRows.map((row) => `
+          <tr>
+            <td class="print-animal">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</td>
+            <td><span class="subject-chip ${row.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(row.fach)}</span></td>
+            <td>${escapeHtml(row.material)}</td>
+            <td>${row.firstEntry ? `S. ${row.firstEntry.seite}` : "–"}</td>
+            <td>${row.lastEntry ? `S. ${row.lastEntry.seite}` : "–"}</td>
+            <td>${row.entryCount > 1 ? `+${row.progressPages}` : row.entryCount === 1 ? "nur ein Eintrag" : "–"}</td>
+            <td>${row.groupAverage == null ? "–" : `S. ${formatDecimal(row.groupAverage)}`}</td>
+            <td>${row.groupDistance == null ? "–" : signedNumber(row.groupDistance)}</td>
+            <td>${row.lastActivity ? relativeActivity(row.lastActivity) : "–"}</td>
+            <td>${row.hints.map((hint) => printHintPill(hint)).join(" ")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderPrintHelpCards(entries) {
+  return `
+    <div class="print-card-list">
+      ${entries.map((entry) => {
+        const isHelp = entry.status === "brauche Hilfe";
+        return `
+          <article class="help-card ${isHelp ? "help" : "check"}">
+            <div>
+              <strong>${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</strong>
+              <span>${escapeHtml(entry.fach)} · ${escapeHtml(entry.materialName)} · S. ${entry.seite}</span>
+            </div>
+            <div>${printStatusPill(entry.status)}</div>
+            <p>${isHelp ? "Hilfewunsch offen" : "Kontrolle offen"} · ${formatDateTime(entry.datumUhrzeit)}</p>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderPrintEntryTable(entries, headers, showDate) {
+  return `
+    <table class="planner-table">
+      <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${entries.map((entry) => `
+          <tr>
+            <td>${showDate ? formatGermanDate(entry.datumUhrzeit) : formatTime(entry.datumUhrzeit)}</td>
+            <td class="print-animal">${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</td>
+            <td><span class="subject-chip ${entry.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(entry.fach)}</span></td>
+            <td>${escapeHtml(entry.materialName)}</td>
+            <td>S. ${entry.seite}</td>
+            <td>${printStatusPill(entry.status)}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function printHero(title, subtitle) {
+  return `
+    <header class="print-hero">
+      <p>Arbeitsheft-Kompass</p>
+      <h1>${escapeHtml(title)}</h1>
+      <span>${escapeHtml(subtitle)}</span>
+    </header>
+  `;
+}
+
+function renderPrintKpis(items) {
+  return `
+    <section class="kpi-grid">
+      ${items.map(([label, value, tone]) => `
+        <article class="kpi-card ${tone}">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
+function printSectionTitle(title) {
+  return `<section class="print-section section-heading"><h2>${escapeHtml(title)}</h2></section>`;
+}
+
+function printEmpty(text) {
+  return `<div class="print-empty">${escapeHtml(text)}</div>`;
+}
+
+function printStatusPill(status) {
+  const safeStatus = status && status !== "–" ? status : "fertig";
+  const className = safeStatus === "brauche Hilfe" ? "help" : safeStatus === "bitte kontrollieren" ? "check" : "done";
+  return `<span class="print-pill ${className}">${escapeHtml(status || "–")}</span>`;
+}
+
+function printHintPill(hint) {
+  const className = hint.includes("offen") || hint.includes("Blick") || hint.includes("Unterstützung")
+    ? "help"
+    : hint.includes("länger")
+      ? "stale"
+      : hint.includes("voraus") || hint.includes("Zusatz")
+        ? "ahead"
+        : "done";
+  return `<span class="print-pill ${className}">${escapeHtml(hint)}</span>`;
+}
+
+function formatDecimal(value) {
+  return String(Math.round(value * 10) / 10).replace(".", ",");
+}
+
+function formatGermanDate(value) {
+  return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
+}
+
+function printViewCss() {
+  return `
+    :root {
+      --aubergine: #452143;
+      --cream: #faf7ef;
+      --ink: #2e3038;
+      --muted: #686e7a;
+      --line: #ded8cf;
+      --blue-soft: #dff0ff;
+      --green-soft: #def6df;
+      --orange-soft: #fff0c5;
+      --check-soft: #dfefff;
+      --red-soft: #ffe4e7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Grundschrift", "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background: #eee9df;
+    }
+    .print-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid #ddd;
+    }
+    .print-toolbar button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: white;
+      background: var(--aubergine);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .print-toolbar button + button {
+      color: var(--aubergine);
+      background: #f2edf4;
+    }
+    .print-page {
+      width: min(100%, 210mm);
+      min-height: 297mm;
+      margin: 18px auto;
+      padding: 12mm;
+      background: var(--cream);
+      box-shadow: 0 20px 50px rgba(43, 34, 24, 0.18);
+    }
+    .print-hero {
+      margin-bottom: 16px;
+      padding: 18px 20px;
+      border-radius: 14px;
+      color: white;
+      background: var(--aubergine);
+    }
+    .print-hero p {
+      margin: 0 0 4px;
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      opacity: 0.82;
+    }
+    .print-hero h1 {
+      margin: 0;
+      font-size: 1.9rem;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .print-hero span {
+      display: block;
+      margin-top: 8px;
+      opacity: 0.9;
+      font-weight: 700;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 0 0 16px;
+    }
+    .kpi-card {
+      min-height: 82px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fffdf8;
+      page-break-inside: avoid;
+    }
+    .kpi-card span {
+      display: block;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 0.92rem;
+    }
+    .kpi-card strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--aubergine);
+      font-size: 1.85rem;
+      line-height: 1;
+    }
+    .kpi-card.deutsch { background: var(--blue-soft); }
+    .kpi-card.mathe,
+    .kpi-card.neutral { background: #fffdf8; }
+    .kpi-card.help { background: var(--orange-soft); }
+    .kpi-card.check { background: var(--check-soft); }
+    .kpi-card.stale { background: var(--red-soft); }
+    .print-section {
+      margin-top: 14px;
+      page-break-inside: avoid;
+    }
+    .print-section h2 {
+      margin: 0 0 10px;
+      color: var(--aubergine);
+      font-size: 1.28rem;
+      letter-spacing: 0;
+      page-break-after: avoid;
+    }
+    .section-heading {
+      padding-top: 10px;
+    }
+    .planner-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      font-size: 0.9rem;
+    }
+    .planner-table th,
+    .planner-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #ece5da;
+      text-align: left;
+      vertical-align: top;
+    }
+    .planner-table th {
+      color: white;
+      background: var(--aubergine);
+      font-weight: 850;
+    }
+    .planner-table tbody tr:nth-child(even) td {
+      background: #fbf8f1;
+    }
+    .planner-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .print-animal {
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .subject-chip,
+    .print-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      margin: 1px 2px 1px 0;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+    .subject-chip.deutsch { background: var(--blue-soft); color: #1e5b91; }
+    .subject-chip.mathe { background: var(--green-soft); color: #24763a; }
+    .print-pill.done { background: var(--green-soft); color: #24763a; }
+    .print-pill.help { background: var(--orange-soft); color: #9b6100; }
+    .print-pill.check { background: var(--check-soft); color: #235d9f; }
+    .print-pill.stale { background: var(--red-soft); color: #9a3a46; }
+    .print-pill.ahead { background: #e9f0ff; color: #4253a4; }
+    .print-card-list {
+      display: grid;
+      gap: 10px;
+    }
+    .help-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      page-break-inside: avoid;
+    }
+    .help-card.help { background: var(--orange-soft); }
+    .help-card.check { background: var(--check-soft); }
+    .help-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 1.12rem;
+    }
+    .help-card span,
+    .help-card p {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 750;
+    }
+    .help-card p {
+      grid-column: 1 / -1;
+    }
+    .print-empty {
+      padding: 24px;
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      background: #fffdf8;
+      font-weight: 800;
+      text-align: center;
+    }
+    .progress-print-table {
+      font-size: 0.82rem;
+    }
+    .page-break {
+      break-before: page;
+      page-break-before: always;
+      height: 1px;
+    }
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
+    @media print {
+      body {
+        background: white;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .print-toolbar {
+        display: none;
+      }
+      .print-page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        background: white;
+      }
+      .print-hero,
+      .kpi-card,
+      .help-card,
+      .print-empty {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      thead {
+        display: table-header-group;
+      }
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
   `;
 }
 
