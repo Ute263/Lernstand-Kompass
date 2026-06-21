@@ -625,7 +625,7 @@ async function handleScannedQrToken(token) {
     return;
   }
   if (!animal) {
-    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrerin.";
+    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrkraft.";
     screen = "qrInvalid";
     render();
     return;
