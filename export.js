@@ -143,24 +143,24 @@ function addStartSheet(workbook, report) {
   setupSheet(sheet, { orientation: "portrait", widths: [18, 18, 18, 18, 18, 18, 18, 18], freezeRow: 0 });
   addDashboardTitle(sheet, report);
 
-  addMetricTile(sheet, "A5:B9", "Tiere aktiv", report.stats.activeAnimals, XLSX_COLORS.aubergineLight);
-  addMetricTile(sheet, "C5:D9", "Einträge heute", report.stats.todayCount, XLSX_COLORS.deutsch);
-  addMetricTile(sheet, "E5:F9", "Offene Hilfe", report.stats.openHelp, XLSX_COLORS.help);
-  addMetricTile(sheet, "A11:B15", "Offene Kontrolle", report.stats.openCheck, XLSX_COLORS.check);
-  addMetricTile(sheet, "C11:D15", "Deutsch Ø", report.stats.deutschAverage, XLSX_COLORS.deutsch);
-  addMetricTile(sheet, "E11:F15", "Mathe Ø", report.stats.matheAverage, XLSX_COLORS.mathe);
+  addMetricTile(sheet, "A5:B8", "Tiere aktiv", report.stats.activeAnimals, XLSX_COLORS.aubergineLight);
+  addMetricTile(sheet, "C5:D8", "Einträge heute", report.stats.todayCount, XLSX_COLORS.deutsch);
+  addMetricTile(sheet, "E5:F8", "Offene Hilfe", report.stats.openHelp, XLSX_COLORS.help);
+  addMetricTile(sheet, "G5:H8", "Offene Kontrolle", report.stats.openCheck, XLSX_COLORS.check);
+  addMetricTile(sheet, "A10:B13", "Deutsch Ø", report.stats.deutschAverage, XLSX_COLORS.deutsch);
+  addMetricTile(sheet, "C10:D13", "Mathe Ø", report.stats.matheAverage, XLSX_COLORS.mathe);
 
-  sheet.mergeCells("A18:H18");
-  const focusTitle = sheet.getCell("A18");
+  sheet.mergeCells("A15:H15");
+  const focusTitle = sheet.getCell("A15");
   focusTitle.value = "Heute im Blick";
   focusTitle.font = { bold: true, size: 16, color: { argb: XLSX_COLORS.aubergine } };
   focusTitle.alignment = { vertical: "middle" };
-  sheet.getRow(18).height = 26;
+  sheet.getRow(15).height = 24;
 
   if (!report.stats.hasEntries) {
-    addEmptyMessage(sheet, "A20:H23", "Aktuell keine Einträge.");
+    addEmptyMessage(sheet, "A17:H20", "Aktuell keine Einträge.");
   } else {
-    addTable(sheet, 20, ["Bereich", "Wert", "Hinweis"], [
+    addTable(sheet, 17, ["Bereich", "Wert", "Hinweis"], [
       ["Hilfe offen", report.stats.openHelp, "Hilfewünsche im Blick behalten"],
       ["Kontrolle offen", report.stats.openCheck, "Kontrollwünsche gesammelt"],
       ["länger kein Eintrag", report.stats.staleAnimals, "nach aktuellem Schwellenwert"],
@@ -169,31 +169,44 @@ function addStartSheet(workbook, report) {
     ], { headerFill: XLSX_COLORS.aubergineLight, autofilter: false, rowHeight: 28 });
   }
 
-  sheet.mergeCells("A29:H31");
-  const note = sheet.getCell("A29");
+  sheet.mergeCells("A24:H26");
+  const note = sheet.getCell("A24");
   note.value = "Diese Datei enthält keine Kindernamen. Die Arbeitsstände werden über Tier-Pseudonyme dargestellt.";
   note.fill = solidFill(XLSX_COLORS.cream);
   note.font = { bold: true, size: 12, color: { argb: XLSX_COLORS.text } };
   note.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-  applyBorderToRange(sheet, "A29:H31");
+  applyBorderToRange(sheet, "A24:H26");
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 8,
+    maxVisibleRow: 26,
+    printArea: "A1:H26",
+    landscape: false
+  });
 }
 
 function addClassOverviewSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Klassenübersicht");
   setupSheet(sheet, { orientation: "landscape", widths: [20, 28, 28, 20, 22, 30] });
   addTitleBlock(sheet, "Klassenübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
-  addTable(sheet, 5, ["Tier", "Deutsch letzter Stand", "Mathe letzter Stand", "Letzte Aktivität", "Offener Status", "Hinweis"],
+  const lastRow = addTable(sheet, 5, ["Tier", "Deutsch letzter Stand", "Mathe letzter Stand", "Letzte Aktivität", "Offener Status", "Hinweis"],
     report.overviewRows.map((row) => [
       `${row.animal.tierEmoji} ${row.animal.tierName}`, row.deutsch, row.mathe, row.latestActivity, row.status, row.hint
     ]),
     { statusColumn: 5, hintColumn: 6, rowHeight: 30, animalColumn: 1 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 6,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:F${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
 }
 
 function addProgressSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Fortschritt");
   setupSheet(sheet, { orientation: "landscape", widths: [20, 14, 24, 14, 14, 16, 18, 14, 18, 30, 18] });
   addTitleBlock(sheet, "Fortschritt und Arbeitstempo", `Export für: ${report.scopeLabel}`, report.generatedAt, 11);
-  addTable(sheet, 5, [
+  const lastRow = addTable(sheet, 5, [
     "Tier", "Fach", "Material", "erste Seite", "aktuelle Seite", "Fortschritt", "Gruppenschnitt", "Abstand",
     "letzte Aktivität", "Hinweis", "Balken"
   ], report.progressRows.map((row) => [
@@ -209,58 +222,97 @@ function addProgressSheet(workbook, report) {
     row.hints.join(", "),
     progressBar(row.progressPages)
   ]), { hintColumn: 10, groupDistanceColumn: 8, animalColumn: 1, rowHeight: 28 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 11,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:K${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
 }
 
 function addTodaySheet(workbook, report) {
   const sheet = workbook.addWorksheet("Heute");
   setupSheet(sheet, { orientation: "portrait", widths: [12, 20, 14, 26, 10, 22, 12] });
   addTitleBlock(sheet, "Heute bearbeitet", `Export für: ${report.scopeLabel}`, report.generatedAt, 7);
+  let lastRow = 8;
   if (!report.todayEntries.length) {
     addEmptyMessage(sheet, "A5:G8", "Heute wurden noch keine Arbeitsstände eingetragen.");
-    return;
+  } else {
+    lastRow = addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
+      report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
+      { statusColumn: 6, animalColumn: 2, rowHeight: 28 });
   }
-  addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
-    report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
-    { statusColumn: 6, animalColumn: 2, rowHeight: 28 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 7,
+    maxVisibleRow: Math.max(lastRow + 2, 14),
+    printArea: `A1:G${Math.max(lastRow, 14)}`,
+    landscape: false,
+    freezeRow: report.todayEntries.length ? 5 : 0
+  });
 }
 
 function addHelpSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Hilfe & Kontrolle");
   setupSheet(sheet, { orientation: "portrait", widths: [20, 14, 26, 10, 22, 14, 10, 30] });
   addTitleBlock(sheet, "Offene Hilfe und Kontrolle", `Export für: ${report.scopeLabel}`, report.generatedAt, 8);
+  let lastRow = 9;
   if (!report.helpEntries.length) {
     addEmptyMessage(sheet, "A5:H9", "Keine offenen Hilfe- oder Kontrollwünsche.");
-    return;
+  } else {
+    lastRow = addTable(sheet, 5, ["Tier", "Fach", "Material", "Seite", "Status", "Datum", "Uhrzeit", "Hinweis"],
+      report.helpEntries.map((entry) => [
+        entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit),
+        entry.status === "brauche Hilfe" ? "Hilfewunsch offen" : "Kontrolle offen"
+      ]),
+      { statusColumn: 5, hintColumn: 8, animalColumn: 1, rowHeight: 30 });
   }
-  addTable(sheet, 5, ["Tier", "Fach", "Material", "Seite", "Status", "Datum", "Uhrzeit", "Hinweis"],
-    report.helpEntries.map((entry) => [
-      entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit),
-      entry.status === "brauche Hilfe" ? "Hilfewunsch offen" : "Kontrolle offen"
-    ]),
-    { statusColumn: 5, hintColumn: 8, animalColumn: 1, rowHeight: 30 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 8,
+    maxVisibleRow: Math.max(lastRow + 2, 14),
+    printArea: `A1:H${Math.max(lastRow, 14)}`,
+    landscape: false,
+    freezeRow: report.helpEntries.length ? 5 : 0
+  });
 }
 
 function addDataSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Daten");
   setupSheet(sheet, { orientation: "landscape", widths: [14, 10, 18, 18, 14, 24, 10, 20, 12] });
   addTitleBlock(sheet, "Daten", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
-  addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
+  const lastRow = addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
     report.allEntries.map((entry) => [formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
     { statusColumn: 8 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 9,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:I${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
 }
 
 function addPrintSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Druckübersicht");
-  setupSheet(sheet, { orientation: "landscape", widths: [22, 32, 32, 24, 40] });
-  addTitleBlock(sheet, "Arbeitsheft-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 5);
-  addTable(sheet, 5, ["Tier", "Deutsch", "Mathe", "Offen", "Notiz"],
+  setupSheet(sheet, { orientation: "landscape", widths: [22, 32, 32, 24, 40, 4] });
+  addTitleBlock(sheet, "Arbeitsheft-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
+  const lastRow = addTable(sheet, 5, ["Tier", "Deutsch", "Mathe", "Offen", "Notiz"],
     report.printRows.map((row) => [row.tier, row.deutsch, row.mathe, row.open, row.note]),
     { statusColumn: 4, rowHeight: 38, animalColumn: 1 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 6,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:F${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
 }
 
 function setupSheet(sheet, { orientation, widths, freezeRow = 5 }) {
   sheet.properties.defaultRowHeight = 22;
-  sheet.views = freezeRow ? [{ state: "frozen", ySplit: freezeRow }] : [];
+  sheet.views = freezeRow
+    ? [{ state: "frozen", ySplit: freezeRow, topLeftCell: `A${freezeRow + 1}`, activeCell: "A1", showGridLines: false, zoomScale: 100 }]
+    : [{ activeCell: "A1", showGridLines: false, zoomScale: 100 }];
   sheet.eachRow((row) => {
     row.eachCell((cell) => {
       cell.fill = solidFill(XLSX_COLORS.cream);
@@ -274,6 +326,29 @@ function setupSheet(sheet, { orientation, widths, freezeRow = 5 }) {
     margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45, header: 0.2, footer: 0.2 }
   };
   sheet.columns = widths.map((width) => ({ width }));
+}
+
+function finishWorksheetLayout(sheet, { maxVisibleColumn, maxVisibleRow, printArea, landscape, freezeRow = 0 }) {
+  sheet.views = freezeRow
+    ? [{ state: "frozen", ySplit: freezeRow, topLeftCell: `A${freezeRow + 1}`, activeCell: "A1", showGridLines: false, zoomScale: 100 }]
+    : [{ activeCell: "A1", showGridLines: false, zoomScale: 100 }];
+  for (let column = maxVisibleColumn + 1; column <= 100; column += 1) {
+    sheet.getColumn(column).hidden = true;
+  }
+  for (let row = maxVisibleRow + 1; row <= 200; row += 1) {
+    const hiddenRow = sheet.getRow(row);
+    hiddenRow.hidden = true;
+    hiddenRow.height = 1;
+  }
+  sheet.pageSetup = {
+    ...sheet.pageSetup,
+    printArea,
+    orientation: landscape ? "landscape" : "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.35, right: 0.35, top: 0.45, bottom: 0.45, header: 0.2, footer: 0.2 }
+  };
 }
 
 function addTitleBlock(sheet, title, subtitle, generatedAt, columns) {
@@ -374,6 +449,7 @@ function addTable(sheet, startRow, headers, rows, options = {}) {
       to: { row: startRow, column: headers.length }
     };
   }
+  return startRow + bodyRows.length;
 }
 
 function addEmptyMessage(sheet, range, message) {
