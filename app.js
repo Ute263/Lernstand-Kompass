@@ -110,7 +110,7 @@ function render() {
     return;
   }
   if (screen === "teacher") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrerinnenbereich")}${renderTeacher()}</main>`;
+    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrkraft")}${renderTeacher()}</main>`;
     return;
   }
   if (screen === "printView") {
@@ -139,7 +139,7 @@ function renderSetup() {
         <h1 class="brand-title">Arbeitsheft-Kompass einrichten</h1>
         <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
         <form class="setup-form" onsubmit="completeSetup(event)">
-          <label class="field">Lehrerinnen-PIN festlegen
+          <label class="field">Lehrkraft-PIN festlegen
             <input class="text-input" id="setupPin" type="password" autocomplete="new-password" inputmode="numeric">
           </label>
           <label class="field">PIN wiederholen
@@ -228,7 +228,7 @@ function renderStart() {
             </button>
             <button class="start-card" type="button" onclick="openLogin()">
               <span class="icon">🔒</span>
-              <strong>Lehrerinnenbereich 🔒</strong>
+              <strong>Lehrkraft 🔒</strong>
             </button>
           </div>
         </div>
@@ -502,7 +502,7 @@ function renderLogin() {
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
         <div class="lock-icon">🔒</div>
-        <h2 class="child-title compact-title">Lehrerinnenbereich</h2>
+        <h2 class="child-title compact-title">Lehrkraft</h2>
         <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
@@ -739,7 +739,7 @@ function renderTeacher() {
 
   return `
     <section class="teacher-layout">
-      <nav class="tabs" aria-label="Lehrerinnenbereich">
+      <nav class="tabs" aria-label="Lehrkraft">
         ${tabs.map(([id, label]) => `
           <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
         `).join("")}
@@ -1265,7 +1265,7 @@ function renderGoalSettings() {
   return `
     <section class="panel">
       <h2>Soll-Seiten</h2>
-      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrerinnenbereich angezeigt.</p>
+      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrkraft angezeigt.</p>
       ${goals.map((goal) => `
         <div class="editor-row goal-row">
           <select class="select-input" onchange="updateGoal('${goal.id}', 'fach', this.value)">
@@ -2193,7 +2193,7 @@ function renderSecurity() {
     </section>
     <section class="panel">
       <h2>Wiederherstellungsschlüssel</h2>
-      <p class="privacy-text">Die PIN schützt den Lehrerinnenbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
+      <p class="privacy-text">Die PIN schützt den Lehrkraft auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
       <button class="secondary" type="button" onclick="regenerateRecoveryKey()">Neuen Wiederherstellungsschlüssel erzeugen</button>
       ${pendingRecoveryKey ? `
         <div class="recovery-key-panel">
