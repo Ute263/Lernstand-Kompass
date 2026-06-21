@@ -47,7 +47,7 @@ Diese Dateien müssen direkt im Repository liegen:
 
 Im Lehrerinnenbereich gibt es den Tab `Excel-Export`. Dort können gestaltete `.xlsx`-Arbeitsmappen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden.
 
-Die Arbeitsmappe enthält die Blätter `Start Dashboard`, `Übersicht`, `Fortschritt`, `Tier-Verläufe`, `Heute`, `Hilfe & Kontrolle`, `Alle Einträge` und `Druckliste`. Sie enthält keine Kindernamen und keine QR-Tokens.
+Die Arbeitsmappe enthält die Blätter `Start`, `Klassenübersicht`, `Fortschritt`, `Hilfe & Kontrolle`, `Heute`, `Druckübersicht` und `Daten`. Sie enthält keine Kindernamen und keine QR-Tokens.
 
 Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` erzeugt. Es wird kein CDN zur Laufzeit verwendet. Falls die `.xlsx`-Erzeugung in einem Browser nicht klappt, stehen einfache CSV-Exporte als Fallback bereit.
 

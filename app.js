@@ -1772,7 +1772,12 @@ function buildDashboardStats({ entries, baseEntries, animals, materials, classId
   const materialCounts = new Map();
   metricEntries.forEach((entry) => materialCounts.set(entry.materialName, (materialCounts.get(entry.materialName) || 0) + 1));
   const mostMaterial = [...materialCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const latestDeutschPages = latestPagesByAnimalSubject(baseEntries, "Deutsch");
+  const latestMathePages = latestPagesByAnimalSubject(baseEntries, "Mathe");
+  const progressRows = buildBeautifulProgressRows(classIds, baseEntries);
   return {
+    hasEntries: baseEntries.length > 0,
+    activeAnimals: animals.length,
     animalsWithEntry: new Set(metricEntries.map((entry) => entry.tierID)).size,
     todayCount: baseEntries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === today).length,
     openHelp: baseEntries.filter((entry) => !entry.erledigt && entry.status === "brauche Hilfe").length,
@@ -1786,8 +1791,29 @@ function buildDashboardStats({ entries, baseEntries, animals, materials, classId
     classCount: classIds.length,
     materialCount: materials.length,
     openTasks: baseEntries.filter((entry) => !entry.erledigt && entry.status !== "fertig").length,
+    deutschAverage: formatAverage(latestDeutschPages),
+    matheAverage: formatAverage(latestMathePages),
+    aheadCount: progressRows.filter((row) => row.hints.some((hint) => hint === "Zusatzangebot möglich" || hint === "weiter voraus") || row.groupLabel === "weiter voraus").length,
+    lookCount: progressRows.filter((row) => row.hints.some((hint) => hint === "Unterstützung prüfen" || hint === "braucht Blick") || row.groupLabel === "braucht Blick" || row.groupLabel === "deutlicher Abstand").length,
     exportedEntryCount: entries.length
   };
+}
+
+function latestPagesByAnimalSubject(entries, subject) {
+  const pages = new Map();
+  entries
+    .filter((entry) => entry.fach === subject)
+    .sort(sortNewest)
+    .forEach((entry) => {
+      if (!pages.has(entry.tierID)) pages.set(entry.tierID, Number(entry.seite));
+    });
+  return [...pages.values()].filter((page) => Number.isFinite(page));
+}
+
+function formatAverage(values) {
+  if (!values.length) return "–";
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return `S. ${String(Math.round(average * 10) / 10).replace(".", ",")}`;
 }
 
 function buildBeautifulOverviewRows(animals, entries) {
@@ -1926,40 +1952,6 @@ function exportExcelHelpControl() {
   ));
   const filename = `arbeitsheft-kompass-hilfe-kontrolle-${formatFileDate(new Date())}.csv`;
   finishExcelExport(entries, filename);
-}
-
-function exportProgressExcelWorkbook() {
-  try {
-    const classId = getProgressClassId();
-    const classItem = state.classes.find((item) => item.id === classId);
-    const filters = {
-      classId,
-      fach: progressFilters.fach,
-      material: progressFilters.material,
-      animalId: progressFilters.animalId,
-      period: progressFilters.period
-    };
-    const progressRows = sortProgressRows(buildProgressRows(filters), progressFilters.sort);
-    const filteredEntries = filterEntriesForProgress(state.entries.filter((entry) => entry.classId === classId), filters);
-    const trailEntries = [...filteredEntries].sort((a, b) => {
-      const classCompare = getClassNameForEntry(a).localeCompare(getClassNameForEntry(b), "de");
-      if (classCompare) return classCompare;
-      const animalCompare = `${a.tierEmojiSnapshot} ${a.tierNameSnapshot}`.localeCompare(`${b.tierEmojiSnapshot} ${b.tierNameSnapshot}`, "de");
-      if (animalCompare) return animalCompare;
-      return new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit);
-    });
-    const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-fortschritt-${formatFileDate(new Date())}.xls`;
-    const created = exportProgressWorkbook({
-      progressRows,
-      trailEntries,
-      entryRows: [...filteredEntries].sort(sortNewest),
-      filename
-    });
-    globalMessage = created ? "Excel-Arbeitsmappe wurde erstellt." : "Für diese Auswahl gibt es noch keine Einträge.";
-  } catch {
-    globalMessage = "Die Excel-Arbeitsmappe konnte nicht erstellt werden.";
-  }
-  render();
 }
 
 function finishExcelExport(entries, filename) {

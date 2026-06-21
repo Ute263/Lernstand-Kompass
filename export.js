@@ -106,14 +106,13 @@ async function exportBeautifulWorkbook(report) {
   workbook.modified = new Date(report.generatedAt);
   workbook.properties.date1904 = false;
 
-  addDashboardSheet(workbook, report);
-  addOverviewSheet(workbook, report);
+  addStartSheet(workbook, report);
+  addClassOverviewSheet(workbook, report);
   addProgressSheet(workbook, report);
-  addTrailSheet(workbook, report);
-  addTodaySheet(workbook, report);
   addHelpSheet(workbook, report);
-  addAllEntriesSheet(workbook, report);
+  addTodaySheet(workbook, report);
   addPrintSheet(workbook, report);
+  addDataSheet(workbook, report);
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -125,7 +124,7 @@ const XLSX_COLORS = {
   aubergine: "FF4C2A57",
   aubergineLight: "FFE9DDF0",
   cream: "FFFFFBF2",
-  softGray: "FFF6F7FA",
+  softGray: "FFF7F7FA",
   line: "FFD8DEE8",
   white: "FFFFFFFF",
   text: "FF1F2937",
@@ -139,134 +138,134 @@ const XLSX_COLORS = {
   ahead: "FFE6F3FF"
 };
 
-function addDashboardSheet(workbook, report) {
-  const sheet = workbook.addWorksheet("Start Dashboard");
-  setupSheet(sheet, { orientation: "portrait", widths: [20, 18, 18, 18, 18, 18, 24, 24] });
-  addTitleBlock(sheet, "Arbeitsheft-Kompass", `Export für: ${report.scopeLabel}`, report.generatedAt, 8);
+function addStartSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("Start");
+  setupSheet(sheet, { orientation: "portrait", widths: [18, 18, 18, 18, 18, 18, 18, 18], freezeRow: 0 });
+  addDashboardTitle(sheet, report);
 
-  addMetricTile(sheet, "A5:B8", "Tiere mit Eintrag", report.stats.animalsWithEntry, XLSX_COLORS.deutsch);
-  addMetricTile(sheet, "C5:D8", "Einträge heute", report.stats.todayCount, XLSX_COLORS.mathe);
-  addMetricTile(sheet, "E5:F8", "Offene Hilfe", report.stats.openHelp, XLSX_COLORS.help);
-  addMetricTile(sheet, "G5:H8", "Offene Kontrolle", report.stats.openCheck, XLSX_COLORS.check);
-  addMetricTile(sheet, "A10:B13", "Länger kein Eintrag", report.stats.staleAnimals, XLSX_COLORS.stale);
+  addMetricTile(sheet, "A5:B9", "Tiere aktiv", report.stats.activeAnimals, XLSX_COLORS.aubergineLight);
+  addMetricTile(sheet, "C5:D9", "Einträge heute", report.stats.todayCount, XLSX_COLORS.deutsch);
+  addMetricTile(sheet, "E5:F9", "Offene Hilfe", report.stats.openHelp, XLSX_COLORS.help);
+  addMetricTile(sheet, "A11:B15", "Offene Kontrolle", report.stats.openCheck, XLSX_COLORS.check);
+  addMetricTile(sheet, "C11:D15", "Deutsch Ø", report.stats.deutschAverage, XLSX_COLORS.deutsch);
+  addMetricTile(sheet, "E11:F15", "Mathe Ø", report.stats.matheAverage, XLSX_COLORS.mathe);
 
-  sheet.mergeCells("A15:H15");
-  const overviewTitle = sheet.getCell("A15");
-  overviewTitle.value = "Kurzer Überblick";
-  overviewTitle.font = { bold: true, size: 16, color: { argb: XLSX_COLORS.aubergine } };
+  sheet.mergeCells("A18:H18");
+  const focusTitle = sheet.getCell("A18");
+  focusTitle.value = "Heute im Blick";
+  focusTitle.font = { bold: true, size: 16, color: { argb: XLSX_COLORS.aubergine } };
+  focusTitle.alignment = { vertical: "middle" };
+  sheet.getRow(18).height = 26;
 
-  addTable(sheet, 17, ["Bereich", "Wert", "Hinweis"], [
-    ["Letzter Eintrag", report.stats.latestEntry, "neueste gespeicherte Meldung"],
-    ["Meistbearbeitetes Material", report.stats.mostMaterial, "nach Anzahl der Einträge"],
-    ["Anzahl Klassen", report.stats.classCount, "im Export enthalten"],
-    ["Anzahl Materialien", report.stats.materialCount, "im Export enthalten"],
-    ["Anzahl offener Aufgaben", report.stats.openTasks, "Hilfe oder Kontrolle offen"]
-  ], { headerFill: XLSX_COLORS.aubergineLight, widths: [28, 34, 38], autofilter: false });
+  if (!report.stats.hasEntries) {
+    addEmptyMessage(sheet, "A20:H23", "Aktuell keine Einträge.");
+  } else {
+    addTable(sheet, 20, ["Bereich", "Wert", "Hinweis"], [
+      ["Hilfe offen", report.stats.openHelp, "Hilfewünsche im Blick behalten"],
+      ["Kontrolle offen", report.stats.openCheck, "Kontrollwünsche gesammelt"],
+      ["länger kein Eintrag", report.stats.staleAnimals, "nach aktuellem Schwellenwert"],
+      ["weit voraus", report.stats.aheadCount, "Zusatzangebot möglich"],
+      ["braucht Blick", report.stats.lookCount, "Unterstützung prüfen"]
+    ], { headerFill: XLSX_COLORS.aubergineLight, autofilter: false, rowHeight: 28 });
+  }
 
-  sheet.mergeCells("A25:H26");
-  const note = sheet.getCell("A25");
+  sheet.mergeCells("A29:H31");
+  const note = sheet.getCell("A29");
   note.value = "Diese Datei enthält keine Kindernamen. Die Arbeitsstände werden über Tier-Pseudonyme dargestellt.";
   note.fill = solidFill(XLSX_COLORS.cream);
-  note.font = { bold: true, color: { argb: XLSX_COLORS.text } };
-  note.alignment = { vertical: "middle", wrapText: true };
-  applyBorderToRange(sheet, "A25:H26");
+  note.font = { bold: true, size: 12, color: { argb: XLSX_COLORS.text } };
+  note.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  applyBorderToRange(sheet, "A29:H31");
 }
 
-function addOverviewSheet(workbook, report) {
-  const sheet = workbook.addWorksheet("Übersicht");
-  setupSheet(sheet, { orientation: "landscape", widths: [18, 18, 24, 24, 18, 22, 28] });
-  addTitleBlock(sheet, "Aktueller Arbeitsstand", `Export für: ${report.scopeLabel}`, report.generatedAt, 7);
-  addTable(sheet, 5, ["Tier", "Klasse", "Deutsch letzter Stand", "Mathe letzter Stand", "Letzte Aktivität", "Offener Status", "Hinweis"],
+function addClassOverviewSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("Klassenübersicht");
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 28, 28, 20, 22, 30] });
+  addTitleBlock(sheet, "Klassenübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
+  addTable(sheet, 5, ["Tier", "Deutsch letzter Stand", "Mathe letzter Stand", "Letzte Aktivität", "Offener Status", "Hinweis"],
     report.overviewRows.map((row) => [
-      `${row.animal.tierEmoji} ${row.animal.tierName}`, row.klasse, row.deutsch, row.mathe, row.latestActivity, row.status, row.hint
+      `${row.animal.tierEmoji} ${row.animal.tierName}`, row.deutsch, row.mathe, row.latestActivity, row.status, row.hint
     ]),
-    { statusColumn: 6, hintColumn: 7 });
+    { statusColumn: 5, hintColumn: 6, rowHeight: 30, animalColumn: 1 });
 }
 
 function addProgressSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Fortschritt");
-  setupSheet(sheet, { orientation: "landscape", widths: [18, 18, 14, 24, 16, 16, 18, 18, 16, 18, 14, 16, 18, 28] });
-  addTitleBlock(sheet, "Fortschritt und Arbeitstempo", `Export für: ${report.scopeLabel}`, report.generatedAt, 14);
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 14, 24, 14, 14, 16, 18, 14, 18, 30, 18] });
+  addTitleBlock(sheet, "Fortschritt und Arbeitstempo", `Export für: ${report.scopeLabel}`, report.generatedAt, 11);
   addTable(sheet, 5, [
-    "Tier", "Klasse", "Fach", "Material", "Erste Seite im Zeitraum", "Letzte Seite im Zeitraum", "Fortschritt in Seiten",
-    "Letzte Aktivität", "Gruppenschnitt", "Abstand zur Gruppe", "Soll-Seite", "Abstand zum Soll", "Status", "Pädagogischer Hinweis"
+    "Tier", "Fach", "Material", "erste Seite", "aktuelle Seite", "Fortschritt", "Gruppenschnitt", "Abstand",
+    "letzte Aktivität", "Hinweis", "Balken"
   ], report.progressRows.map((row) => [
     `${row.animal.tierEmoji} ${row.animal.tierName}`,
-    getClassNameById(row.classId),
     row.fach,
     row.material,
     row.firstEntry ? `S. ${row.firstEntry.seite}` : "kein Eintrag",
     row.lastEntry ? `S. ${row.lastEntry.seite}` : "kein Eintrag",
-    row.entryCount > 1 ? `${row.progressPages} ${progressBar(row.progressPages)}` : row.entryCount === 1 ? "nur ein Eintrag" : "kein Eintrag",
-    row.lastActivity ? relativeActivity(row.lastActivity) : "kein Eintrag",
+    row.entryCount > 1 ? row.progressPages : row.entryCount === 1 ? "nur ein Eintrag" : "kein Eintrag",
     row.groupAverage == null ? "–" : row.groupAverage.toFixed(1).replace(".", ","),
     row.groupDistance == null ? "–" : signedNumber(row.groupDistance),
-    row.goal ? `S. ${row.goal.sollSeite}` : "kein Soll festgelegt",
-    row.goalDistance == null ? "–" : signedNumber(row.goalDistance),
-    row.openEntry ? row.openEntry.status : row.lastEntry?.status || "–",
-    row.hints.join(", ")
-  ]), { statusColumn: 13, hintColumn: 14, groupDistanceColumn: 10, goalDistanceColumn: 12 });
-}
-
-function addTrailSheet(workbook, report) {
-  const sheet = workbook.addWorksheet("Tier-Verläufe");
-  setupSheet(sheet, { orientation: "landscape", widths: [18, 18, 14, 10, 14, 24, 10, 20, 12] });
-  addTitleBlock(sheet, "Chronologische Verläufe je Tier", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
-  addTable(sheet, 5, ["Klasse", "Tier", "Datum", "Uhrzeit", "Fach", "Material", "Seite", "Status", "Erledigt"],
-    report.trailEntries.map((entry) => [entry.klasseName, entry.tierLabel, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
-    { statusColumn: 8, groupColumn: 2 });
+    row.lastActivity ? relativeActivity(row.lastActivity) : "kein Eintrag",
+    row.hints.join(", "),
+    progressBar(row.progressPages)
+  ]), { hintColumn: 10, groupDistanceColumn: 8, animalColumn: 1, rowHeight: 28 });
 }
 
 function addTodaySheet(workbook, report) {
   const sheet = workbook.addWorksheet("Heute");
-  setupSheet(sheet, { orientation: "portrait", widths: [10, 18, 18, 14, 24, 10, 20, 12] });
-  addTitleBlock(sheet, "Heute bearbeitet", `Export für: ${report.scopeLabel}`, report.generatedAt, 8);
+  setupSheet(sheet, { orientation: "portrait", widths: [12, 20, 14, 26, 10, 22, 12] });
+  addTitleBlock(sheet, "Heute bearbeitet", `Export für: ${report.scopeLabel}`, report.generatedAt, 7);
   if (!report.todayEntries.length) {
-    addEmptyMessage(sheet, "A5:H8", "Heute wurden noch keine Arbeitsstände eingetragen.");
+    addEmptyMessage(sheet, "A5:G8", "Heute wurden noch keine Arbeitsstände eingetragen.");
     return;
   }
-  addTable(sheet, 5, ["Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
-    report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
-    { statusColumn: 7 });
+  addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
+    report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
+    { statusColumn: 6, animalColumn: 2, rowHeight: 28 });
 }
 
 function addHelpSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Hilfe & Kontrolle");
-  setupSheet(sheet, { orientation: "portrait", widths: [14, 10, 18, 18, 14, 24, 10, 20, 28] });
-  addTitleBlock(sheet, "Offene Hilfe und Kontrolle", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
+  setupSheet(sheet, { orientation: "portrait", widths: [20, 14, 26, 10, 22, 14, 10, 30] });
+  addTitleBlock(sheet, "Offene Hilfe und Kontrolle", `Export für: ${report.scopeLabel}`, report.generatedAt, 8);
   if (!report.helpEntries.length) {
-    addEmptyMessage(sheet, "A5:I8", "Keine offenen Hilfe- oder Kontrollwünsche.");
+    addEmptyMessage(sheet, "A5:H9", "Keine offenen Hilfe- oder Kontrollwünsche.");
     return;
   }
-  addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Hinweis"],
+  addTable(sheet, 5, ["Tier", "Fach", "Material", "Seite", "Status", "Datum", "Uhrzeit", "Hinweis"],
     report.helpEntries.map((entry) => [
-      formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel,
-      entry.fach, entry.materialName, entry.seite, entry.status, entry.status === "brauche Hilfe" ? "Hilfewunsch offen" : "Kontrolle offen"
+      entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit),
+      entry.status === "brauche Hilfe" ? "Hilfewunsch offen" : "Kontrolle offen"
     ]),
-    { statusColumn: 8, hintColumn: 9 });
+    { statusColumn: 5, hintColumn: 8, animalColumn: 1, rowHeight: 30 });
 }
 
-function addAllEntriesSheet(workbook, report) {
-  const sheet = workbook.addWorksheet("Alle Einträge");
+function addDataSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("Daten");
   setupSheet(sheet, { orientation: "landscape", widths: [14, 10, 18, 18, 14, 24, 10, 20, 12] });
-  addTitleBlock(sheet, "Alle Arbeitsstand-Einträge", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
+  addTitleBlock(sheet, "Daten", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
   addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
     report.allEntries.map((entry) => [formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
     { statusColumn: 8 });
 }
 
 function addPrintSheet(workbook, report) {
-  const sheet = workbook.addWorksheet("Druckliste");
-  setupSheet(sheet, { orientation: "landscape", widths: [18, 28, 28, 18, 22, 34] });
-  addTitleBlock(sheet, "Arbeitsheft-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
-  addTable(sheet, 5, ["Tier", "Deutsch", "Mathe", "Letzte Aktivität", "Offen", "Notizfeld leer"],
-    report.printRows.map((row) => [row.tier, row.deutsch, row.mathe, row.latestActivity, row.open, row.note]),
-    { statusColumn: 5, rowHeight: 34 });
+  const sheet = workbook.addWorksheet("Druckübersicht");
+  setupSheet(sheet, { orientation: "landscape", widths: [22, 32, 32, 24, 40] });
+  addTitleBlock(sheet, "Arbeitsheft-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 5);
+  addTable(sheet, 5, ["Tier", "Deutsch", "Mathe", "Offen", "Notiz"],
+    report.printRows.map((row) => [row.tier, row.deutsch, row.mathe, row.open, row.note]),
+    { statusColumn: 4, rowHeight: 38, animalColumn: 1 });
 }
 
-function setupSheet(sheet, { orientation, widths }) {
+function setupSheet(sheet, { orientation, widths, freezeRow = 5 }) {
   sheet.properties.defaultRowHeight = 22;
-  sheet.views = [{ state: "frozen", ySplit: 5 }];
+  sheet.views = freezeRow ? [{ state: "frozen", ySplit: freezeRow }] : [];
+  sheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      cell.fill = solidFill(XLSX_COLORS.cream);
+    });
+  });
   sheet.pageSetup = {
     orientation,
     fitToPage: true,
@@ -305,14 +304,34 @@ function addTitleBlock(sheet, title, subtitle, generatedAt, columns) {
   });
 }
 
+function addDashboardTitle(sheet, report) {
+  sheet.mergeCells("A1:H3");
+  const cell = sheet.getCell("A1");
+  cell.value = `Arbeitsheft-Kompass\nExport für ${report.scopeLabel} · erstellt am ${formatGermanDate(report.generatedAt)} um ${formatExcelTime(report.generatedAt)} Uhr`;
+  cell.fill = solidFill(XLSX_COLORS.aubergine);
+  cell.font = { bold: true, size: 22, color: { argb: XLSX_COLORS.white } };
+  cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  for (let row = 1; row <= 3; row += 1) {
+    sheet.getRow(row).height = row === 1 ? 32 : 24;
+    for (let column = 1; column <= 8; column += 1) {
+      sheet.getCell(row, column).fill = solidFill(XLSX_COLORS.aubergine);
+      sheet.getCell(row, column).border = tableBorder();
+    }
+  }
+}
+
 function addMetricTile(sheet, range, label, value, fillColor) {
   sheet.mergeCells(range);
   const cell = sheet.getCell(range.split(":")[0]);
-  cell.value = `${label}\n${value}`;
+  cell.value = `${label}\n\n${value}`;
   cell.fill = solidFill(fillColor);
-  cell.font = { bold: true, size: 15, color: { argb: XLSX_COLORS.text } };
+  cell.font = { bold: true, size: 16, color: { argb: XLSX_COLORS.text } };
   cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   applyBorderToRange(sheet, range);
+  const [start, end] = range.split(":").map(parseCellAddress);
+  for (let row = start.row; row <= end.row; row += 1) {
+    sheet.getRow(row).height = 26;
+  }
 }
 
 function addTable(sheet, startRow, headers, rows, options = {}) {
@@ -336,6 +355,9 @@ function addTable(sheet, startRow, headers, rows, options = {}) {
       cell.alignment = { vertical: "middle", wrapText: true };
       cell.border = tableBorder();
       cell.fill = solidFill(rowIndex % 2 === 0 ? XLSX_COLORS.white : XLSX_COLORS.softGray);
+      if (options.animalColumn === columnIndex + 1) {
+        cell.font = { bold: true, size: 13, color: { argb: XLSX_COLORS.text } };
+      }
       if (options.statusColumn === columnIndex + 1) applyStatusFill(cell);
       if (options.hintColumn === columnIndex + 1) applyHintFill(cell);
       if (options.groupDistanceColumn === columnIndex + 1 || options.goalDistanceColumn === columnIndex + 1) applyDistanceFill(cell);
@@ -438,126 +460,6 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-function exportProgressWorkbook({ progressRows, trailEntries, filename, entryRows = [] }) {
-  if (!progressRows.length && !trailEntries.length && !entryRows.length) return false;
-  const workbook = [
-    '<?xml version="1.0"?>',
-    '<?mso-application progid="Excel.Sheet"?>',
-    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">',
-    '<Styles>',
-    '<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/><Font ss:FontName="Arial" ss:Size="11"/></Style>',
-    '<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#DFF3FF" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="Done"><Interior ss:Color="#DFF6E8" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="Help"><Interior ss:Color="#FFF1CB" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="Check"><Interior ss:Color="#DDEAFF" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="Hint"><Interior ss:Color="#F8E4E4" ss:Pattern="Solid"/></Style>',
-    '<Style ss:ID="Ahead"><Interior ss:Color="#EAF5FF" ss:Pattern="Solid"/></Style>',
-    '</Styles>',
-    excelSheet("Arbeitsstände", makeEntrySheetRows(entryRows), ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"]),
-    excelSheet("Fortschritt", makeProgressSheetRows(progressRows), [
-      "Klasse", "Tier", "Fach", "Material", "erster Eintrag im Zeitraum", "letzter Eintrag im Zeitraum", "niedrigste Seite", "höchste Seite",
-      "Fortschritt in Seiten", "letzte Aktivität", "Gruppenschnitt", "Abstand zur Gruppe", "Soll-Seite", "Abstand zum Soll", "offener Status", "Hinweis"
-    ]),
-    excelSheet("Tier-Verläufe", makeTrailSheetRows(trailEntries), ["Klasse", "Tier", "Datum", "Uhrzeit", "Fach", "Material", "Seite", "Status", "Erledigt"]),
-    "</Workbook>"
-  ].join("");
-  const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  return true;
-}
-
-function makeEntrySheetRows(entries) {
-  return entries.map((entry) => ({
-    cells: [
-      formatGermanDate(entry.datumUhrzeit),
-      formatExcelTime(entry.datumUhrzeit),
-      entry.klasseName || getClassNameForEntry(entry),
-      `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim(),
-      entry.fach || "",
-      entry.materialName || "",
-      entry.seite ?? "",
-      entry.status || "",
-      entry.erledigt ? "Ja" : "Nein"
-    ],
-    style: statusStyle(entry.status)
-  }));
-}
-
-function makeProgressSheetRows(rows) {
-  return rows.map((row) => ({
-    cells: [
-      getClassNameById(row.classId),
-      `${row.animal.tierEmoji} ${row.animal.tierName}`,
-      row.fach,
-      row.material,
-      row.firstEntry ? `S. ${row.firstEntry.seite} (${formatGermanDate(row.firstEntry.datumUhrzeit)} ${formatExcelTime(row.firstEntry.datumUhrzeit)})` : "kein Eintrag",
-      row.lastEntry ? `S. ${row.lastEntry.seite} (${formatGermanDate(row.lastEntry.datumUhrzeit)} ${formatExcelTime(row.lastEntry.datumUhrzeit)})` : "kein Eintrag",
-      row.minPage ?? "",
-      row.maxPage ?? "",
-      row.entryCount > 1 ? row.progressPages : row.entryCount === 1 ? "nur ein Eintrag" : "",
-      row.lastActivity ? relativeActivity(row.lastActivity) : "kein Eintrag",
-      row.groupAverage == null ? "" : row.groupAverage.toFixed(1).replace(".", ","),
-      row.groupDistance == null ? "" : signedNumber(row.groupDistance),
-      row.goal ? row.goal.sollSeite : "",
-      row.goalDistance == null ? "" : signedNumber(row.goalDistance),
-      row.openEntry ? row.openEntry.status : row.lastEntry?.status || "",
-      row.hints.join(", ")
-    ],
-    style: row.hints.some((hint) => hint.includes("Unterstützung") || hint.includes("offen") || hint.includes("Blick")) ? "Hint" : row.hints.some((hint) => hint.includes("Zusatz")) ? "Ahead" : statusStyle(row.openEntry?.status || row.lastEntry?.status)
-  }));
-}
-
-function makeTrailSheetRows(entries) {
-  return entries.map((entry) => ({
-    cells: [
-      entry.klasseName || getClassNameForEntry(entry),
-      `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim(),
-      formatGermanDate(entry.datumUhrzeit),
-      formatExcelTime(entry.datumUhrzeit),
-      entry.fach || "",
-      entry.materialName || "",
-      entry.seite ?? "",
-      entry.status || "",
-      entry.erledigt ? "Ja" : "Nein"
-    ],
-    style: statusStyle(entry.status)
-  }));
-}
-
-function excelSheet(name, rows, headers) {
-  const allRows = [
-    `<Row>${headers.map((header) => excelCell(header, "Header")).join("")}</Row>`,
-    ...(rows.length ? rows : [{ cells: ["Keine Einträge"], style: "" }]).map((row) => `<Row>${row.cells.map((cell) => excelCell(cell, row.style)).join("")}</Row>`)
-  ];
-  const columns = headers.map(() => '<Column ss:AutoFitWidth="1" ss:Width="130"/>').join("");
-  return `
-    <Worksheet ss:Name="${xmlEscape(name)}">
-      <Table>${columns}${allRows.join("")}</Table>
-      <AutoFilter x:Range="R1C1:R${Math.max(2, rows.length + 1)}C${headers.length}" xmlns="urn:schemas-microsoft-com:office:excel"/>
-      <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions>
-    </Worksheet>
-  `;
-}
-
-function excelCell(value, style = "") {
-  const styleAttribute = style ? ` ss:StyleID="${style}"` : "";
-  return `<Cell${styleAttribute}><Data ss:Type="String">${xmlEscape(value)}</Data></Cell>`;
-}
-
-function statusStyle(status) {
-  if (status === "brauche Hilfe") return "Help";
-  if (status === "bitte kontrollieren") return "Check";
-  if (status === "fertig") return "Done";
-  return "";
-}
-
 function signedNumber(value) {
   const rounded = Math.round(value * 10) / 10;
   return rounded > 0 ? `+${String(rounded).replace(".", ",")}` : String(rounded).replace(".", ",");
@@ -638,14 +540,6 @@ function formatExcelTime(value) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   return `${hours}:${minutes}`;
-}
-
-function xmlEscape(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }
 
 function safeFilePart(text) {
