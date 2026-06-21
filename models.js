@@ -4,6 +4,11 @@ const LEGACY_STORE_KEYS = ["arbeitsheft-kompass-state-v2"];
 
 const SUBJECTS = ["Deutsch", "Mathe"];
 const STATUSES = ["fertig", "brauche Hilfe", "bitte kontrollieren"];
+const ASSESSMENT_SUBJECTS = ["Deutsch", "Mathe", "Sachunterricht", "Englisch", "Sonstiges"];
+const ASSESSMENT_TYPES = ["Test", "Lernzielkontrolle", "Diagnose", "Beobachtung", "Sonstiges"];
+const ASSESSMENT_GRADING_TYPES = ["Punkte", "Note", "Symbol", "Punkte und Note", "Punkte und Symbol"];
+const ASSESSMENT_SYMBOLS = ["++", "+", "o", "-", "--"];
+const ASSESSMENT_RESULT_STATUSES = ["eingetragen", "fehlt", "nachschreiben", "nicht teilgenommen"];
 
 const STATUS_META = {
   fertig: { label: "fertig", childLabel: "fertig", icon: "✅", className: "done" },
@@ -95,6 +100,7 @@ function emptyState() {
     entries: [],
     goals: [],
     assessments: [],
+    assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
@@ -155,6 +161,7 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     entries: [],
     goals: [],
     assessments: [],
+    assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
@@ -179,6 +186,7 @@ function normalizeState(candidate) {
     entries: Array.isArray(candidate.entries) ? candidate.entries : [],
     goals: Array.isArray(candidate.goals) ? candidate.goals : [],
     assessments: Array.isArray(candidate.assessments) ? candidate.assessments : [],
+    assessmentResults: Array.isArray(candidate.assessmentResults) ? candidate.assessmentResults : [],
     sprachweltTasks: Array.isArray(candidate.sprachweltTasks) && candidate.sprachweltTasks.length
       ? candidate.sprachweltTasks
       : DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
@@ -197,7 +205,8 @@ function normalizeState(candidate) {
   state.materials = state.materials.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
   state.entries = state.entries.map((item) => ({ ...item, id: item.id || item.entryId || makeId(), classId: item.classId || state.activeClassId }));
   state.goals = state.goals.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
-  state.assessments = state.assessments.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
+  state.assessments = state.assessments.map((item) => normalizeAssessment(item, state.activeClassId));
+  state.assessmentResults = state.assessmentResults.map((item) => normalizeAssessmentResult(item, state.activeClassId));
   state.sprachweltTasks = state.sprachweltTasks.map((item) => ({ ...item, id: item.id || makeId(), aktiv: item.aktiv !== false }));
 
   const usedTokens = new Set();
@@ -211,6 +220,51 @@ function normalizeState(candidate) {
   }
   state.setupComplete = Boolean(state.setupComplete && state.activeClassId);
   return state;
+}
+
+function normalizeAssessment(item, fallbackClassId) {
+  const now = nowIso();
+  return {
+    ...item,
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    klasseId: undefined,
+    titel: item.titel || item.title || "Lernzielkontrolle",
+    fach: ASSESSMENT_SUBJECTS.includes(item.fach) ? item.fach : "Deutsch",
+    bereich: item.bereich || "",
+    datum: item.datum || item.date || formatInputDate(new Date()),
+    typ: ASSESSMENT_TYPES.includes(item.typ) ? item.typ : "Lernzielkontrolle",
+    bewertungsart: ASSESSMENT_GRADING_TYPES.includes(item.bewertungsart) ? item.bewertungsart : "Punkte",
+    maxPunkte: Number(item.maxPunkte) > 0 ? Number(item.maxPunkte) : "",
+    notizKurz: item.notizKurz || "",
+    createdAt: item.createdAt || item.erstelltAm || now,
+    updatedAt: item.updatedAt || item.createdAt || item.erstelltAm || now
+  };
+}
+
+function normalizeAssessmentResult(item, fallbackClassId) {
+  const now = nowIso();
+  return {
+    ...item,
+    id: item.id || makeId(),
+    assessmentId: item.assessmentId || "",
+    classId: item.classId || item.klasseId || fallbackClassId,
+    klasseId: undefined,
+    animalId: item.animalId || item.tierID || "",
+    tierNameSnapshot: item.tierNameSnapshot || "",
+    tierEmojiSnapshot: item.tierEmojiSnapshot || "",
+    punkte: item.punkte ?? "",
+    maxPunkteSnapshot: Number(item.maxPunkteSnapshot) > 0 ? Number(item.maxPunkteSnapshot) : "",
+    note: item.note || "",
+    symbol: ASSESSMENT_SYMBOLS.includes(item.symbol) ? item.symbol : "",
+    status: ASSESSMENT_RESULT_STATUSES.includes(item.status) ? item.status : "eingetragen",
+    createdAt: item.createdAt || now,
+    updatedAt: item.updatedAt || item.createdAt || now
+  };
+}
+
+function formatInputDate(date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function normalizeQrToken(token, usedTokens) {

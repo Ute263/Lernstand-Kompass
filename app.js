@@ -17,6 +17,9 @@ let scannerTimer = null;
 let barcodeDetector = null;
 let progressDetailAnimalId = "";
 let currentPrintType = "";
+let printReturnTab = "printPdf";
+let assessmentEditorId = "";
+let assessmentFormOpen = false;
 let pendingBackup = null;
 let lastMergeReport = null;
 let syncAssistantVisible = false;
@@ -118,7 +121,7 @@ function render() {
     return;
   }
   if (screen === "teacher") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrerinnenbereich")}${renderTeacher()}</main>`;
+    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrkraftbereich")}${renderTeacher()}</main>`;
     appendSyncAssistant();
     return;
   }
@@ -149,7 +152,7 @@ function renderSetup() {
         <h1 class="brand-title">Arbeitsheft-Kompass einrichten</h1>
         <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
         <form class="setup-form" onsubmit="completeSetup(event)">
-          <label class="field">Lehrerinnen-PIN festlegen
+          <label class="field">Lehrkraft-PIN festlegen
             <input class="text-input" id="setupPin" type="password" autocomplete="new-password" inputmode="numeric">
           </label>
           <label class="field">PIN wiederholen
@@ -238,7 +241,7 @@ function renderStart() {
             </button>
             <button class="start-card" type="button" onclick="openLogin()">
               <span class="icon">🔒</span>
-              <strong>Lehrerinnenbereich 🔒</strong>
+              <strong>Lehrkraftbereich 🔒</strong>
             </button>
           </div>
         </div>
@@ -578,7 +581,7 @@ function renderLogin() {
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
         <div class="lock-icon">🔒</div>
-        <h2 class="child-title compact-title">Lehrerinnenbereich</h2>
+        <h2 class="child-title compact-title">Lehrkraftbereich</h2>
         <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
@@ -701,7 +704,7 @@ async function handleScannedQrToken(token) {
     return;
   }
   if (!animal) {
-    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrerin.";
+    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrkraft.";
     screen = "qrInvalid";
     render();
     return;
@@ -799,7 +802,7 @@ function renderTeacher() {
   const tabs = [
     ["overview", "Übersicht"],
     ["progress", "Fortschritt"],
-    ["assessments", "Tests"],
+    ["assessments", "Tests & Lernzielkontrollen"],
     ["today", "Heute"],
     ["help", "Hilfe/Kontrolle"],
     ["history", "Verlauf"],
@@ -816,7 +819,7 @@ function renderTeacher() {
 
   return `
     <section class="teacher-layout">
-      <nav class="tabs" aria-label="Lehrerinnenbereich">
+      <nav class="tabs" aria-label="Lehrkraftbereich">
         ${tabs.map(([id, label]) => `
           <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
         `).join("")}
@@ -1007,47 +1010,124 @@ function renderProgressTable(rows) {
 
 function renderAssessments() {
   const items = assessmentsForActiveClass().sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")));
+  const selected = items.find((item) => item.id === assessmentEditorId) || null;
   return `
     <section class="panel">
-      <h2>Lernzielkontrollen & Tests</h2>
-      <p class="message">Hier können Tests und Lernzielkontrollen für die Unterrichtsorganisation notiert werden. Bitte keine Kindernamen, Noten oder Leistungs-/Verhaltenskommentare eintragen.</p>
-      <form class="filters" onsubmit="addAssessment(event)">
-        <label class="field">Fach
-          <select class="select-input" id="newAssessmentSubject">${SUBJECTS.map((subject) => `<option>${subject}</option>`).join("")}</select>
-        </label>
-        <label class="field">Titel
-          <input class="text-input" id="newAssessmentTitle" placeholder="z. B. Lernzielkontrolle 1" autocomplete="off">
-        </label>
-        <label class="field">Datum
-          <input class="text-input" id="newAssessmentDate" type="date" value="${formatFileDate(new Date())}">
-        </label>
-        <button class="primary" type="submit">Hinzufügen</button>
-      </form>
+      <h2>Tests & Lernzielkontrollen</h2>
+      <p class="message">Die Ergebnisse werden nur den Tier-Pseudonymen zugeordnet. Es werden keine Kindernamen gespeichert. Die Zuordnung Tier → Kind bleibt außerhalb der App bei der Lehrkraft.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="openAssessmentForm()">Neue Lernzielkontrolle anlegen</button>
+        <button class="secondary" type="button" onclick="renderAssessmentSummaryPrintView()">Gesamtübersicht als PDF</button>
+        <button class="secondary" type="button" onclick="exportBeautifulExcel('active')">Excel-Export</button>
+      </div>
     </section>
+    ${assessmentFormOpen ? renderAssessmentForm() : ""}
+    ${selected ? renderAssessmentResultsEditor(selected) : ""}
     <section class="panel">
-      <h2>Kontrolle & Notizen</h2>
+      <h2>Übersicht aller angelegten Tests/Lernzielkontrollen</h2>
       ${items.length ? items.map((item) => `
         <article class="assessment-card">
           <div class="assessment-head">
             <strong>${escapeHtml(item.titel)}</strong>
-            <span class="subject-chip ${item.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(item.fach)}</span>
+            <span class="subject-chip ${subjectChipClass(item.fach)}">${escapeHtml(item.fach)}</span>
             <span>${item.datum ? formatGermanDate(item.datum) : "ohne Datum"}</span>
+            <span>${escapeHtml(item.typ)}</span>
           </div>
-          <label class="field">Kontrollstatus
-            <select class="select-input" onchange="updateAssessment('${item.id}', 'kontrolle', this.value)">
-              ${["geplant", "geschrieben", "kontrollieren", "kontrolliert", "zurückgegeben"].map((status) => `
-                <option value="${status}" ${item.kontrolle === status ? "selected" : ""}>${status}</option>
-              `).join("")}
-            </select>
-          </label>
-          <label class="field">Kommentar / Kontrollnotiz
-            <textarea class="text-input assessment-comment" rows="3" placeholder="Nur organisatorische Notiz, keine Kindernamen." onchange="updateAssessment('${item.id}', 'kommentar', this.value)">${escapeHtml(item.kommentar || "")}</textarea>
-          </label>
+          <p class="message">${escapeHtml(item.bereich || "ohne Bereich")} · ${escapeHtml(item.bewertungsart)}${item.maxPunkte ? ` · max. ${escapeHtml(item.maxPunkte)} Punkte` : ""}</p>
+          ${item.notizKurz ? `<p class="message">${escapeHtml(item.notizKurz)}</p>` : ""}
+          <p class="message">Eingetragene Ergebnisse: <strong>${assessmentResultsFor(item.id).filter((result) => result.status === "eingetragen").length}</strong></p>
           <div class="backup-actions">
-            <button class="danger" type="button" onclick="deleteAssessment('${item.id}')">löschen</button>
+            <button class="primary" type="button" onclick="openAssessmentResults('${item.id}')">Ergebnisse bearbeiten</button>
+            <button class="secondary" type="button" onclick="renderAssessmentPrintView('${item.id}')">PDF erstellen</button>
+            <button class="danger" type="button" onclick="deleteAssessment('${item.id}')">Löschen</button>
           </div>
         </article>
       `).join("") : `<div class="empty">Noch keine Lernzielkontrolle oder kein Test angelegt.</div>`}
+    </section>
+  `;
+}
+
+function renderAssessmentForm() {
+  return `
+    <section class="panel">
+      <h2>Neue Lernzielkontrolle anlegen</h2>
+      <form class="assessment-form" onsubmit="addAssessment(event)">
+        <label class="field">Titel
+          <input class="text-input" id="newAssessmentTitle" placeholder="Lernzielkontrolle Plus und Minus bis 20" autocomplete="off">
+        </label>
+        <label class="field">Fach
+          <select class="select-input" id="newAssessmentSubject">${ASSESSMENT_SUBJECTS.map((subject) => `<option>${escapeHtml(subject)}</option>`).join("")}</select>
+        </label>
+        <label class="field">Bereich
+          <input class="text-input" id="newAssessmentArea" placeholder="Zahlenraum bis 20" autocomplete="off">
+        </label>
+        <label class="field">Datum
+          <input class="text-input" id="newAssessmentDate" type="date" value="${formatFileDate(new Date())}">
+        </label>
+        <label class="field">Typ
+          <select class="select-input" id="newAssessmentType">${ASSESSMENT_TYPES.map((type) => `<option>${escapeHtml(type)}</option>`).join("")}</select>
+        </label>
+        <label class="field">Bewertungsart
+          <select class="select-input" id="newAssessmentGrading" onchange="toggleAssessmentMaxPoints(this.value)">
+            ${ASSESSMENT_GRADING_TYPES.map((type) => `<option>${escapeHtml(type)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field" id="newAssessmentMaxWrap">Maximale Punktzahl
+          <input class="text-input" id="newAssessmentMaxPoints" type="number" min="1" step="0.5" placeholder="20">
+        </label>
+        <label class="field assessment-wide">Kurze Inhaltsbeschreibung
+          <input class="text-input" id="newAssessmentNote" maxlength="120" placeholder="Plusaufgaben bis 20" autocomplete="off">
+        </label>
+        <div class="backup-actions assessment-wide">
+          <button class="primary" type="submit">Speichern</button>
+          <button class="secondary" type="button" onclick="closeAssessmentForm()">Abbrechen</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function renderAssessmentResultsEditor(assessment) {
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const showPoints = assessmentUsesPoints(assessment);
+  const showNote = assessmentUsesNote(assessment);
+  const showSymbol = assessmentUsesSymbol(assessment);
+  return `
+    <section class="panel">
+      <button class="secondary" type="button" onclick="closeAssessmentResults()">Zur Übersicht</button>
+      <h2>Ergebnisse eintragen</h2>
+      <p class="message"><strong>${escapeHtml(assessment.titel)}</strong> · ${escapeHtml(assessment.fach)} · ${escapeHtml(assessment.bereich || "ohne Bereich")} · ${assessment.datum ? formatGermanDate(assessment.datum) : "ohne Datum"}</p>
+      <div class="table-scroll">
+        <table class="assessment-result-table">
+          <thead>
+            <tr>
+              <th>Tier</th>
+              ${showPoints ? "<th>Punkte</th>" : ""}
+              ${showNote ? "<th>Note</th>" : ""}
+              ${showSymbol ? "<th>Symbol</th>" : ""}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${animals.map((animal) => {
+              const result = assessmentResultFor(assessment.id, animal.id);
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
+                  ${showPoints ? `<td><input class="text-input small-input" type="number" min="0" step="0.5" value="${escapeAttribute(result?.punkte ?? "")}" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'punkte', this.value)"></td>` : ""}
+                  ${showNote ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'note', this.value)">${["", "1", "2", "3", "4", "5", "6"].map((note) => `<option value="${note}" ${String(result?.note || "") === note ? "selected" : ""}>${note || "–"}</option>`).join("")}</select></td>` : ""}
+                  ${showSymbol ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'symbol', this.value)">${["", ...ASSESSMENT_SYMBOLS].map((symbol) => `<option value="${escapeAttribute(symbol)}" ${String(result?.symbol || "") === symbol ? "selected" : ""}>${symbol || "–"}</option>`).join("")}</select></td>` : ""}
+                  <td><select class="select-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'status', this.value)">${ASSESSMENT_RESULT_STATUSES.map((status) => `<option value="${escapeAttribute(status)}" ${String(result?.status || "eingetragen") === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}</select></td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="confirmAssessmentResultsSaved()">Ergebnisse speichern</button>
+        <button class="secondary" type="button" onclick="renderAssessmentPrintView('${assessment.id}')">PDF im Querformat öffnen</button>
+      </div>
     </section>
   `;
 }
@@ -1349,7 +1429,8 @@ async function deleteClassItem(classId) {
     materials: state.materials.filter((item) => item.classId !== classId),
     entries: state.entries.filter((item) => item.classId !== classId),
     goals: state.goals.filter((item) => item.classId !== classId),
-    assessments: (state.assessments || []).filter((item) => item.classId !== classId)
+    assessments: (state.assessments || []).filter((item) => item.classId !== classId),
+    assessmentResults: (state.assessmentResults || []).filter((item) => item.classId !== classId)
   });
 }
 
@@ -1407,7 +1488,7 @@ function renderGoalSettings() {
   return `
     <section class="panel">
       <h2>Soll-Seiten</h2>
-      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrerinnenbereich angezeigt.</p>
+      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrkraftbereich angezeigt.</p>
       ${goals.map((goal) => `
         <div class="editor-row goal-row">
           <select class="select-input" onchange="updateGoal('${goal.id}', 'fach', this.value)">
@@ -1622,33 +1703,138 @@ async function updateProgressSetting(field, value) {
 
 async function addAssessment(event) {
   event.preventDefault();
-  const fach = document.querySelector("#newAssessmentSubject").value;
   const titel = document.querySelector("#newAssessmentTitle").value.trim();
+  const fach = document.querySelector("#newAssessmentSubject").value;
+  const bereich = document.querySelector("#newAssessmentArea").value.trim();
   const datum = document.querySelector("#newAssessmentDate").value || formatFileDate(new Date());
+  const typ = document.querySelector("#newAssessmentType").value;
+  const bewertungsart = document.querySelector("#newAssessmentGrading").value;
+  const maxPunkteValue = Number(document.querySelector("#newAssessmentMaxPoints")?.value || 0);
+  const notizKurz = document.querySelector("#newAssessmentNote").value.trim();
   if (!titel) return;
+  const timestamp = nowIso();
   const item = {
     id: makeId(),
     classId: state.activeClassId,
-    fach,
     titel,
+    fach,
+    bereich,
     datum,
-    kontrolle: "geplant",
-    kommentar: "",
-    erstelltAm: nowIso()
+    typ,
+    bewertungsart,
+    maxPunkte: assessmentGradingNeedsPoints(bewertungsart) && maxPunkteValue > 0 ? maxPunkteValue : "",
+    notizKurz,
+    createdAt: timestamp,
+    updatedAt: timestamp
   };
+  assessmentFormOpen = false;
+  assessmentEditorId = item.id;
   await persistAndRender({ ...state, assessments: [...(state.assessments || []), item] });
 }
 
 async function updateAssessment(assessmentId, field, value) {
+  const timestamp = nowIso();
   const assessments = (state.assessments || []).map((item) => (
-    item.id === assessmentId ? { ...item, [field]: String(value).trim() } : item
+    item.id === assessmentId ? { ...item, [field]: String(value).trim(), updatedAt: timestamp } : item
   ));
   await persist({ ...state, assessments });
 }
 
 async function deleteAssessment(assessmentId) {
-  if (!confirm("Diese Lernzielkontrolle / diesen Test löschen?")) return;
-  await persistAndRender({ ...state, assessments: (state.assessments || []).filter((item) => item.id !== assessmentId) });
+  if (!confirm("Diese Lernzielkontrolle und alle zugehörigen Ergebnisse werden gelöscht. Fortfahren?")) return;
+  if (assessmentEditorId === assessmentId) assessmentEditorId = "";
+  await persistAndRender({
+    ...state,
+    assessments: (state.assessments || []).filter((item) => item.id !== assessmentId),
+    assessmentResults: (state.assessmentResults || []).filter((item) => item.assessmentId !== assessmentId)
+  });
+}
+
+function openAssessmentForm() {
+  assessmentFormOpen = true;
+  assessmentEditorId = "";
+  render();
+}
+
+function closeAssessmentForm() {
+  assessmentFormOpen = false;
+  render();
+}
+
+function openAssessmentResults(assessmentId) {
+  assessmentFormOpen = false;
+  assessmentEditorId = assessmentId;
+  render();
+}
+
+function closeAssessmentResults() {
+  assessmentEditorId = "";
+  render();
+}
+
+function toggleAssessmentMaxPoints(gradingType) {
+  const wrapper = document.querySelector("#newAssessmentMaxWrap");
+  if (wrapper) wrapper.hidden = !assessmentGradingNeedsPoints(gradingType);
+}
+
+async function updateAssessmentResult(assessmentId, animalId, field, value) {
+  const assessment = (state.assessments || []).find((item) => item.id === assessmentId);
+  const animal = state.animals.find((item) => item.id === animalId);
+  if (!assessment || !animal) return;
+  const timestamp = nowIso();
+  const existing = assessmentResultFor(assessmentId, animalId);
+  const cleanValue = cleanAssessmentResultValue(field, value);
+  const result = {
+    ...(existing || {
+      id: makeId(),
+      assessmentId,
+      classId: assessment.classId,
+      animalId,
+      tierNameSnapshot: animal.tierName,
+      tierEmojiSnapshot: animal.tierEmoji,
+      punkte: "",
+      maxPunkteSnapshot: assessment.maxPunkte || "",
+      note: "",
+      symbol: "",
+      status: "eingetragen",
+      createdAt: timestamp
+    }),
+    [field]: cleanValue,
+    maxPunkteSnapshot: assessment.maxPunkte || existing?.maxPunkteSnapshot || "",
+    updatedAt: timestamp
+  };
+  const others = (state.assessmentResults || []).filter((item) => !(item.assessmentId === assessmentId && item.animalId === animalId));
+  await persist({ ...state, assessmentResults: [...others, result] });
+}
+
+function cleanAssessmentResultValue(field, value) {
+  if (field === "punkte") {
+    if (String(value).trim() === "") return "";
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : "";
+  }
+  if (field === "status") return ASSESSMENT_RESULT_STATUSES.includes(value) ? value : "eingetragen";
+  if (field === "symbol") return ASSESSMENT_SYMBOLS.includes(value) ? value : "";
+  return String(value || "").trim();
+}
+
+function confirmAssessmentResultsSaved() {
+  globalMessage = "Ergebnisse wurden gespeichert.";
+  render();
+}
+
+function renderAssessmentPrintView(assessmentId) {
+  currentPrintType = `assessment:${assessmentId}`;
+  printReturnTab = "assessments";
+  screen = "printView";
+  render();
+}
+
+function renderAssessmentSummaryPrintView() {
+  currentPrintType = "assessmentSummary";
+  printReturnTab = "assessments";
+  screen = "printView";
+  render();
 }
 
 function renderBackup() {
@@ -1721,7 +1907,11 @@ function renderMergeReport() {
         <div>neu ergänzte Tiere</div><strong>${lastMergeReport.addedAnimals}</strong>
         <div>neu ergänzte Materialien</div><strong>${lastMergeReport.addedMaterials}</strong>
         <div>neu ergänzte Arbeitsstand-Einträge</div><strong>${lastMergeReport.addedEntries}</strong>
+        <div>neu ergänzte Lernzielkontrollen</div><strong>${lastMergeReport.addedAssessments || 0}</strong>
+        <div>neu ergänzte Testergebnisse</div><strong>${lastMergeReport.addedAssessmentResults || 0}</strong>
         <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
+        <div>übersprungene doppelte Lernzielkontrollen</div><strong>${lastMergeReport.skippedDuplicateAssessments || 0}</strong>
+        <div>übersprungene doppelte Testergebnisse</div><strong>${lastMergeReport.skippedDuplicateAssessmentResults || 0}</strong>
         <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
         <div>Zeitpunkt</div><strong>${formatDateTime(lastMergeReport.mergedAt)}</strong>
       </div>
@@ -1955,6 +2145,7 @@ function renderPrintPdf() {
 
 function renderPrintView(type) {
   currentPrintType = type;
+  printReturnTab = "printPdf";
   screen = "printView";
   render();
 }
@@ -1962,7 +2153,8 @@ function renderPrintView(type) {
 function closePrintView() {
   currentPrintType = "";
   screen = "teacher";
-  teacherTab = "printPdf";
+  teacherTab = printReturnTab || "printPdf";
+  printReturnTab = "printPdf";
   render();
 }
 
@@ -1976,13 +2168,16 @@ function renderPrintScreen() {
     week: "Arbeitsheft-Kompass – Wochenübersicht",
     helpControl: "Offene Hilfe und Kontrolle",
     progress: "Fortschritt und Arbeitstempo",
-    report: "Arbeitsheft-Kompass – Gesamtbericht"
+    report: "Arbeitsheft-Kompass – Gesamtbericht",
+    assessmentSummary: "Tests & Lernzielkontrollen – Gesamtübersicht"
   };
   const type = currentPrintType || "today";
+  const assessmentId = type.startsWith("assessment:") ? type.split(":")[1] : "";
+  const assessment = assessmentId ? (state.assessments || []).find((item) => item.id === assessmentId) : null;
   return `
-    <style>${printViewCss()}</style>
+    <style>${printViewCss(type.startsWith("assessment") || type === "assessmentSummary")}</style>
     <div class="print-toolbar" aria-label="Druckwerkzeuge">
-      <strong>${escapeHtml(titles[type] || "Druckansicht")}</strong>
+      <strong>${escapeHtml(assessment ? assessment.titel : titles[type] || "Druckansicht")}</strong>
       <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
       <button type="button" onclick="closePrintView()">Zurück</button>
       <button type="button" onclick="closePrintView()">Fenster schließen</button>
@@ -1993,6 +2188,8 @@ function renderPrintScreen() {
       ${type === "helpControl" ? renderPrintHelpControl(context, className, generatedAt) : ""}
       ${type === "progress" ? renderPrintProgress(context, className, generatedAt) : ""}
       ${type === "report" ? renderPrintReport(context, className, generatedAt) : ""}
+      ${assessment ? renderPrintAssessment(assessment, className, generatedAt) : ""}
+      ${type === "assessmentSummary" ? renderPrintAssessmentSummary(className, generatedAt) : ""}
     </main>
   `;
 }
@@ -2115,6 +2312,101 @@ function renderPrintReport(context, className, generatedAt) {
       ${printSectionTitle("Kurze Rohdatenübersicht")}
       ${renderPrintEntryTable(dataRows, ["Datum", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status"], true)}
     ` : ""}
+  `;
+}
+
+function renderPrintAssessment(assessment, className, generatedAt) {
+  const animals = state.animals.filter((animal) => animal.classId === assessment.classId && animal.aktiv).sort((a, b) => a.tierName.localeCompare(b.tierName, "de"));
+  const results = animals.map((animal) => assessmentResultFor(assessment.id, animal.id) || {
+    assessmentId: assessment.id,
+    classId: assessment.classId,
+    animalId: animal.id,
+    tierNameSnapshot: animal.tierName,
+    tierEmojiSnapshot: animal.tierEmoji,
+    punkte: "",
+    maxPunkteSnapshot: assessment.maxPunkte || "",
+    note: "",
+    symbol: "",
+    status: ""
+  });
+  const counts = assessmentResultCounts(results.filter((result) => result.status));
+  return `
+    ${printHero("Tests & Lernzielkontrollen", `Klasse/Lerngruppe: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    <section class="print-section">
+      <h2>${escapeHtml(assessment.titel)}</h2>
+      <div class="assessment-print-meta">
+        <span><strong>Fach:</strong> ${escapeHtml(assessment.fach)}</span>
+        <span><strong>Bereich:</strong> ${escapeHtml(assessment.bereich || "–")}</span>
+        <span><strong>Datum:</strong> ${assessment.datum ? formatGermanDate(assessment.datum) : "–"}</span>
+        <span><strong>Typ:</strong> ${escapeHtml(assessment.typ)}</span>
+        <span><strong>Bewertungsart:</strong> ${escapeHtml(assessment.bewertungsart)}</span>
+        ${assessment.maxPunkte ? `<span><strong>Max. Punkte:</strong> ${escapeHtml(assessment.maxPunkte)}</span>` : ""}
+      </div>
+    </section>
+    <section class="print-section">
+      ${renderAssessmentResultPrintTable(assessment, results)}
+    </section>
+    ${renderPrintKpis([
+      ["eingetragen", counts.eingetragen, "neutral"],
+      ["fehlt", counts.fehlt, "stale"],
+      ["nachschreiben", counts.nachschreiben, "help"],
+      ["nicht teilgenommen", counts["nicht teilgenommen"], "check"]
+    ])}
+  `;
+}
+
+function renderAssessmentResultPrintTable(assessment, results) {
+  const showPoints = assessmentUsesPoints(assessment);
+  const showNote = assessmentUsesNote(assessment);
+  const showSymbol = assessmentUsesSymbol(assessment);
+  const headers = ["Tier"];
+  if (showPoints) headers.push("Punkte", "Prozent");
+  if (showNote) headers.push("Note");
+  if (showSymbol) headers.push("Symbol");
+  headers.push("Status");
+  return `
+    <table class="planner-table assessment-print-table">
+      <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${results.length ? results.map((result) => `
+          <tr>
+            <td class="print-animal">${escapeHtml(assessmentAnimalLabel(result))}</td>
+            ${showPoints ? `<td>${escapeHtml(formatAssessmentPoints(result))}</td><td>${escapeHtml(formatAssessmentPercent(result))}</td>` : ""}
+            ${showNote ? `<td>${escapeHtml(result.note || "–")}</td>` : ""}
+            ${showSymbol ? `<td>${escapeHtml(result.symbol || "–")}</td>` : ""}
+            <td>${escapeHtml(result.status || "–")}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="${headers.length}">Noch keine Ergebnisse eingetragen.</td></tr>`}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderPrintAssessmentSummary(className, generatedAt) {
+  const assessments = assessmentsForActiveClass().sort((a, b) => String(a.datum || "").localeCompare(String(b.datum || "")));
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv).sort((a, b) => a.tierName.localeCompare(b.tierName, "de"));
+  return `
+    ${printHero("Tests & Lernzielkontrollen – Gesamtübersicht", `Klasse/Lerngruppe: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    <section class="print-section">
+      ${assessments.length ? `
+        <table class="planner-table assessment-summary-table">
+          <thead>
+            <tr>
+              <th>Tier</th>
+              ${assessments.map((assessment) => `<th>${escapeHtml(assessmentMatrixHeader(assessment))}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${animals.map((animal) => `
+              <tr>
+                <td class="print-animal">${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</td>
+                ${assessments.map((assessment) => `<td>${escapeHtml(formatAssessmentMatrixValue(assessment, assessmentResultFor(assessment.id, animal.id)))}</td>`).join("")}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : printEmpty("Noch keine Tests oder Lernzielkontrollen angelegt.")}
+    </section>
   `;
 }
 
@@ -2270,7 +2562,7 @@ function formatGermanDate(value) {
   return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
 
-function printViewCss() {
+function printViewCss(landscape = false) {
   return `
     :root {
       --aubergine: #452143;
@@ -2489,13 +2781,31 @@ function printViewCss() {
     .progress-print-table {
       font-size: 0.82rem;
     }
+    .assessment-print-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fffdf8;
+      font-weight: 750;
+    }
+    .assessment-print-table,
+    .assessment-summary-table {
+      font-size: 0.82rem;
+    }
+    .assessment-summary-table th,
+    .assessment-summary-table td {
+      padding: 7px 8px;
+    }
     .page-break {
       break-before: page;
       page-break-before: always;
       height: 1px;
     }
     @page {
-      size: A4;
+      size: A4 ${landscape ? "landscape" : "portrait"};
       margin: 12mm;
     }
     @media print {
@@ -2629,7 +2939,7 @@ function renderSecurity() {
     </section>
     <section class="panel">
       <h2>Wiederherstellungsschlüssel</h2>
-      <p class="privacy-text">Die PIN schützt den Lehrerinnenbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
+      <p class="privacy-text">Die PIN schützt den Lehrkraftbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
       <button class="secondary" type="button" onclick="regenerateRecoveryKey()">Neuen Wiederherstellungsschlüssel erzeugen</button>
       ${pendingRecoveryKey ? `
         <div class="recovery-key-panel">
@@ -2676,6 +2986,7 @@ function hideRecoveryKey() {
 }
 
 function renderStorageStatus() {
+  const latestAssessmentChange = latestAssessmentUpdatedAt();
   return `
     <section class="panel">
       <h2>Speicherstatus</h2>
@@ -2687,6 +2998,11 @@ function renderStorageStatus() {
         <div>Anzahl Tiere</div><strong>${state.animals.length}</strong>
         <div>Anzahl Materialien</div><strong>${state.materials.length}</strong>
         <div>Anzahl Arbeitsstände</div><strong>${state.entries.length}</strong>
+        <div>Anzahl Lernzielkontrollen</div><strong>${(state.assessments || []).length}</strong>
+        <div>Anzahl gespeicherter Testergebnisse</div><strong>${(state.assessmentResults || []).length}</strong>
+        <div>letzte Änderung Tests & Lernzielkontrollen</div><strong>${latestAssessmentChange ? formatDateTime(latestAssessmentChange) : "noch keine"}</strong>
+        <div>assessments vorhanden</div><strong>${(state.assessments || []).length ? "ja" : "nein"}</strong>
+        <div>assessmentResults vorhanden</div><strong>${(state.assessmentResults || []).length ? "ja" : "nein"}</strong>
         <div>letzte lokale Speicherung</div><strong>${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</strong>
         <div>QR-Scanner aktiviert</div><strong>${state.qrScannerEnabled ? "ja" : "nein"}</strong>
         <div>Mehrgeräte-Hinweis aktiviert</div><strong>${state.multiDeviceReminderEnabled !== false ? "ja" : "nein"}</strong>
@@ -2779,6 +3095,9 @@ function buildBeautifulExcelReport(mode) {
   const trailEntries = decorateEntries(entries).sort(sortEntriesByClassAnimalDate);
   const allEntries = reportEntries;
   const printRows = buildPrintRows(animals, baseEntries);
+  const assessments = (state.assessments || []).filter((item) => classIds.includes(item.classId));
+  const assessmentIds = new Set(assessments.map((item) => item.id));
+  const assessmentResults = (state.assessmentResults || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
   return {
     filename,
     scopeLabel,
@@ -2795,7 +3114,9 @@ function buildBeautifulExcelReport(mode) {
     helpEntries,
     allEntries,
     printRows,
-    stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now })
+    assessments,
+    assessmentResults,
+    stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now, assessments, assessmentResults })
   };
 }
 
@@ -2807,7 +3128,7 @@ function decorateEntries(entries) {
   }));
 }
 
-function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now }) {
+function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now, assessments = [], assessmentResults = [] }) {
   const today = now.toDateString();
   const metricEntries = entries;
   const latest = [...metricEntries].sort(sortNewest)[0] || null;
@@ -2837,7 +3158,9 @@ function buildDashboardStats({ entries, baseEntries, animals, materials, classId
     matheAverage: formatAverage(latestMathePages),
     aheadCount: progressRows.filter((row) => row.hints.some((hint) => hint === "Zusatzangebot möglich" || hint === "weiter voraus") || row.groupLabel === "weiter voraus").length,
     lookCount: progressRows.filter((row) => row.hints.some((hint) => hint === "Unterstützung prüfen" || hint === "braucht Blick") || row.groupLabel === "braucht Blick" || row.groupLabel === "deutlicher Abstand").length,
-    exportedEntryCount: entries.length
+    exportedEntryCount: entries.length,
+    assessmentCount: assessments.length,
+    assessmentResultCount: assessmentResults.length
   };
 }
 
@@ -3040,19 +3363,96 @@ function renderPrivacy() {
         <li>Status</li>
         <li>Datum/Uhrzeit</li>
         <li>erledigt-Status</li>
+        <li>Tests/Lernzielkontrollen und zugehörige Ergebnisse zu Tier-Pseudonymen</li>
       </ul>
       <h3>Nicht gespeichert werden:</h3>
       <ul>
         <li>Namen</li>
         <li>Fotos</li>
         <li>Handschrift</li>
-        <li>Noten</li>
         <li>freie Leistungs- oder Verhaltenskommentare</li>
         <li>KI-Auswertungen</li>
       </ul>
       <p>Die Daten werden lokal auf diesem iPad/in diesem Browser gespeichert. Backups sollen nur an einem geschützten Speicherort abgelegt werden.</p>
     </section>
   `;
+}
+
+function subjectChipClass(subject) {
+  if (subject === "Deutsch") return "deutsch";
+  if (subject === "Mathe") return "mathe";
+  return "neutral";
+}
+
+function assessmentGradingNeedsPoints(gradingType) {
+  return String(gradingType || "").includes("Punkte");
+}
+
+function assessmentUsesPoints(assessment) {
+  return assessmentGradingNeedsPoints(assessment?.bewertungsart);
+}
+
+function assessmentUsesNote(assessment) {
+  return String(assessment?.bewertungsart || "").includes("Note");
+}
+
+function assessmentUsesSymbol(assessment) {
+  return String(assessment?.bewertungsart || "").includes("Symbol");
+}
+
+function assessmentResultsFor(assessmentId) {
+  return (state.assessmentResults || []).filter((item) => item.assessmentId === assessmentId);
+}
+
+function assessmentResultFor(assessmentId, animalId) {
+  return (state.assessmentResults || []).find((item) => item.assessmentId === assessmentId && item.animalId === animalId) || null;
+}
+
+function assessmentAnimalLabel(result) {
+  return `${result?.tierEmojiSnapshot || ""} ${result?.tierNameSnapshot || ""}`.trim() || "Tier";
+}
+
+function formatAssessmentPoints(result) {
+  if (!result || result.punkte === "" || result.punkte == null) return "–";
+  const max = result.maxPunkteSnapshot ? `/${result.maxPunkteSnapshot}` : "";
+  return `${result.punkte}${max}`;
+}
+
+function formatAssessmentPercent(result) {
+  const points = Number(result?.punkte);
+  const maxPoints = Number(result?.maxPunkteSnapshot);
+  if (!Number.isFinite(points) || !Number.isFinite(maxPoints) || maxPoints <= 0) return "–";
+  return `${Math.round((points / maxPoints) * 100)} %`;
+}
+
+function formatAssessmentMatrixValue(assessment, result) {
+  if (!result) return "–";
+  if (result.status && result.status !== "eingetragen") return result.status;
+  const parts = [];
+  if (assessmentUsesPoints(assessment)) parts.push(formatAssessmentPoints(result));
+  if (assessmentUsesNote(assessment) && result.note) parts.push(result.note);
+  if (assessmentUsesSymbol(assessment) && result.symbol) parts.push(result.symbol);
+  return parts.filter((part) => part && part !== "–").join(" | ") || "–";
+}
+
+function assessmentMatrixHeader(assessment) {
+  const date = assessment.datum ? formatGermanDate(assessment.datum) : "";
+  return `${assessment.titel}${date ? `\n${date}` : ""}`;
+}
+
+function assessmentResultCounts(results) {
+  return ASSESSMENT_RESULT_STATUSES.reduce((counts, status) => {
+    counts[status] = results.filter((result) => result.status === status).length;
+    return counts;
+  }, {});
+}
+
+function latestAssessmentUpdatedAt() {
+  const dates = [
+    ...(state.assessments || []).map((item) => item.updatedAt || item.createdAt),
+    ...(state.assessmentResults || []).map((item) => item.updatedAt || item.createdAt)
+  ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
+  return dates[0] || "";
 }
 
 function activeClass() {

@@ -34,6 +34,7 @@ function makeActiveClassBackup(state, classId) {
     entries: state.entries.filter((item) => item.classId === classId),
     goals: state.goals.filter((item) => item.classId === classId),
     assessments: (state.assessments || []).filter((item) => item.classId === classId),
+    assessmentResults: (state.assessmentResults || []).filter((item) => item.classId === classId),
     sprachweltTasks: state.sprachweltTasks || []
   };
 }
@@ -114,6 +115,9 @@ async function exportBeautifulWorkbook(report) {
   addHelpSheet(workbook, report);
   addTodaySheet(workbook, report);
   addPrintSheet(workbook, report);
+  addAssessmentOverviewSheet(workbook, report);
+  addAssessmentResultsSheet(workbook, report);
+  addAssessmentMatrixSheet(workbook, report);
   addDataSheet(workbook, report);
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -151,6 +155,8 @@ function addStartSheet(workbook, report) {
   addMetricTile(sheet, "G5:H8", "Offene Kontrolle", report.stats.openCheck, XLSX_COLORS.check);
   addMetricTile(sheet, "A10:B13", "Deutsch Ø", report.stats.deutschAverage, XLSX_COLORS.deutsch);
   addMetricTile(sheet, "C10:D13", "Mathe Ø", report.stats.matheAverage, XLSX_COLORS.mathe);
+  addMetricTile(sheet, "E10:F13", "Lernzielkontrollen", report.stats.assessmentCount, XLSX_COLORS.aubergineLight);
+  addMetricTile(sheet, "G10:H13", "LZK-Ergebnisse", report.stats.assessmentResultCount, XLSX_COLORS.neutral);
 
   sheet.mergeCells("A15:H15");
   const focusTitle = sheet.getCell("A15");
@@ -275,6 +281,91 @@ function addHelpSheet(workbook, report) {
     printArea: `A1:H${Math.max(lastRow, 14)}`,
     landscape: false,
     freezeRow: report.helpEntries.length ? 5 : 0
+  });
+}
+
+function addAssessmentOverviewSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("Lernzielkontrollen");
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 14, 16, 20, 18, 32, 22, 14, 18, 14, 18, 24] });
+  addTitleBlock(sheet, "Lernzielkontrollen", `Export für: ${report.scopeLabel}`, report.generatedAt, 12);
+  const lastRow = addTable(sheet, 5, [
+    "Klasse/Lerngruppe", "Datum", "Fach", "Bereich", "Typ", "Titel", "Bewertungsart", "Max. Punkte",
+    "Anzahl Ergebnisse", "Anzahl fehlt", "Anzahl nachschreiben", "Anzahl nicht teilgenommen"
+  ], report.assessments.map((assessment) => {
+    const results = report.assessmentResults.filter((result) => result.assessmentId === assessment.id);
+    return [
+      getClassNameById(assessment.classId),
+      assessment.datum ? formatGermanDate(assessment.datum) : "",
+      assessment.fach,
+      assessment.bereich || "",
+      assessment.typ,
+      assessment.titel,
+      assessment.bewertungsart,
+      assessment.maxPunkte || "",
+      results.filter((result) => result.status === "eingetragen").length,
+      results.filter((result) => result.status === "fehlt").length,
+      results.filter((result) => result.status === "nachschreiben").length,
+      results.filter((result) => result.status === "nicht teilgenommen").length
+    ];
+  }), { rowHeight: 28 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 12,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:L${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
+}
+
+function addAssessmentResultsSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("LZK Ergebnisse");
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 20, 16, 20, 30, 14, 12, 14, 12, 10, 10, 22] });
+  addTitleBlock(sheet, "LZK Ergebnisse", `Export für: ${report.scopeLabel}`, report.generatedAt, 12);
+  const rows = report.assessmentResults.map((result) => {
+    const assessment = report.assessments.find((item) => item.id === result.assessmentId) || {};
+    return [
+      getClassNameById(result.classId),
+      `${result.tierEmojiSnapshot || ""} ${result.tierNameSnapshot || ""}`.trim(),
+      assessment.fach || "",
+      assessment.bereich || "",
+      assessment.titel || "",
+      assessment.datum ? formatGermanDate(assessment.datum) : "",
+      result.punkte ?? "",
+      result.maxPunkteSnapshot || assessment.maxPunkte || "",
+      assessmentResultPercent(result),
+      result.note || "",
+      result.symbol || "",
+      result.status || ""
+    ];
+  });
+  const lastRow = addTable(sheet, 5, ["Klasse/Lerngruppe", "Tier", "Fach", "Bereich", "Titel", "Datum", "Punkte", "Max. Punkte", "Prozent", "Note", "Symbol", "Status"], rows, { statusColumn: 12, animalColumn: 2, rowHeight: 28 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 12,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:L${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
+}
+
+function addAssessmentMatrixSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("LZK Übersicht");
+  const assessments = report.assessments;
+  setupSheet(sheet, { orientation: "landscape", widths: [22, ...assessments.map(() => 20)] });
+  addTitleBlock(sheet, "LZK Übersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, Math.max(2, assessments.length + 1));
+  const rows = report.animals.map((animal) => [
+    `${animal.tierEmoji} ${animal.tierName}`,
+    ...assessments.map((assessment) => formatAssessmentMatrixExportValue(assessment, report.assessmentResults.find((result) => result.assessmentId === assessment.id && result.animalId === animal.id)))
+  ]);
+  const headers = ["Tier", ...assessments.map((assessment) => `${assessment.titel}${assessment.datum ? ` ${formatGermanDate(assessment.datum)}` : ""}`)];
+  const lastRow = addTable(sheet, 5, headers, rows, { animalColumn: 1, rowHeight: 30 });
+  const maxColumn = Math.max(1, headers.length);
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: maxColumn,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:${columnLetters(maxColumn)}${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
   });
 }
 
@@ -509,6 +600,37 @@ function parseCellAddress(address) {
   return { row, column };
 }
 
+function columnLetters(column) {
+  let value = "";
+  let current = column;
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    value = String.fromCharCode(65 + remainder) + value;
+    current = Math.floor((current - 1) / 26);
+  }
+  return value || "A";
+}
+
+function assessmentResultPercent(result) {
+  const points = Number(result?.punkte);
+  const maxPoints = Number(result?.maxPunkteSnapshot);
+  if (!Number.isFinite(points) || !Number.isFinite(maxPoints) || maxPoints <= 0) return "";
+  return `${Math.round((points / maxPoints) * 100)} %`;
+}
+
+function formatAssessmentMatrixExportValue(assessment, result) {
+  if (!result) return "";
+  if (result.status && result.status !== "eingetragen") return result.status;
+  const grading = String(assessment?.bewertungsart || "");
+  const parts = [];
+  if (grading.includes("Punkte") && result.punkte !== "" && result.punkte != null) {
+    parts.push(`${result.punkte}${result.maxPunkteSnapshot ? `/${result.maxPunkteSnapshot}` : ""}`);
+  }
+  if (grading.includes("Note") && result.note) parts.push(result.note);
+  if (grading.includes("Symbol") && result.symbol) parts.push(result.symbol);
+  return parts.join(" | ");
+}
+
 function progressBar(value) {
   const filled = Math.max(0, Math.min(5, Math.round(Number(value) / 2)));
   return `${"▰".repeat(filled)}${"▱".repeat(5 - filled)}`;
@@ -573,7 +695,19 @@ function importActiveClassAsNew(state, backup) {
 
   const materials = (backup.materials || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
   const goals = (backup.goals || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
-  const assessments = (backup.assessments || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
+  const oldToNewAssessment = new Map();
+  const assessments = (backup.assessments || []).map((item) => {
+    const newId = makeId();
+    oldToNewAssessment.set(item.id, newId);
+    return { ...item, id: newId, classId: newClassId };
+  });
+  const assessmentResults = (backup.assessmentResults || []).map((item) => ({
+    ...item,
+    id: makeId(),
+    assessmentId: oldToNewAssessment.get(item.assessmentId) || item.assessmentId,
+    classId: newClassId,
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId
+  }));
   const entries = (backup.entries || []).map((entry) => ({
     ...entry,
     id: makeId(),
@@ -589,6 +723,7 @@ function importActiveClassAsNew(state, backup) {
     materials: [...state.materials, ...materials],
     goals: [...state.goals, ...goals],
     assessments: [...(state.assessments || []), ...assessments],
+    assessmentResults: [...(state.assessmentResults || []), ...assessmentResults],
     entries: [...state.entries, ...entries]
   });
 }
@@ -613,6 +748,7 @@ function stateFromBackup(backup) {
       entries: backup.entries || [],
       goals: backup.goals || [],
       assessments: backup.assessments || [],
+      assessmentResults: backup.assessmentResults || [],
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
@@ -630,6 +766,9 @@ function mergeBackupData(currentState, importedBackup) {
     addedEntries: 0,
     addedGoals: 0,
     addedAssessments: 0,
+    addedAssessmentResults: 0,
+    skippedDuplicateAssessments: 0,
+    skippedDuplicateAssessmentResults: 0,
     skippedDuplicateEntries: 0,
     conflicts: [],
     mergedAt: nowIso()
@@ -641,6 +780,7 @@ function mergeBackupData(currentState, importedBackup) {
   const entryIds = new Set(current.entries.map((item) => item.id || item.entryId).filter(Boolean));
   const goalIds = new Set((current.goals || []).map((item) => item.id));
   const assessmentIds = new Set((current.assessments || []).map((item) => item.id));
+  const assessmentResultIds = new Set((current.assessmentResults || []).map((item) => item.id));
   const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
   const qrTokens = new Map(current.animals.filter((animal) => animal.qrToken).map((animal) => [animal.qrToken, animal.id]));
 
@@ -651,7 +791,8 @@ function mergeBackupData(currentState, importedBackup) {
     materials: [...current.materials],
     entries: [...current.entries],
     goals: [...(current.goals || [])],
-    assessments: [...(current.assessments || [])]
+    assessments: [...(current.assessments || [])],
+    assessmentResults: [...(current.assessmentResults || [])]
   };
 
   imported.classes.forEach((item) => {
@@ -706,10 +847,23 @@ function mergeBackupData(currentState, importedBackup) {
   });
 
   (imported.assessments || []).forEach((item) => {
-    if (assessmentIds.has(item.id)) return;
+    if (assessmentIds.has(item.id)) {
+      report.skippedDuplicateAssessments += 1;
+      return;
+    }
     next.assessments.push(item);
     assessmentIds.add(item.id);
     report.addedAssessments += 1;
+  });
+
+  (imported.assessmentResults || []).forEach((item) => {
+    if (assessmentResultIds.has(item.id)) {
+      report.skippedDuplicateAssessmentResults += 1;
+      return;
+    }
+    next.assessmentResults.push(item);
+    assessmentResultIds.add(item.id);
+    report.addedAssessmentResults += 1;
   });
 
   return { state: normalizeState(next), report };

@@ -686,6 +686,25 @@ th {
   resize: vertical;
 }
 
+.assessment-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.assessment-wide {
+  grid-column: 1 / -1;
+}
+
+.assessment-result-table {
+  min-width: 720px;
+}
+
+.assessment-result-table .small-input {
+  min-width: 86px;
+}
+
 .subject-chip {
   display: inline-flex;
   align-items: center;
@@ -704,6 +723,11 @@ th {
 .subject-chip.mathe {
   color: var(--green);
   background: var(--green-bg);
+}
+
+.subject-chip.neutral {
+  color: var(--brand-dark);
+  background: #eef3ff;
 }
 
 .sprachwelt-admin-list {
