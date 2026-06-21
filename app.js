@@ -17,6 +17,12 @@ let scannerTimer = null;
 let barcodeDetector = null;
 let progressDetailAnimalId = "";
 let currentPrintType = "";
+let pendingBackup = null;
+let lastMergeReport = null;
+let syncAssistantVisible = false;
+let syncAssistantSnoozedUntil = 0;
+let syncGuideStep = 0;
+let syncAssistantTimer = null;
 let progressFilters = {
   classId: "",
   fach: "",
@@ -42,6 +48,7 @@ async function initApp() {
   }
   screen = state.setupComplete ? "start" : "setup";
   render();
+  startMultiDeviceReminderTimer();
 }
 
 async function migrateSecurityState() {
@@ -72,6 +79,7 @@ async function persistAndRender(nextState = state) {
 }
 
 function render() {
+  document.body.classList.toggle("print-doc-mode", screen === "printView");
   if (screen === "loading") {
     app.innerHTML = `<main class="app-shell"><div class="empty">App wird geladen...</div></main>`;
     return;
@@ -110,7 +118,8 @@ function render() {
     return;
   }
   if (screen === "teacher") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrkraft")}${renderTeacher()}</main>`;
+    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrerinnenbereich")}${renderTeacher()}</main>`;
+    appendSyncAssistant();
     return;
   }
   if (screen === "printView") {
@@ -118,6 +127,7 @@ function render() {
     return;
   }
   app.innerHTML = renderStart();
+  appendSyncAssistant();
 }
 
 function renderTopbar(subtitle) {
@@ -139,7 +149,7 @@ function renderSetup() {
         <h1 class="brand-title">Arbeitsheft-Kompass einrichten</h1>
         <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
         <form class="setup-form" onsubmit="completeSetup(event)">
-          <label class="field">Lehrkraft-PIN festlegen
+          <label class="field">Lehrerinnen-PIN festlegen
             <input class="text-input" id="setupPin" type="password" autocomplete="new-password" inputmode="numeric">
           </label>
           <label class="field">PIN wiederholen
@@ -228,7 +238,7 @@ function renderStart() {
             </button>
             <button class="start-card" type="button" onclick="openLogin()">
               <span class="icon">🔒</span>
-              <strong>Lehrkraft 🔒</strong>
+              <strong>Lehrerinnenbereich 🔒</strong>
             </button>
           </div>
         </div>
@@ -394,11 +404,16 @@ function selectMaterial(materialId) {
   const material = state.materials.find((item) => item.id === materialId && item.classId === state.activeClassId);
   if (!material) return;
   childDraft.materialName = material.materialName;
+  childDraft.seite = null;
+  childDraft.zusatzText = "";
+  childDraft.sprachweltTaskId = "";
   screen = "childPage";
   render();
 }
 
 function renderPageInput() {
+  if (isSprachweltExtra()) return renderSprachweltTaskSelection();
+  if (isExtraMaterialName(childDraft.materialName)) return renderExtraTextInput();
   return `
     <section class="step-wrap">
       ${renderBackButton("childMaterial")}
@@ -412,6 +427,40 @@ function renderPageInput() {
   `;
 }
 
+function renderExtraTextInput() {
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childMaterial")}
+      <h2 class="child-title">Was hast du gemacht?</h2>
+      <form class="page-form" onsubmit="saveExtraText(event)">
+        <textarea class="page-input free-text-input" id="extraTextInput" rows="3" aria-label="Zusatzaufgabe" placeholder="Schreibe kurz deine Aufgabe auf." autocomplete="off"></textarea>
+        <button class="primary" type="submit">Weiter</button>
+        <p class="message error" id="pageMessage"></p>
+      </form>
+    </section>
+  `;
+}
+
+function renderSprachweltTaskSelection() {
+  const tasks = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS).filter((task) => task.aktiv !== false);
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childMaterial")}
+      <h2 class="child-title">Welche Sprachwelt-Aufgabe?</h2>
+      <div class="sprachwelt-task-grid">
+        ${tasks.map((task) => `
+          <button class="sprachwelt-task-card" type="button" onclick="selectSprachweltTask('${escapeAttribute(task.id)}')">
+            <span class="task-check">☐</span>
+            <strong>${escapeHtml(task.id)} ${escapeHtml(task.titel)}</strong>
+            <span>${escapeHtml(task.auftrag)}</span>
+          </button>
+        `).join("")}
+      </div>
+      ${tasks.length ? "" : `<div class="empty">Keine Sprachwelt-Aufgaben aktiv.</div>`}
+    </section>
+  `;
+}
+
 function savePage(event) {
   event.preventDefault();
   const page = Number(document.querySelector("#pageInput").value);
@@ -420,6 +469,29 @@ function savePage(event) {
     return;
   }
   childDraft.seite = page;
+  screen = "childStatus";
+  render();
+}
+
+function saveExtraText(event) {
+  event.preventDefault();
+  const text = document.querySelector("#extraTextInput").value.trim();
+  if (!text) {
+    document.querySelector("#pageMessage").textContent = "Bitte schreibe kurz auf, was du gemacht hast.";
+    return;
+  }
+  childDraft.seite = 0;
+  childDraft.zusatzText = text;
+  screen = "childStatus";
+  render();
+}
+
+function selectSprachweltTask(taskId) {
+  const task = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS).find((item) => item.id === taskId);
+  if (!task) return;
+  childDraft.seite = 0;
+  childDraft.sprachweltTaskId = task.id;
+  childDraft.zusatzText = `${task.id} ${task.titel}`;
   screen = "childStatus";
   render();
 }
@@ -442,7 +514,9 @@ function renderStatusSelection() {
 
 async function saveEntry(status) {
   const animal = state.animals.find((item) => item.id === childDraft.animalId && item.classId === state.activeClassId);
-  if (!animal || !childDraft.fach || !childDraft.materialName || !childDraft.seite) return;
+  if (!animal || !childDraft.fach || !childDraft.materialName) return;
+  if (!isExtraMaterialName(childDraft.materialName) && !childDraft.seite) return;
+  if (isExtraMaterialName(childDraft.materialName) && !childDraft.zusatzText) return;
 
   const entry = {
     id: makeId(),
@@ -452,7 +526,9 @@ async function saveEntry(status) {
     tierEmojiSnapshot: animal.tierEmoji,
     fach: childDraft.fach,
     materialName: childDraft.materialName,
-    seite: childDraft.seite,
+    seite: childDraft.seite || 0,
+    zusatzText: childDraft.zusatzText || "",
+    sprachweltTaskId: childDraft.sprachweltTaskId || "",
     status,
     datumUhrzeit: nowIso(),
     erledigt: false
@@ -502,7 +578,7 @@ function renderLogin() {
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
         <div class="lock-icon">🔒</div>
-        <h2 class="child-title compact-title">Lehrkraft</h2>
+        <h2 class="child-title compact-title">Lehrerinnenbereich</h2>
         <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
@@ -625,7 +701,7 @@ async function handleScannedQrToken(token) {
     return;
   }
   if (!animal) {
-    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrkraft.";
+    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrerin.";
     screen = "qrInvalid";
     render();
     return;
@@ -723,6 +799,7 @@ function renderTeacher() {
   const tabs = [
     ["overview", "Übersicht"],
     ["progress", "Fortschritt"],
+    ["assessments", "Tests"],
     ["today", "Heute"],
     ["help", "Hilfe/Kontrolle"],
     ["history", "Verlauf"],
@@ -739,7 +816,7 @@ function renderTeacher() {
 
   return `
     <section class="teacher-layout">
-      <nav class="tabs" aria-label="Lehrkraft">
+      <nav class="tabs" aria-label="Lehrerinnenbereich">
         ${tabs.map(([id, label]) => `
           <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
         `).join("")}
@@ -763,6 +840,7 @@ function setTeacherTab(tab) {
 function renderTeacherTab() {
   if (teacherTab === "overview") return renderOverview();
   if (teacherTab === "progress") return renderProgress();
+  if (teacherTab === "assessments") return renderAssessments();
   if (teacherTab === "today") return renderToday();
   if (teacherTab === "help") return renderHelp();
   if (teacherTab === "history") return renderHistory();
@@ -790,8 +868,8 @@ function renderOverview() {
     return `
       <tr>
         <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
-        <td>${deutsch ? `${escapeHtml(deutsch.materialName)} S. ${deutsch.seite}` : "noch kein Eintrag"}</td>
-        <td>${mathe ? `${escapeHtml(mathe.materialName)} S. ${mathe.seite}` : "noch kein Eintrag"}</td>
+        <td>${deutsch ? escapeHtml(entryStandLabel(deutsch)) : "noch kein Eintrag"}</td>
+        <td>${mathe ? escapeHtml(entryStandLabel(mathe)) : "noch kein Eintrag"}</td>
         <td>${latest ? formatSmartDate(latest.datumUhrzeit) : "noch kein Eintrag"}</td>
         <td>${statusEntry ? statusBadge(statusEntry.status, statusEntry.erledigt) : "noch kein Eintrag"}</td>
       </tr>
@@ -909,8 +987,8 @@ function renderProgressTable(rows) {
               <td><button class="link-button" type="button" onclick="openProgressDetail('${row.animal.id}')">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</button></td>
               <td>${escapeHtml(row.fach)}</td>
               <td>${escapeHtml(row.material)}</td>
-              <td>${row.firstEntry ? `S. ${row.firstEntry.seite}` : "kein Eintrag"}</td>
-              <td>${row.lastEntry ? `S. ${row.lastEntry.seite}` : "kein Eintrag"}</td>
+              <td>${row.firstEntry ? escapeHtml(entryWorkLabel(row.firstEntry)) : "kein Eintrag"}</td>
+              <td>${row.lastEntry ? escapeHtml(entryWorkLabel(row.lastEntry)) : "kein Eintrag"}</td>
               <td>${row.minPage == null ? "kein Eintrag" : `S. ${row.minPage}`}</td>
               <td>${row.maxPage == null ? "kein Eintrag" : `S. ${row.maxPage}`}</td>
               <td>${row.entryCount > 1 ? `+${row.progressPages}` : row.entryCount === 1 ? "nur ein Eintrag" : "kein Eintrag"}</td>
@@ -924,6 +1002,53 @@ function renderProgressTable(rows) {
         </tbody>
       </table>
     </div>
+  `;
+}
+
+function renderAssessments() {
+  const items = assessmentsForActiveClass().sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")));
+  return `
+    <section class="panel">
+      <h2>Lernzielkontrollen & Tests</h2>
+      <p class="message">Hier können Tests und Lernzielkontrollen für die Unterrichtsorganisation notiert werden. Bitte keine Kindernamen, Noten oder Leistungs-/Verhaltenskommentare eintragen.</p>
+      <form class="filters" onsubmit="addAssessment(event)">
+        <label class="field">Fach
+          <select class="select-input" id="newAssessmentSubject">${SUBJECTS.map((subject) => `<option>${subject}</option>`).join("")}</select>
+        </label>
+        <label class="field">Titel
+          <input class="text-input" id="newAssessmentTitle" placeholder="z. B. Lernzielkontrolle 1" autocomplete="off">
+        </label>
+        <label class="field">Datum
+          <input class="text-input" id="newAssessmentDate" type="date" value="${formatFileDate(new Date())}">
+        </label>
+        <button class="primary" type="submit">Hinzufügen</button>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Kontrolle & Notizen</h2>
+      ${items.length ? items.map((item) => `
+        <article class="assessment-card">
+          <div class="assessment-head">
+            <strong>${escapeHtml(item.titel)}</strong>
+            <span class="subject-chip ${item.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(item.fach)}</span>
+            <span>${item.datum ? formatGermanDate(item.datum) : "ohne Datum"}</span>
+          </div>
+          <label class="field">Kontrollstatus
+            <select class="select-input" onchange="updateAssessment('${item.id}', 'kontrolle', this.value)">
+              ${["geplant", "geschrieben", "kontrollieren", "kontrolliert", "zurückgegeben"].map((status) => `
+                <option value="${status}" ${item.kontrolle === status ? "selected" : ""}>${status}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label class="field">Kommentar / Kontrollnotiz
+            <textarea class="text-input assessment-comment" rows="3" placeholder="Nur organisatorische Notiz, keine Kindernamen." onchange="updateAssessment('${item.id}', 'kommentar', this.value)">${escapeHtml(item.kommentar || "")}</textarea>
+          </label>
+          <div class="backup-actions">
+            <button class="danger" type="button" onclick="deleteAssessment('${item.id}')">löschen</button>
+          </div>
+        </article>
+      `).join("") : `<div class="empty">Noch keine Lernzielkontrolle oder kein Test angelegt.</div>`}
+    </section>
   `;
 }
 
@@ -978,8 +1103,8 @@ function renderProgressDetail(classId, classOptions, materialOptions) {
     <section class="panel">
       <h2>Zusammenfassung</h2>
       <div class="summary-grid">
-        <div>letzter Stand Deutsch</div><strong>${latestDeutsch ? `${escapeHtml(latestDeutsch.materialName)} S. ${latestDeutsch.seite}` : "kein Eintrag"}</strong>
-        <div>letzter Stand Mathe</div><strong>${latestMathe ? `${escapeHtml(latestMathe.materialName)} S. ${latestMathe.seite}` : "kein Eintrag"}</strong>
+        <div>letzter Stand Deutsch</div><strong>${latestDeutsch ? escapeHtml(entryStandLabel(latestDeutsch)) : "kein Eintrag"}</strong>
+        <div>letzter Stand Mathe</div><strong>${latestMathe ? escapeHtml(entryStandLabel(latestMathe)) : "kein Eintrag"}</strong>
         <div>Fortschritt im Zeitraum</div><strong>${rows.reduce((sum, row) => sum + row.progressPages, 0)} Seiten</strong>
         <div>letzte Aktivität</div><strong>${lastActivity ? relativeActivity(lastActivity.datumUhrzeit) : "kein Eintrag"}</strong>
         <div>offene Hilfe/Kontrolle</div><strong>${openItems.length ? `${openItems.length} offen` : "keine offen"}</strong>
@@ -992,7 +1117,7 @@ function renderProgressDetail(classId, classOptions, materialOptions) {
       ${entries.length ? `
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Datum</th><th>Uhrzeit</th><th>Fach</th><th>Material</th><th>Seite</th><th>Status</th></tr></thead>
+            <thead><tr><th>Datum</th><th>Uhrzeit</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead>
             <tbody>
               ${entries.map((entry) => `
                 <tr>
@@ -1000,7 +1125,7 @@ function renderProgressDetail(classId, classOptions, materialOptions) {
                   <td>${formatTime(entry.datumUhrzeit)}</td>
                   <td>${escapeHtml(entry.fach)}</td>
                   <td>${escapeHtml(entry.materialName)}</td>
-                  <td>S. ${entry.seite}</td>
+                  <td>${escapeHtml(entryWorkLabel(entry))}</td>
                   <td>${statusBadge(entry.status, entry.erledigt)}</td>
                 </tr>
               `).join("")}
@@ -1031,7 +1156,7 @@ function renderHelp() {
       <h2>Hilfe/Kontrolle</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Zeit</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite</th><th>Status</th><th>Aktion</th></tr></thead>
+          <thead><tr><th>Zeit</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th><th>Aktion</th></tr></thead>
           <tbody>
             ${entries.map((entry) => `
               <tr>
@@ -1039,7 +1164,7 @@ function renderHelp() {
                 <td>${entryAnimal(entry)}</td>
                 <td>${escapeHtml(entry.fach)}</td>
                 <td>${escapeHtml(entry.materialName)}</td>
-                <td>S. ${entry.seite}</td>
+                <td>${escapeHtml(entryWorkLabel(entry))}</td>
                 <td>${statusBadge(entry.status, entry.erledigt)}</td>
                 <td><button class="small-button" type="button" onclick="markEntryDone('${entry.id}')">als erledigt markieren</button></td>
               </tr>
@@ -1104,7 +1229,7 @@ function renderHistoryRows(entries) {
   return `
     <div class="table-scroll">
       <table>
-        <thead><tr><th>Datum</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite</th><th>Status</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead>
         <tbody>
           ${entries.map((entry) => `
             <tr>
@@ -1112,7 +1237,7 @@ function renderHistoryRows(entries) {
               <td>${entryAnimal(entry)}</td>
               <td>${escapeHtml(entry.fach)}</td>
               <td>${escapeHtml(entry.materialName)}</td>
-              <td>S. ${entry.seite}</td>
+              <td>${escapeHtml(entryWorkLabel(entry))}</td>
               <td>${statusBadge(entry.status, entry.erledigt)}</td>
             </tr>
           `).join("")}
@@ -1129,7 +1254,7 @@ function renderEntryTable(title, entries, showDate) {
       <h2>${title}</h2>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>${showDate ? "Datum" : "Uhrzeit"}</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite</th><th>Status</th></tr></thead>
+          <thead><tr><th>${showDate ? "Datum" : "Uhrzeit"}</th><th>Tier</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead>
           <tbody>
             ${entries.map((entry) => `
               <tr>
@@ -1137,7 +1262,7 @@ function renderEntryTable(title, entries, showDate) {
                 <td>${entryAnimal(entry)}</td>
                 <td>${escapeHtml(entry.fach)}</td>
                 <td>${escapeHtml(entry.materialName)}</td>
-                <td>S. ${entry.seite}</td>
+                <td>${escapeHtml(entryWorkLabel(entry))}</td>
                 <td>${statusBadge(entry.status, entry.erledigt)}</td>
               </tr>
             `).join("")}
@@ -1223,7 +1348,8 @@ async function deleteClassItem(classId) {
     animals: state.animals.filter((item) => item.classId !== classId),
     materials: state.materials.filter((item) => item.classId !== classId),
     entries: state.entries.filter((item) => item.classId !== classId),
-    goals: state.goals.filter((item) => item.classId !== classId)
+    goals: state.goals.filter((item) => item.classId !== classId),
+    assessments: (state.assessments || []).filter((item) => item.classId !== classId)
   });
 }
 
@@ -1251,27 +1377,45 @@ function renderResources() {
       <h2>Materialien verwalten</h2>
       ${SUBJECTS.map((subject) => renderMaterialGroup(subject)).join("")}
     </section>
+    ${renderSprachweltSettings()}
     ${renderGoalSettings()}
     ${renderProgressSettings()}
   `;
 }
 
+function renderSprachweltSettings() {
+  const tasks = state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true }));
+  return `
+    <section class="panel">
+      <h2>Sprachwelt-Aufgaben</h2>
+      <p class="message">Diese Aufgaben erscheinen für Kinder bei Deutsch → Zusatzaufgabe. Kinder wählen eine Aufgabe aus und melden sie anschließend wie gewohnt als fertig, Hilfe oder Kontrolle.</p>
+      <div class="sprachwelt-admin-list">
+        ${tasks.map((task) => `
+          <div class="manage-row sprachwelt-admin-row">
+            <strong>${escapeHtml(task.id)} ${escapeHtml(task.titel)}</strong>
+            <span>${escapeHtml(task.auftrag)}</span>
+            <label class="toggle-label"><input type="checkbox" ${task.aktiv !== false ? "checked" : ""} onchange="updateSprachweltTask('${escapeAttribute(task.id)}', 'aktiv', this.checked)"> aktiv</label>
+          </div>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderGoalSettings() {
   const goals = goalsForActiveClass().sort((a, b) => a.fach.localeCompare(b.fach, "de") || a.material.localeCompare(b.material, "de"));
-  const materialOptions = [...new Set(materialsForActiveClass().map((material) => material.materialName))]
-    .sort((a, b) => a.localeCompare(b, "de"))
-    .map((name) => `<option value="${escapeAttribute(name)}"></option>`)
-    .join("");
   return `
     <section class="panel">
       <h2>Soll-Seiten</h2>
-      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrkraft angezeigt.</p>
+      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrerinnenbereich angezeigt.</p>
       ${goals.map((goal) => `
         <div class="editor-row goal-row">
           <select class="select-input" onchange="updateGoal('${goal.id}', 'fach', this.value)">
             ${SUBJECTS.map((subject) => `<option value="${subject}" ${goal.fach === subject ? "selected" : ""}>${subject}</option>`).join("")}
           </select>
-          <input class="text-input" value="${escapeAttribute(goal.material)}" aria-label="Material" onchange="updateGoal('${goal.id}', 'material', this.value)">
+          <select class="select-input" aria-label="Material" onchange="updateGoal('${goal.id}', 'material', this.value)">
+            ${goalMaterialOptions(goal.fach, goal.material)}
+          </select>
           <input class="text-input number-input" type="number" min="1" value="${goal.sollSeite}" aria-label="Soll-Seite" onchange="updateGoal('${goal.id}', 'sollSeite', this.value)">
           <input class="text-input" type="date" value="${escapeAttribute(goal.gueltigAbDatum || formatFileDate(new Date()))}" aria-label="gültig ab" onchange="updateGoal('${goal.id}', 'gueltigAbDatum', this.value)">
           <input class="text-input" value="${escapeAttribute(goal.notiz || "")}" aria-label="Notiz optional" placeholder="Notiz optional" onchange="updateGoal('${goal.id}', 'notiz', this.value)">
@@ -1280,11 +1424,10 @@ function renderGoalSettings() {
       `).join("") || `<p class="message">Noch keine Soll-Seite festgelegt.</p>`}
       <form class="inline-form" onsubmit="addGoal(event)">
         <label class="field">Fach
-          <select class="select-input" id="newGoalSubject">${SUBJECTS.map((subject) => `<option>${subject}</option>`).join("")}</select>
+          <select class="select-input" id="newGoalSubject" onchange="refreshNewGoalMaterialOptions()">${SUBJECTS.map((subject) => `<option>${subject}</option>`).join("")}</select>
         </label>
         <label class="field">Material
-          <input class="text-input" id="newGoalMaterial" list="goalMaterialOptions" placeholder="Material">
-          <datalist id="goalMaterialOptions">${materialOptions}</datalist>
+          <select class="select-input" id="newGoalMaterial">${goalMaterialOptions(SUBJECTS[0])}</select>
         </label>
         <label class="field">Soll-Seite
           <input class="text-input" id="newGoalPage" type="number" min="1" inputmode="numeric">
@@ -1398,6 +1541,14 @@ async function deleteMaterial(materialId) {
   await persistAndRender({ ...state, materials: state.materials.filter((material) => material.id !== materialId) });
 }
 
+async function updateSprachweltTask(taskId, field, value) {
+  const tasks = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true }))).map((task) => {
+    if (task.id !== taskId) return task;
+    return { ...task, [field]: field === "aktiv" ? Boolean(value) : String(value).trim() };
+  });
+  await persist({ ...state, sprachweltTasks: tasks });
+}
+
 async function addGoal(event) {
   event.preventDefault();
   const fach = document.querySelector("#newGoalSubject").value;
@@ -1415,20 +1566,45 @@ async function addGoal(event) {
 async function updateGoal(goalId, field, value) {
   const goals = state.goals.map((goal) => {
     if (goal.id !== goalId) return goal;
+    if (field === "fach") {
+      const cleanSubject = String(value).trim();
+      const firstMaterial = materialsForActiveClass().find((material) => material.fach === cleanSubject && material.aktiv)?.materialName || goal.material;
+      return cleanSubject ? { ...goal, fach: cleanSubject, material: firstMaterial } : goal;
+    }
     if (field === "sollSeite") {
       const sollSeite = Number(value);
       return Number.isInteger(sollSeite) && sollSeite > 0 ? { ...goal, sollSeite } : goal;
     }
     const cleanValue = String(value).trim();
-    if ((field === "fach" || field === "material") && !cleanValue) return goal;
+    if (field === "material" && !cleanValue) return goal;
     return { ...goal, [field]: cleanValue };
   });
-  await persist({ ...state, goals });
+  if (field === "fach") {
+    await persistAndRender({ ...state, goals });
+  } else {
+    await persist({ ...state, goals });
+  }
 }
 
 async function deleteGoal(goalId) {
   if (!confirm("Diese Soll-Seite löschen?")) return;
   await persistAndRender({ ...state, goals: state.goals.filter((goal) => goal.id !== goalId) });
+}
+
+function goalMaterialOptions(subject, selected = "") {
+  const materials = materialsForActiveClass()
+    .filter((material) => material.fach === subject && material.aktiv)
+    .map((material) => material.materialName)
+    .sort((a, b) => a.localeCompare(b, "de"));
+  const options = materials.length ? materials : [selected].filter(Boolean);
+  return options.map((name) => `<option value="${escapeAttribute(name)}" ${name === selected ? "selected" : ""}>${escapeHtml(name)}</option>`).join("");
+}
+
+function refreshNewGoalMaterialOptions() {
+  const subject = document.querySelector("#newGoalSubject")?.value || SUBJECTS[0];
+  const select = document.querySelector("#newGoalMaterial");
+  if (!select) return;
+  select.innerHTML = goalMaterialOptions(subject);
 }
 
 async function updateProgressSetting(field, value) {
@@ -1444,7 +1620,42 @@ async function updateProgressSetting(field, value) {
   await persist({ ...state, progressSettings });
 }
 
+async function addAssessment(event) {
+  event.preventDefault();
+  const fach = document.querySelector("#newAssessmentSubject").value;
+  const titel = document.querySelector("#newAssessmentTitle").value.trim();
+  const datum = document.querySelector("#newAssessmentDate").value || formatFileDate(new Date());
+  if (!titel) return;
+  const item = {
+    id: makeId(),
+    classId: state.activeClassId,
+    fach,
+    titel,
+    datum,
+    kontrolle: "geplant",
+    kommentar: "",
+    erstelltAm: nowIso()
+  };
+  await persistAndRender({ ...state, assessments: [...(state.assessments || []), item] });
+}
+
+async function updateAssessment(assessmentId, field, value) {
+  const assessments = (state.assessments || []).map((item) => (
+    item.id === assessmentId ? { ...item, [field]: String(value).trim() } : item
+  ));
+  await persist({ ...state, assessments });
+}
+
+async function deleteAssessment(assessmentId) {
+  if (!confirm("Diese Lernzielkontrolle / diesen Test löschen?")) return;
+  await persistAndRender({ ...state, assessments: (state.assessments || []).filter((item) => item.id !== assessmentId) });
+}
+
 function renderBackup() {
+  const settings = {
+    enabled: state.multiDeviceReminderEnabled !== false,
+    time: state.multiDeviceReminderTime || "13:00"
+  };
   return `
     <section class="panel">
       <h2>Datensicherung</h2>
@@ -1457,22 +1668,247 @@ function renderBackup() {
       <p class="message">Letzte lokale Speicherung: ${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</p>
     </section>
     <section class="panel">
-      <h2>Backup importieren</h2>
-      <p class="message">Dadurch können vorhandene Daten überschrieben oder ergänzt werden. Fortfahren?</p>
-      <form class="filters" onsubmit="importBackup(event)">
-        <label class="field">Import-Art
-          <select class="select-input" id="importMode">
-            <option value="newClass">als neue Klasse importieren</option>
-            <option value="restoreAll">Gesamtbackup wiederherstellen</option>
-          </select>
+      <h2>Mehrere Geräte verwenden</h2>
+      <p class="privacy-text">Du kannst mehrere iPads verwenden. Die Geräte synchronisieren sich nicht automatisch. Nutze regelmäßig den Backup-Export und die Funktion „Backup zusammenführen“. Beim Zusammenführen werden neue Einträge ergänzt. Vorhandene Einträge bleiben erhalten.</p>
+      <p class="message"><strong>Wichtig:</strong> Die Geräte synchronisieren sich nicht von allein. Der Abgleich funktioniert über Backup-Dateien. Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="exportFullBackup()">Backup exportieren</button>
+        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Backup zusammenführen</button>
+        <button class="danger" type="button" onclick="openBackupFilePicker()">Backup wiederherstellen</button>
+        <button class="secondary" type="button" onclick="startMultiDeviceSyncGuide()">Mehrgeräte-Abgleich starten</button>
+      </div>
+      <input class="visually-hidden" id="backupFile" type="file" accept="application/json,.json" onchange="handleBackupFileSelected(event)">
+      <p class="message">Automatische Erinnerung um ${escapeHtml(settings.time)} Uhr bedeutet: Die App erinnert dich an den Abgleich. Sie kann ohne Cloud-Anbindung keine Dateien von anderen iPads automatisch holen.</p>
+      ${renderPendingBackupChoice()}
+      ${renderMergeReport()}
+      ${renderSyncGuide()}
+    </section>
+    <section class="panel">
+      <h2>Täglicher Mehrgeräte-Hinweis</h2>
+      <form class="filters" onsubmit="event.preventDefault();">
+        <label class="toggle-label"><input type="checkbox" ${settings.enabled ? "checked" : ""} onchange="updateMultiDeviceReminderSetting('multiDeviceReminderEnabled', this.checked)"> aktiv</label>
+        <label class="field">Uhrzeit
+          <input class="text-input" type="time" value="${escapeAttribute(settings.time)}" onchange="updateMultiDeviceReminderSetting('multiDeviceReminderTime', this.value)">
         </label>
-        <label class="field">JSON-Datei
-          <input class="text-input" id="backupFile" type="file" accept="application/json,.json">
-        </label>
-        <button class="primary" type="submit">Import starten</button>
       </form>
     </section>
   `;
+}
+
+function renderPendingBackupChoice() {
+  if (!pendingBackup) return "";
+  return `
+    <div class="backup-decision">
+      <h3>Was möchtest du tun?</h3>
+      <p class="message">Ausgewählte Datei: <strong>${escapeHtml(pendingBackup.name)}</strong></p>
+      <div class="backup-actions">
+        <button class="primary recommended-action" type="button" onclick="finishBackupImport('merge')">Backup zusammenführen</button>
+        <button class="danger" type="button" onclick="finishBackupImport('restore')">Backup wiederherstellen</button>
+        <button class="secondary" type="button" onclick="cancelPendingBackup()">Abbrechen</button>
+      </div>
+      <p class="message">Empfohlen ist „Backup zusammenführen“. Dabei werden nur neue Daten ergänzt; vorhandene Daten bleiben erhalten.</p>
+    </div>
+  `;
+}
+
+function renderMergeReport() {
+  if (!lastMergeReport) return "";
+  return `
+    <div class="merge-report">
+      <h3>Backup wurde zusammengeführt.</h3>
+      <div class="status-grid">
+        <div>neu ergänzte Klassen</div><strong>${lastMergeReport.addedClasses}</strong>
+        <div>neu ergänzte Tiere</div><strong>${lastMergeReport.addedAnimals}</strong>
+        <div>neu ergänzte Materialien</div><strong>${lastMergeReport.addedMaterials}</strong>
+        <div>neu ergänzte Arbeitsstand-Einträge</div><strong>${lastMergeReport.addedEntries}</strong>
+        <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
+        <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
+        <div>Zeitpunkt</div><strong>${formatDateTime(lastMergeReport.mergedAt)}</strong>
+      </div>
+      ${lastMergeReport.conflicts.length ? `<p class="message">${lastMergeReport.conflicts.map(escapeHtml).join("<br>")}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderSyncGuide() {
+  if (!syncGuideStep) return "";
+  const steps = [
+    "Sammle die Backups der anderen iPads.",
+    "Importiere jedes Backup einzeln mit „Backup zusammenführen“.",
+    "Erstelle danach auf dem Hauptgerät ein neues Gesamtbackup."
+  ];
+  return `
+    <div class="sync-guide">
+      <h3>Mehrgeräte-Abgleich</h3>
+      <div class="sync-steps">
+        ${steps.map((step, index) => `<div class="${syncGuideStep === index + 1 ? "active" : ""}"><strong>Schritt ${index + 1}</strong><span>${escapeHtml(step)}</span></div>`).join("")}
+      </div>
+      <div class="backup-actions">
+        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">${syncGuideStep === 2 ? "Nächstes Backup zusammenführen" : "Backup zusammenführen"}</button>
+        <button class="secondary" type="button" onclick="advanceSyncGuide()">Weiter</button>
+        <button class="primary" type="button" onclick="exportFullBackup()">Gesamtbackup exportieren</button>
+        <button class="secondary" type="button" onclick="finishSyncGuide()">Fertig</button>
+      </div>
+    </div>
+  `;
+}
+
+function openBackupFilePicker() {
+  const input = document.querySelector("#backupFile");
+  if (input) {
+    input.value = "";
+    input.click();
+  }
+}
+
+async function handleBackupFileSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    pendingBackup = { name: file.name, content: await file.text() };
+    globalMessage = "";
+  } catch {
+    globalMessage = "Backup-Datei konnte nicht gelesen werden.";
+  }
+  render();
+}
+
+function cancelPendingBackup() {
+  pendingBackup = null;
+  render();
+}
+
+async function finishBackupImport(mode) {
+  if (!pendingBackup) return;
+  try {
+    const backup = JSON.parse(pendingBackup.content);
+    if (mode === "restore") {
+      if (!confirm("Alle aktuellen lokalen Daten werden durch die Backup-Datei ersetzt. Das kann nicht rückgängig gemacht werden. Fortfahren?")) return;
+      await persist(restoreFullBackup(backup));
+      lastMergeReport = null;
+      globalMessage = "Backup wurde wiederhergestellt.";
+    } else {
+      const result = mergeBackupData(state, backup);
+      await persist(result.state);
+      lastMergeReport = result.report;
+      globalMessage = "Backup wurde zusammengeführt.";
+    }
+    pendingBackup = null;
+  } catch (error) {
+    globalMessage = error.message || "Backup konnte nicht importiert werden.";
+  }
+  render();
+}
+
+async function updateMultiDeviceReminderSetting(field, value) {
+  await persist({
+    ...state,
+    [field]: field === "multiDeviceReminderEnabled" ? Boolean(value) : String(value || "13:00")
+  });
+  render();
+}
+
+function startMultiDeviceSyncGuide() {
+  syncGuideStep = 1;
+  teacherTab = "backup";
+  screen = "teacher";
+  render();
+}
+
+function advanceSyncGuide() {
+  syncGuideStep = Math.min(3, syncGuideStep + 1);
+  render();
+}
+
+function finishSyncGuide() {
+  syncGuideStep = 0;
+  render();
+}
+
+function startMultiDeviceReminderTimer() {
+  if (syncAssistantTimer) window.clearInterval(syncAssistantTimer);
+  checkMultiDeviceReminder();
+  syncAssistantTimer = window.setInterval(checkMultiDeviceReminder, 60 * 1000);
+}
+
+function checkMultiDeviceReminder() {
+  if (!state.setupComplete || syncAssistantVisible) return;
+  if (!shouldShowMultiDeviceReminder()) return;
+  syncAssistantVisible = true;
+  render();
+}
+
+function shouldShowMultiDeviceReminder() {
+  if (state.multiDeviceReminderEnabled === false) return false;
+  if (screen !== "start" && screen !== "teacher") return false;
+  if (Date.now() < syncAssistantSnoozedUntil) return false;
+  const today = formatFileDate(new Date());
+  if (state.multiDeviceReminderLastDismissedDate === today) return false;
+  const reminderMinutes = parseReminderTime(state.multiDeviceReminderTime || "13:00");
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= reminderMinutes;
+}
+
+function parseReminderTime(value) {
+  const match = String(value || "13:00").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return 13 * 60;
+  const hours = Math.min(23, Math.max(0, Number(match[1])));
+  const minutes = Math.min(59, Math.max(0, Number(match[2])));
+  return hours * 60 + minutes;
+}
+
+function appendSyncAssistant() {
+  if (!syncAssistantVisible) return;
+  app.insertAdjacentHTML("beforeend", renderSyncAssistantOverlay());
+}
+
+function renderSyncAssistantOverlay() {
+  return `
+    <div class="sync-assistant-overlay" role="dialog" aria-modal="true" aria-labelledby="syncAssistantTitle">
+      <section class="sync-assistant-card">
+        <h2 id="syncAssistantTitle">Mehrgeräte-Abgleich</h2>
+        <p class="privacy-text">Es ist ${escapeHtml(state.multiDeviceReminderTime || "13:00")} Uhr. Wenn du heute mehrere iPads benutzt hast, führe jetzt den Backup-Abgleich durch. Exportiere zuerst die Backups der anderen Geräte und importiere sie auf dem Hauptgerät mit „Backup zusammenführen“. Dadurch werden neue Einträge ergänzt, ohne vorhandene Daten zu überschreiben.</p>
+        <div class="backup-actions">
+          <button class="primary recommended-action" type="button" onclick="assistantMergeBackup()">Backup zusammenführen</button>
+          <button class="secondary" type="button" onclick="assistantExportBackup()">Backup exportieren</button>
+          <button class="secondary" type="button" onclick="dismissSyncAssistantToday()">Heute nicht mehr erinnern</button>
+          <button class="secondary" type="button" onclick="snoozeSyncAssistant()">Später erinnern</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function assistantMergeBackup() {
+  syncAssistantVisible = false;
+  screen = "teacher";
+  teacherTab = "backup";
+  render();
+  window.setTimeout(openBackupFilePicker, 0);
+}
+
+function assistantExportBackup() {
+  syncAssistantVisible = false;
+  screen = "teacher";
+  teacherTab = "backup";
+  render();
+  exportFullBackup();
+}
+
+async function dismissSyncAssistantToday() {
+  syncAssistantVisible = false;
+  await persist({
+    ...state,
+    multiDeviceReminderLastDismissedDate: formatFileDate(new Date())
+  });
+  render();
+}
+
+function snoozeSyncAssistant() {
+  syncAssistantVisible = false;
+  syncAssistantSnoozedUntil = Date.now() + 30 * 60 * 1000;
+  render();
 }
 
 function renderExcelExport() {
@@ -1617,7 +2053,7 @@ function renderPrintToday(context, className, generatedAt) {
     ])}
     <section class="print-section">
       <h2>Heute bearbeitet</h2>
-      ${context.todayEntries.length ? renderPrintEntryTable(context.todayEntries, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status"], false) : printEmpty("Heute wurden noch keine Arbeitsstände eingetragen.")}
+      ${context.todayEntries.length ? renderPrintEntryTable(context.todayEntries, ["Uhrzeit", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status"], false) : printEmpty("Heute wurden noch keine Arbeitsstände eingetragen.")}
     </section>
   `;
 }
@@ -1677,7 +2113,7 @@ function renderPrintReport(context, className, generatedAt) {
     ${dataRows.length ? `
       <div class="page-break"></div>
       ${printSectionTitle("Kurze Rohdatenübersicht")}
-      ${renderPrintEntryTable(dataRows, ["Datum", "Tier", "Fach", "Material", "Seite", "Status"], true)}
+      ${renderPrintEntryTable(dataRows, ["Datum", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status"], true)}
     ` : ""}
   `;
 }
@@ -1724,8 +2160,8 @@ function renderPrintProgressTable(rows) {
             <td class="print-animal">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</td>
             <td><span class="subject-chip ${row.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(row.fach)}</span></td>
             <td>${escapeHtml(row.material)}</td>
-            <td>${row.firstEntry ? `S. ${row.firstEntry.seite}` : "–"}</td>
-            <td>${row.lastEntry ? `S. ${row.lastEntry.seite}` : "–"}</td>
+            <td>${row.firstEntry ? escapeHtml(entryWorkLabel(row.firstEntry)) : "–"}</td>
+            <td>${row.lastEntry ? escapeHtml(entryWorkLabel(row.lastEntry)) : "–"}</td>
             <td>${row.entryCount > 1 ? `+${row.progressPages}` : row.entryCount === 1 ? "nur ein Eintrag" : "–"}</td>
             <td>${row.groupAverage == null ? "–" : `S. ${formatDecimal(row.groupAverage)}`}</td>
             <td>${row.groupDistance == null ? "–" : signedNumber(row.groupDistance)}</td>
@@ -1747,7 +2183,7 @@ function renderPrintHelpCards(entries) {
           <article class="help-card ${isHelp ? "help" : "check"}">
             <div>
               <strong>${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</strong>
-              <span>${escapeHtml(entry.fach)} · ${escapeHtml(entry.materialName)} · S. ${entry.seite}</span>
+              <span>${escapeHtml(entry.fach)} · ${escapeHtml(entry.materialName)} · ${escapeHtml(entryWorkLabel(entry))}</span>
             </div>
             <div>${printStatusPill(entry.status)}</div>
             <p>${isHelp ? "Hilfewunsch offen" : "Kontrolle offen"} · ${formatDateTime(entry.datumUhrzeit)}</p>
@@ -1769,7 +2205,7 @@ function renderPrintEntryTable(entries, headers, showDate) {
             <td class="print-animal">${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}</td>
             <td><span class="subject-chip ${entry.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(entry.fach)}</span></td>
             <td>${escapeHtml(entry.materialName)}</td>
-            <td>S. ${entry.seite}</td>
+            <td>${escapeHtml(entryWorkLabel(entry))}</td>
             <td>${printStatusPill(entry.status)}</td>
           </tr>
         `).join("")}
@@ -2193,7 +2629,7 @@ function renderSecurity() {
     </section>
     <section class="panel">
       <h2>Wiederherstellungsschlüssel</h2>
-      <p class="privacy-text">Die PIN schützt den Lehrkraft auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
+      <p class="privacy-text">Die PIN schützt den Lehrerinnenbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
       <button class="secondary" type="button" onclick="regenerateRecoveryKey()">Neuen Wiederherstellungsschlüssel erzeugen</button>
       ${pendingRecoveryKey ? `
         <div class="recovery-key-panel">
@@ -2253,6 +2689,8 @@ function renderStorageStatus() {
         <div>Anzahl Arbeitsstände</div><strong>${state.entries.length}</strong>
         <div>letzte lokale Speicherung</div><strong>${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</strong>
         <div>QR-Scanner aktiviert</div><strong>${state.qrScannerEnabled ? "ja" : "nein"}</strong>
+        <div>Mehrgeräte-Hinweis aktiviert</div><strong>${state.multiDeviceReminderEnabled !== false ? "ja" : "nein"}</strong>
+        <div>Mehrgeräte-Hinweis Uhrzeit</div><strong>${escapeHtml(state.multiDeviceReminderTime || "13:00")}</strong>
       </div>
       <p class="privacy-text">Die Daten werden lokal auf diesem iPad/in diesem Browser gespeichert. GitHub speichert nur die App-Dateien, nicht die Einträge.</p>
     </section>
@@ -2406,7 +2844,7 @@ function buildDashboardStats({ entries, baseEntries, animals, materials, classId
 function latestPagesByAnimalSubject(entries, subject) {
   const pages = new Map();
   entries
-    .filter((entry) => entry.fach === subject)
+    .filter((entry) => entry.fach === subject && Number(entry.seite) > 0)
     .sort(sortNewest)
     .forEach((entry) => {
       if (!pages.has(entry.tierID)) pages.set(entry.tierID, Number(entry.seite));
@@ -2432,8 +2870,8 @@ function buildBeautifulOverviewRows(animals, entries) {
       return {
         animal,
         klasse: getClassNameById(animal.classId),
-        deutsch: deutsch ? `${deutsch.materialName} S. ${deutsch.seite}` : "–",
-        mathe: mathe ? `${mathe.materialName} S. ${mathe.seite}` : "–",
+        deutsch: deutsch ? entryStandLabel(deutsch) : "–",
+        mathe: mathe ? entryStandLabel(mathe) : "–",
         latestActivity: latest ? relativeActivity(latest.datumUhrzeit) : "–",
         status: open?.status || latest?.status || "–",
         hint: open?.status === "brauche Hilfe"
@@ -2468,16 +2906,16 @@ function buildProgressRowsForEntries(classId, entries) {
     const rowEntries = classEntries
       .filter((entry) => entry.tierID === animal.id && entry.fach === material.fach && entry.materialName === material.materialName)
       .sort((a, b) => new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit));
-    const pages = rowEntries.map((entry) => Number(entry.seite)).filter((page) => Number.isFinite(page));
+    const pages = rowEntries.map((entry) => Number(entry.seite)).filter((page) => Number.isFinite(page) && page > 0);
     const firstEntry = rowEntries[0] || null;
     const lastEntry = rowEntries[rowEntries.length - 1] || null;
     const minPage = pages.length ? Math.min(...pages) : null;
     const maxPage = pages.length ? Math.max(...pages) : null;
     const openEntry = rowEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
     const groupAverage = groupAverages.get(progressKey(material.fach, material.materialName)) ?? null;
-    const groupDistance = lastEntry && groupAverage != null ? Number(lastEntry.seite) - groupAverage : null;
+    const groupDistance = lastEntry && Number(lastEntry.seite) > 0 && groupAverage != null ? Number(lastEntry.seite) - groupAverage : null;
     const goal = currentGoal(classId, material.fach, material.materialName);
-    const goalDistance = lastEntry && goal ? Number(lastEntry.seite) - Number(goal.sollSeite) : null;
+    const goalDistance = lastEntry && Number(lastEntry.seite) > 0 && goal ? Number(lastEntry.seite) - Number(goal.sollSeite) : null;
     const row = {
       classId,
       animal,
@@ -2514,8 +2952,8 @@ function buildPrintRows(animals, entries) {
       const open = animalEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
       return {
         tier: `${animal.tierEmoji} ${animal.tierName}`,
-        deutsch: deutsch ? `${deutsch.materialName} S. ${deutsch.seite}` : "–",
-        mathe: mathe ? `${mathe.materialName} S. ${mathe.seite}` : "–",
+        deutsch: deutsch ? entryStandLabel(deutsch) : "–",
+        mathe: mathe ? entryStandLabel(mathe) : "–",
         latestActivity: latest ? relativeActivity(latest.datumUhrzeit) : "–",
         open: open ? open.status : "–",
         note: ""
@@ -2637,6 +3075,10 @@ function entriesForActiveClass() {
   return state.entries.filter((item) => item.classId === state.activeClassId);
 }
 
+function assessmentsForActiveClass() {
+  return (state.assessments || []).filter((item) => item.classId === state.activeClassId);
+}
+
 function goalsForActiveClass() {
   return state.goals.filter((item) => item.classId === state.activeClassId);
 }
@@ -2717,7 +3159,7 @@ function buildProgressRows(filters) {
     const entries = periodEntries
       .filter((entry) => entry.tierID === animal.id && entry.fach === material.fach && entry.materialName === material.materialName)
       .sort((a, b) => new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit));
-    const pages = entries.map((entry) => Number(entry.seite)).filter((page) => Number.isFinite(page));
+    const pages = entries.map((entry) => Number(entry.seite)).filter((page) => Number.isFinite(page) && page > 0);
     const firstEntry = entries[0] || null;
     const lastEntry = entries[entries.length - 1] || null;
     const minPage = pages.length ? Math.min(...pages) : null;
@@ -2728,9 +3170,9 @@ function buildProgressRows(filters) {
     const openEntry = allMatchingEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
     const lastActivity = allMatchingEntries[0]?.datumUhrzeit || null;
     const groupAverage = groupAverages.get(progressKey(material.fach, material.materialName)) ?? null;
-    const groupDistance = lastEntry && groupAverage != null ? Number(lastEntry.seite) - groupAverage : null;
+    const groupDistance = lastEntry && Number(lastEntry.seite) > 0 && groupAverage != null ? Number(lastEntry.seite) - groupAverage : null;
     const goal = currentGoal(classId, material.fach, material.materialName);
-    const goalDistance = lastEntry && goal ? Number(lastEntry.seite) - Number(goal.sollSeite) : null;
+    const goalDistance = lastEntry && Number(lastEntry.seite) > 0 && goal ? Number(lastEntry.seite) - Number(goal.sollSeite) : null;
     const groupLabel = groupComparisonLabel(groupDistance);
     const goalDistanceLabel = goalComparisonLabel(goal, goalDistance);
     const row = {
@@ -2803,6 +3245,7 @@ function calculateGroupAverages(entries) {
   const highestByAnimal = new Map();
   entries.forEach((entry) => {
     const page = Number(entry.seite);
+    if (page <= 0) return;
     if (!Number.isFinite(page)) return;
     const key = `${progressKey(entry.fach, entry.materialName)}|${entry.tierID}`;
     highestByAnimal.set(key, Math.max(highestByAnimal.get(key) || 0, page));
@@ -2944,6 +3387,25 @@ function statusBadge(status, finished) {
 
 function entryAnimal(entry) {
   return `${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}`;
+}
+
+function isExtraMaterialName(materialName) {
+  return String(materialName || "").toLowerCase().includes("zusatz");
+}
+
+function isSprachweltExtra() {
+  return childDraft.fach === "Deutsch" && isExtraMaterialName(childDraft.materialName);
+}
+
+function entryWorkLabel(entry) {
+  if (entry?.zusatzText) return entry.zusatzText;
+  const page = Number(entry?.seite);
+  return page > 0 ? `S. ${page}` : "–";
+}
+
+function entryStandLabel(entry) {
+  if (!entry) return "–";
+  return `${entry.materialName} ${entryWorkLabel(entry)}`;
 }
 
 function sortNewest(a, b) {

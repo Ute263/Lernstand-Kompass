@@ -32,7 +32,9 @@ function makeActiveClassBackup(state, classId) {
     animals: state.animals.filter((item) => item.classId === classId),
     materials: state.materials.filter((item) => item.classId === classId),
     entries: state.entries.filter((item) => item.classId === classId),
-    goals: state.goals.filter((item) => item.classId === classId)
+    goals: state.goals.filter((item) => item.classId === classId),
+    assessments: (state.assessments || []).filter((item) => item.classId === classId),
+    sprachweltTasks: state.sprachweltTasks || []
   };
 }
 
@@ -48,7 +50,7 @@ function makeFullBackup(state) {
 
 function makeCsvForClass(state, classId) {
   const classItem = state.classes.find((item) => item.id === classId);
-  const header = ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"];
+  const header = ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Erledigt"];
   const rows = state.entries
     .filter((entry) => entry.classId === classId)
     .sort((a, b) => new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit))
@@ -59,7 +61,7 @@ function makeCsvForClass(state, classId) {
       `${entry.tierEmojiSnapshot} ${entry.tierNameSnapshot}`,
       entry.fach,
       entry.materialName,
-      entry.seite,
+      entryExportWork(entry),
       entry.status,
       entry.erledigt ? "ja" : "nein"
     ]);
@@ -70,7 +72,7 @@ function exportToExcelCsv(entries, filename) {
   const rows = [...entries].sort((a, b) => new Date(b.datumUhrzeit) - new Date(a.datumUhrzeit));
   if (!rows.length) return false;
 
-  const header = ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"];
+  const header = ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Erledigt"];
   const csvRows = rows.map((entry) => [
     formatGermanDate(entry.datumUhrzeit),
     formatExcelTime(entry.datumUhrzeit),
@@ -78,7 +80,7 @@ function exportToExcelCsv(entries, filename) {
     `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim(),
     entry.fach || "",
     entry.materialName || "",
-    entry.seite ?? "",
+    entryExportWork(entry),
     entry.status || "",
     entry.erledigt ? "Ja" : "Nein"
   ]);
@@ -213,8 +215,8 @@ function addProgressSheet(workbook, report) {
     `${row.animal.tierEmoji} ${row.animal.tierName}`,
     row.fach,
     row.material,
-    row.firstEntry ? `S. ${row.firstEntry.seite}` : "kein Eintrag",
-    row.lastEntry ? `S. ${row.lastEntry.seite}` : "kein Eintrag",
+    row.firstEntry ? entryExportWork(row.firstEntry) : "kein Eintrag",
+    row.lastEntry ? entryExportWork(row.lastEntry) : "kein Eintrag",
     row.entryCount > 1 ? row.progressPages : row.entryCount === 1 ? "nur ein Eintrag" : "kein Eintrag",
     row.groupAverage == null ? "–" : row.groupAverage.toFixed(1).replace(".", ","),
     row.groupDistance == null ? "–" : signedNumber(row.groupDistance),
@@ -239,8 +241,8 @@ function addTodaySheet(workbook, report) {
   if (!report.todayEntries.length) {
     addEmptyMessage(sheet, "A5:G8", "Heute wurden noch keine Arbeitsstände eingetragen.");
   } else {
-    lastRow = addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
-      report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
+    lastRow = addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Erledigt"],
+    report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entryExportWork(entry), entry.status, entry.erledigt ? "Ja" : "Nein"]),
       { statusColumn: 6, animalColumn: 2, rowHeight: 28 });
   }
   finishWorksheetLayout(sheet, {
@@ -260,9 +262,9 @@ function addHelpSheet(workbook, report) {
   if (!report.helpEntries.length) {
     addEmptyMessage(sheet, "A5:H9", "Keine offenen Hilfe- oder Kontrollwünsche.");
   } else {
-    lastRow = addTable(sheet, 5, ["Tier", "Fach", "Material", "Seite", "Status", "Datum", "Uhrzeit", "Hinweis"],
+    lastRow = addTable(sheet, 5, ["Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Datum", "Uhrzeit", "Hinweis"],
       report.helpEntries.map((entry) => [
-        entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit),
+        entry.tierLabel, entry.fach, entry.materialName, entryExportWork(entry), entry.status, formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit),
         entry.status === "brauche Hilfe" ? "Hilfewunsch offen" : "Kontrolle offen"
       ]),
       { statusColumn: 5, hintColumn: 8, animalColumn: 1, rowHeight: 30 });
@@ -280,8 +282,8 @@ function addDataSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Daten");
   setupSheet(sheet, { orientation: "landscape", widths: [14, 10, 18, 18, 14, 24, 10, 20, 12] });
   addTitleBlock(sheet, "Daten", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
-  const lastRow = addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite", "Status", "Erledigt"],
-    report.allEntries.map((entry) => [formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel, entry.fach, entry.materialName, entry.seite, entry.status, entry.erledigt ? "Ja" : "Nein"]),
+  const lastRow = addTable(sheet, 5, ["Datum", "Uhrzeit", "Klasse", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Erledigt"],
+    report.allEntries.map((entry) => [formatGermanDate(entry.datumUhrzeit), formatExcelTime(entry.datumUhrzeit), entry.klasseName, entry.tierLabel, entry.fach, entry.materialName, entryExportWork(entry), entry.status, entry.erledigt ? "Ja" : "Nein"]),
     { statusColumn: 8 });
   finishWorksheetLayout(sheet, {
     maxVisibleColumn: 9,
@@ -541,6 +543,12 @@ function signedNumber(value) {
   return rounded > 0 ? `+${String(rounded).replace(".", ",")}` : String(rounded).replace(".", ",");
 }
 
+function entryExportWork(entry) {
+  if (entry?.zusatzText) return entry.zusatzText;
+  const page = Number(entry?.seite);
+  return page > 0 ? page : "";
+}
+
 function importActiveClassAsNew(state, backup) {
   if (backup?.type !== "active-class-backup" || !backup.classItem) {
     throw new Error("Diese Datei ist kein Backup einer einzelnen Klasse.");
@@ -565,6 +573,7 @@ function importActiveClassAsNew(state, backup) {
 
   const materials = (backup.materials || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
   const goals = (backup.goals || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
+  const assessments = (backup.assessments || []).map((item) => ({ ...item, id: makeId(), classId: newClassId }));
   const entries = (backup.entries || []).map((entry) => ({
     ...entry,
     id: makeId(),
@@ -579,6 +588,7 @@ function importActiveClassAsNew(state, backup) {
     animals: [...state.animals, ...animals],
     materials: [...state.materials, ...materials],
     goals: [...state.goals, ...goals],
+    assessments: [...(state.assessments || []), ...assessments],
     entries: [...state.entries, ...entries]
   });
 }
@@ -588,6 +598,135 @@ function restoreFullBackup(backup) {
     throw new Error("Diese Datei ist kein Gesamtbackup.");
   }
   return normalizeState(backup.state);
+}
+
+function stateFromBackup(backup) {
+  if (backup?.type === "full-backup" && backup.state) return normalizeState(backup.state);
+  if (backup?.type === "active-class-backup" && backup.classItem) {
+    return normalizeState({
+      ...emptyState(),
+      setupComplete: true,
+      activeClassId: backup.classItem.id,
+      classes: [backup.classItem],
+      animals: backup.animals || [],
+      materials: backup.materials || [],
+      entries: backup.entries || [],
+      goals: backup.goals || [],
+      assessments: backup.assessments || [],
+      sprachweltTasks: backup.sprachweltTasks || []
+    });
+  }
+  if (backup?.classes || backup?.entries) return normalizeState(backup);
+  throw new Error("Diese Datei ist kein gültiges Arbeitsheft-Kompass-Backup.");
+}
+
+function mergeBackupData(currentState, importedBackup) {
+  const current = normalizeState(currentState);
+  const imported = stateFromBackup(importedBackup);
+  const report = {
+    addedClasses: 0,
+    addedAnimals: 0,
+    addedMaterials: 0,
+    addedEntries: 0,
+    addedGoals: 0,
+    addedAssessments: 0,
+    skippedDuplicateEntries: 0,
+    conflicts: [],
+    mergedAt: nowIso()
+  };
+
+  const classIds = new Set(current.classes.map((item) => item.id));
+  const animalIds = new Set(current.animals.map((item) => item.id));
+  const materialIds = new Set(current.materials.map((item) => item.id));
+  const entryIds = new Set(current.entries.map((item) => item.id || item.entryId).filter(Boolean));
+  const goalIds = new Set((current.goals || []).map((item) => item.id));
+  const assessmentIds = new Set((current.assessments || []).map((item) => item.id));
+  const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
+  const qrTokens = new Map(current.animals.filter((animal) => animal.qrToken).map((animal) => [animal.qrToken, animal.id]));
+
+  const next = {
+    ...current,
+    classes: [...current.classes],
+    animals: [...current.animals],
+    materials: [...current.materials],
+    entries: [...current.entries],
+    goals: [...(current.goals || [])],
+    assessments: [...(current.assessments || [])]
+  };
+
+  imported.classes.forEach((item) => {
+    if (classIds.has(item.id)) return;
+    next.classes.push(item);
+    classIds.add(item.id);
+    report.addedClasses += 1;
+  });
+
+  imported.animals.forEach((item) => {
+    if (animalIds.has(item.id)) return;
+    const animal = { ...item };
+    if (!animal.qrToken) {
+      animal.qrToken = makeQrToken(new Set(qrTokens.keys()));
+      report.conflicts.push(`QR-Code für ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} ergänzt.`);
+    } else if (qrTokens.has(animal.qrToken)) {
+      animal.qrToken = makeQrToken(new Set(qrTokens.keys()));
+      report.conflicts.push(`Doppelter QR-Code bei ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} neu erzeugt.`);
+    }
+    next.animals.push(animal);
+    animalIds.add(animal.id);
+    if (animal.qrToken) qrTokens.set(animal.qrToken, animal.id);
+    report.addedAnimals += 1;
+  });
+
+  imported.materials.forEach((item) => {
+    if (materialIds.has(item.id)) return;
+    next.materials.push(item);
+    materialIds.add(item.id);
+    report.addedMaterials += 1;
+  });
+
+  imported.entries.forEach((item) => {
+    const id = item.id || item.entryId;
+    const fingerprint = entryFingerprint(item);
+    if ((id && entryIds.has(id)) || existingEntryFingerprints.has(fingerprint)) {
+      report.skippedDuplicateEntries += 1;
+      return;
+    }
+    const entry = { ...item, id: id || makeId() };
+    next.entries.push(entry);
+    entryIds.add(entry.id);
+    existingEntryFingerprints.add(fingerprint);
+    report.addedEntries += 1;
+  });
+
+  (imported.goals || []).forEach((item) => {
+    if (goalIds.has(item.id)) return;
+    next.goals.push(item);
+    goalIds.add(item.id);
+    report.addedGoals += 1;
+  });
+
+  (imported.assessments || []).forEach((item) => {
+    if (assessmentIds.has(item.id)) return;
+    next.assessments.push(item);
+    assessmentIds.add(item.id);
+    report.addedAssessments += 1;
+  });
+
+  return { state: normalizeState(next), report };
+}
+
+function entryFingerprint(entry) {
+  return [
+    entry.classId || "",
+    entry.tierID || "",
+    entry.fach || "",
+    entry.materialName || "",
+    entry.seite ?? "",
+    entry.zusatzText || "",
+    entry.sprachweltTaskId || "",
+    entry.status || "",
+    entry.datumUhrzeit || ""
+  ].join("|");
 }
 
 function csvEscape(value) {

@@ -41,6 +41,21 @@ const DEFAULT_PROGRESS_SETTINGS = {
   showGoalComparison: true
 };
 
+const DEFAULT_SPRACHWELT_TASKS = [
+  { id: "D-01", titel: "Wörter im Raum", auftrag: "Suche im Raum 12 Wörter. Schreibe sie auf und ordne sie nach dem ABC." },
+  { id: "D-02", titel: "Silbenforscher", auftrag: "Sammle 10 Wörter. Zeichne Silbenbögen und markiere die Silbenkönige." },
+  { id: "D-03", titel: "Nomen-Detektiv", auftrag: "Suche 10 Nomen. Schreibe den passenden Artikel dazu: der, die oder das." },
+  { id: "D-04", titel: "Satz-Baumeister", auftrag: "Schreibe 6 vollständige Sätze. Achte auf Großschreibung am Satzanfang und den Punkt." },
+  { id: "D-05", titel: "Verben-Sammler", auftrag: "Sammle 12 Verben. Schreibe 4 Sätze mit verschiedenen Verben." },
+  { id: "D-06", titel: "Adjektiv-Schatz", auftrag: "Beschreibe 5 Dinge mit passenden Adjektiven." },
+  { id: "D-07", titel: "Zusammengesetzte Wörter", auftrag: "Bilde 10 zusammengesetzte Nomen." },
+  { id: "D-08", titel: "Fragen-Profi", auftrag: "Schreibe 6 Fragen zu einem Bild oder Thema. Vergiss das Fragezeichen nicht." },
+  { id: "D-09", titel: "Reimwerkstatt", auftrag: "Finde 10 Reimpaare. Schreibe mit 3 Reimpaaren kleine Sätze." },
+  { id: "D-10", titel: "Wortfamilien", auftrag: "Sammle Wörter zu einer Wortfamilie." },
+  { id: "D-11", titel: "Wörter verlängern", auftrag: "Finde 8 Wörter, bei denen Verlängern hilft. Beispiel: Hund - Hunde." },
+  { id: "D-12", titel: "Genau lesen", auftrag: "Lies 6 Aufträge ganz genau und führe sie aus. Male oder schreibe passend dazu." }
+];
+
 function makeId() {
   if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -79,8 +94,13 @@ function emptyState() {
     materials: [],
     entries: [],
     goals: [],
+    assessments: [],
+    sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
+    multiDeviceReminderEnabled: true,
+    multiDeviceReminderTime: "13:00",
+    multiDeviceReminderLastDismissedDate: "",
     lastSavedAt: null
   };
 }
@@ -134,8 +154,13 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     materials: createDefaultMaterials(firstClass.id),
     entries: [],
     goals: [],
+    assessments: [],
+    sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
+    multiDeviceReminderEnabled: true,
+    multiDeviceReminderTime: "13:00",
+    multiDeviceReminderLastDismissedDate: "",
     lastSavedAt: null
   };
 }
@@ -153,12 +178,27 @@ function normalizeState(candidate) {
     materials: Array.isArray(candidate.materials) ? candidate.materials : [],
     entries: Array.isArray(candidate.entries) ? candidate.entries : [],
     goals: Array.isArray(candidate.goals) ? candidate.goals : [],
+    assessments: Array.isArray(candidate.assessments) ? candidate.assessments : [],
+    sprachweltTasks: Array.isArray(candidate.sprachweltTasks) && candidate.sprachweltTasks.length
+      ? candidate.sprachweltTasks
+      : DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
     },
-    qrScannerEnabled: candidate.qrScannerEnabled !== false
+    qrScannerEnabled: candidate.qrScannerEnabled !== false,
+    multiDeviceReminderEnabled: candidate.multiDeviceReminderEnabled !== false,
+    multiDeviceReminderTime: candidate.multiDeviceReminderTime || "13:00",
+    multiDeviceReminderLastDismissedDate: candidate.multiDeviceReminderLastDismissedDate || ""
   };
+
+  state.classes = state.classes.map((item) => ({ ...item, id: item.id || makeId() }));
+  state.animals = state.animals.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
+  state.materials = state.materials.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
+  state.entries = state.entries.map((item) => ({ ...item, id: item.id || item.entryId || makeId(), classId: item.classId || state.activeClassId }));
+  state.goals = state.goals.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
+  state.assessments = state.assessments.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
+  state.sprachweltTasks = state.sprachweltTasks.map((item) => ({ ...item, id: item.id || makeId(), aktiv: item.aktiv !== false }));
 
   const usedTokens = new Set();
   state.animals = state.animals.map((animal) => ({

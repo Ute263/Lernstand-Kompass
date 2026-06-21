@@ -259,6 +259,52 @@ button:disabled {
   font-weight: 850;
 }
 
+.free-text-input {
+  min-height: 170px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.sprachwelt-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.sprachwelt-task-card {
+  min-height: 170px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 18px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 10px 24px rgba(40, 74, 105, 0.1);
+  text-align: left;
+}
+
+.sprachwelt-task-card strong {
+  font-size: 1.18rem;
+}
+
+.sprachwelt-task-card span:last-child {
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.task-check {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  font-weight: 900;
+}
+
 .page-form,
 .status-list,
 .confirm-box,
@@ -356,6 +402,12 @@ button:disabled {
 .primary {
   background: var(--brand);
   color: #fff;
+}
+
+.recommended-action {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(22, 138, 74, 0.16);
 }
 
 .secondary {
@@ -608,6 +660,71 @@ th {
   margin-top: 12px;
 }
 
+.assessment-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.assessment-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.assessment-head strong {
+  font-size: 1.2rem;
+}
+
+.assessment-comment {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.subject-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.subject-chip.deutsch {
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.subject-chip.mathe {
+  color: var(--green);
+  background: var(--green-bg);
+}
+
+.sprachwelt-admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sprachwelt-admin-row {
+  grid-template-columns: minmax(170px, 0.6fr) minmax(240px, 1.4fr) auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.sprachwelt-admin-row span {
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .qr-greeting {
   margin: 0 0 12px;
   font-size: clamp(1.7rem, 3vw, 2.4rem);
@@ -724,6 +841,95 @@ th {
 
 .message.success {
   color: var(--green);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.backup-decision,
+.merge-report,
+.sync-guide {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.backup-decision {
+  border-color: #b9d5ff;
+  background: #f5f9ff;
+}
+
+.merge-report {
+  border-color: #bfe7cf;
+  background: #f4fff8;
+}
+
+.sync-guide {
+  border-color: #d6ddff;
+  background: #f8faff;
+}
+
+.sync-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.sync-steps > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.sync-steps > div.active {
+  border-color: var(--brand);
+  background: #eef3ff;
+}
+
+.sync-steps strong {
+  color: var(--brand-dark);
+}
+
+.sync-steps span {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.sync-assistant-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(23, 50, 77, 0.35);
+}
+
+.sync-assistant-card {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 720px);
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 20px 48px rgba(23, 50, 77, 0.22);
+}
+
+.sync-assistant-card h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
 }
 
 .link-button {
@@ -852,20 +1058,56 @@ th {
 }
 
 @media print {
-  body * {
+  body:not(.print-doc-mode) * {
     visibility: hidden;
   }
 
-  #printArea,
-  #printArea * {
+  body:not(.print-doc-mode) #printArea,
+  body:not(.print-doc-mode) #printArea * {
     visibility: visible;
   }
 
-  #printArea {
+  body:not(.print-doc-mode) #printArea {
     display: block;
     position: absolute;
     inset: 0;
     background: #fff;
+  }
+
+  body.print-doc-mode {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.print-doc-mode .print-toolbar {
+    display: none !important;
+  }
+
+  body.print-doc-mode .print-page {
+    width: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  body.print-doc-mode .print-hero,
+  body.print-doc-mode .kpi-card,
+  body.print-doc-mode .help-card,
+  body.print-doc-mode .print-empty {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.print-doc-mode thead {
+    display: table-header-group;
+  }
+
+  body.print-doc-mode tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .qr-print-page {
