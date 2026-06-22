@@ -24,7 +24,7 @@ async function saveFileWithPickerOrDownload(filename, mimeType, content) {
 function makeActiveClassBackup(state, classId) {
   const classItem = state.classes.find((item) => item.id === classId);
   return {
-    app: "Arbeitsheft-Kompass",
+    app: "Lernstand-Kompass",
     type: "active-class-backup",
     version: APP_VERSION,
     exportedAt: nowIso(),
@@ -34,16 +34,18 @@ function makeActiveClassBackup(state, classId) {
     entries: state.entries.filter((item) => item.classId === classId),
     goals: state.goals.filter((item) => item.classId === classId),
     assessments: (state.assessments || []).filter((item) => item.classId === classId),
+    assessmentTasks: (state.assessmentTasks || []).filter((item) => item.classId === classId),
     assessmentResults: (state.assessmentResults || []).filter((item) => item.classId === classId),
     sprachweltTasks: state.sprachweltTasks || [],
     trainingTasks: state.trainingTasks || [],
-    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId)
+    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
+    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId === classId)
   };
 }
 
 function makeFullBackup(state) {
   return {
-    app: "Arbeitsheft-Kompass",
+    app: "Lernstand-Kompass",
     type: "full-backup",
     version: APP_VERSION,
     exportedAt: nowIso(),
@@ -106,7 +108,7 @@ async function exportBeautifulWorkbook(report) {
     throw new Error("ExcelJS ist nicht geladen.");
   }
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Arbeitsheft-Kompass";
+  workbook.creator = "Lernstand-Kompass";
   workbook.created = new Date(report.generatedAt);
   workbook.modified = new Date(report.generatedAt);
   workbook.properties.date1904 = false;
@@ -119,8 +121,10 @@ async function exportBeautifulWorkbook(report) {
   addPrintSheet(workbook, report);
   addTrainingSheet(workbook, report);
   addAssessmentOverviewSheet(workbook, report);
+  addAssessmentTasksSheet(workbook, report);
   addAssessmentResultsSheet(workbook, report);
   addAssessmentMatrixSheet(workbook, report);
+  addAssessmentLegendSheet(workbook, report);
   addDataSheet(workbook, report);
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -162,17 +166,17 @@ function addStartSheet(workbook, report) {
   addMetricTile(sheet, "G10:H13", "LZK-Ergebnisse", report.stats.assessmentResultCount, XLSX_COLORS.neutral);
   addMetricTile(sheet, "E14:F17", "Trainingszeit", report.stats.trainingCompletedCount, XLSX_COLORS.done);
 
-  sheet.mergeCells("A15:H15");
-  const focusTitle = sheet.getCell("A15");
+  sheet.mergeCells("A19:H19");
+  const focusTitle = sheet.getCell("A19");
   focusTitle.value = "Heute im Blick";
   focusTitle.font = { bold: true, size: 16, color: { argb: XLSX_COLORS.aubergine } };
   focusTitle.alignment = { vertical: "middle" };
-  sheet.getRow(15).height = 24;
+  sheet.getRow(19).height = 24;
 
   if (!report.stats.hasEntries) {
-    addEmptyMessage(sheet, "A17:H20", "Aktuell keine Einträge.");
+    addEmptyMessage(sheet, "A21:H24", "Aktuell keine Einträge.");
   } else {
-    addTable(sheet, 17, ["Bereich", "Wert", "Hinweis"], [
+    addTable(sheet, 21, ["Bereich", "Wert", "Hinweis"], [
       ["Hilfe offen", report.stats.openHelp, "Hilfewünsche im Blick behalten"],
       ["Kontrolle offen", report.stats.openCheck, "Kontrollwünsche gesammelt"],
       ["länger kein Eintrag", report.stats.staleAnimals, "nach aktuellem Schwellenwert"],
@@ -181,17 +185,17 @@ function addStartSheet(workbook, report) {
     ], { headerFill: XLSX_COLORS.aubergineLight, autofilter: false, rowHeight: 28 });
   }
 
-  sheet.mergeCells("A24:H26");
-  const note = sheet.getCell("A24");
-  note.value = "Diese Datei enthält keine Kindernamen. Die Arbeitsstände werden über Tier-Pseudonyme dargestellt.";
+  sheet.mergeCells("A29:H31");
+  const note = sheet.getCell("A29");
+  note.value = "Diese Datei enthält keine Kindernamen. Die Lernstände werden über Tier-Pseudonyme dargestellt.";
   note.fill = solidFill(XLSX_COLORS.cream);
   note.font = { bold: true, size: 12, color: { argb: XLSX_COLORS.text } };
   note.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-  applyBorderToRange(sheet, "A24:H26");
+  applyBorderToRange(sheet, "A29:H31");
   finishWorksheetLayout(sheet, {
     maxVisibleColumn: 8,
-    maxVisibleRow: 26,
-    printArea: "A1:H26",
+    maxVisibleRow: 31,
+    printArea: "A1:H31",
     landscape: false
   });
 }
@@ -249,7 +253,7 @@ function addTodaySheet(workbook, report) {
   addTitleBlock(sheet, "Heute bearbeitet", `Export für: ${report.scopeLabel}`, report.generatedAt, 7);
   let lastRow = 8;
   if (!report.todayEntries.length) {
-    addEmptyMessage(sheet, "A5:G8", "Heute wurden noch keine Arbeitsstände eingetragen.");
+    addEmptyMessage(sheet, "A5:G8", "Heute wurden noch keine Lernstände eingetragen.");
   } else {
     lastRow = addTable(sheet, 5, ["Uhrzeit", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status", "Erledigt"],
     report.todayEntries.map((entry) => [formatExcelTime(entry.datumUhrzeit), entry.tierLabel, entry.fach, entry.materialName, entryExportWork(entry), entry.status, entry.erledigt ? "Ja" : "Nein"]),
@@ -347,12 +351,39 @@ function addAssessmentOverviewSheet(workbook, report) {
   });
 }
 
+function addAssessmentTasksSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("LZK Aufgaben");
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 14, 28, 14, 28, 14, 24] });
+  addTitleBlock(sheet, "Aufgaben und Maximalpunkte", `Export für: ${report.scopeLabel}`, report.generatedAt, 7);
+  const rows = (report.assessmentTasks || []).map((task) => {
+    const assessment = report.assessments.find((item) => item.id === task.assessmentId) || {};
+    return [
+      getClassNameById(task.classId),
+      assessment.fach || "",
+      assessment.titel || "",
+      task.number,
+      task.title,
+      task.maxPoints,
+      task.competency || ""
+    ];
+  });
+  const lastRow = addTable(sheet, 5, ["Klasse/Lerngruppe", "Fach", "Lernzielkontrolle", "Aufgabe", "Inhalt", "Max. Punkte", "Kompetenz"], rows, { rowHeight: 28 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 7,
+    maxVisibleRow: Math.max(lastRow + 2, 16),
+    printArea: `A1:G${Math.max(lastRow, 16)}`,
+    landscape: true,
+    freezeRow: 5
+  });
+}
+
 function addAssessmentResultsSheet(workbook, report) {
   const sheet = workbook.addWorksheet("LZK Ergebnisse");
-  setupSheet(sheet, { orientation: "landscape", widths: [20, 20, 16, 20, 30, 14, 12, 14, 12, 10, 10, 22] });
-  addTitleBlock(sheet, "LZK Ergebnisse", `Export für: ${report.scopeLabel}`, report.generatedAt, 12);
+  setupSheet(sheet, { orientation: "landscape", widths: [20, 20, 16, 20, 30, 14, 12, 14, 12, 18, 10, 18, 10, 10, 10, 22, 28] });
+  addTitleBlock(sheet, "LZK Ergebnisse", `Export für: ${report.scopeLabel}`, report.generatedAt, 17);
   const rows = report.assessmentResults.map((result) => {
     const assessment = report.assessments.find((item) => item.id === result.assessmentId) || {};
+    const maxPoints = result.maxPunkteSnapshot || assessment.maxPunkte || "";
     return [
       getClassNameById(result.classId),
       `${result.tierEmojiSnapshot || ""} ${result.tierNameSnapshot || ""}`.trim(),
@@ -360,19 +391,24 @@ function addAssessmentResultsSheet(workbook, report) {
       assessment.bereich || "",
       assessment.titel || "",
       assessment.datum ? formatGermanDate(assessment.datum) : "",
-      result.punkte ?? "",
-      result.maxPunkteSnapshot || assessment.maxPunkte || "",
+      result.totalPoints ?? result.punkte ?? "",
+      maxPoints,
       assessmentResultPercent(result),
+      result.suggestedRating || "",
+      result.suggestedNote || "",
+      result.finalRating || "",
+      result.finalNote || result.note || "",
       result.note || "",
       result.symbol || "",
-      result.status || ""
+      result.status || "",
+      result.remark || ""
     ];
   });
-  const lastRow = addTable(sheet, 5, ["Klasse/Lerngruppe", "Tier", "Fach", "Bereich", "Titel", "Datum", "Punkte", "Max. Punkte", "Prozent", "Note", "Symbol", "Status"], rows, { statusColumn: 12, animalColumn: 2, rowHeight: 28 });
+  const lastRow = addTable(sheet, 5, ["Klasse/Lerngruppe", "Tier", "Fach", "Bereich", "Titel", "Datum", "Punkte", "Max. Punkte", "Prozent", "Bewertungsvorschlag", "Notenvorschlag", "Endgültige Bewertung", "Endgültige Note", "Note", "Symbol", "Status", "Bemerkung"], rows, { statusColumn: 16, animalColumn: 2, rowHeight: 28 });
   finishWorksheetLayout(sheet, {
-    maxVisibleColumn: 12,
+    maxVisibleColumn: 17,
     maxVisibleRow: Math.max(lastRow + 2, 16),
-    printArea: `A1:L${Math.max(lastRow, 16)}`,
+    printArea: `A1:Q${Math.max(lastRow, 16)}`,
     landscape: true,
     freezeRow: 5
   });
@@ -415,10 +451,36 @@ function addDataSheet(workbook, report) {
   });
 }
 
+function addAssessmentLegendSheet(workbook, report) {
+  const sheet = workbook.addWorksheet("Bewertungsschlüssel");
+  setupSheet(sheet, { orientation: "portrait", widths: [24, 24, 16, 38] });
+  addTitleBlock(sheet, "Bewertungsschlüssel", `Export für: ${report.scopeLabel}`, report.generatedAt, 4);
+  const lastRow = addTable(sheet, 5, ["Bewertung", "Prozentwert", "Note", "Erklärung"], [
+    ["sehr gut", "100 % bis 96 %", "1", "sicher erreicht"],
+    ["gut", "95 % bis 87 %", "2", "weitgehend sicher erreicht"],
+    ["befriedigend", "86 % bis 71 %", "3", "grundlegend erreicht"],
+    ["ausreichend", "70 % bis 50 %", "4", "teilweise erreicht"],
+    ["mangelhaft", "49 % bis 21 %", "5", "Unterstützung prüfen"],
+    ["ungenügend", "20 % bis 0 %", "6", "Unterstützung prüfen"],
+    ["++", "Symbol", "", "sehr sicher"],
+    ["+", "Symbol", "", "sicher"],
+    ["o", "Symbol", "", "im Aufbau"],
+    ["-", "Symbol", "", "braucht Übung"],
+    ["--", "Symbol", "", "Unterstützung prüfen"]
+  ], { rowHeight: 28, hintColumn: 4 });
+  finishWorksheetLayout(sheet, {
+    maxVisibleColumn: 4,
+    maxVisibleRow: Math.max(lastRow + 2, 18),
+    printArea: `A1:D${Math.max(lastRow, 18)}`,
+    landscape: false,
+    freezeRow: 5
+  });
+}
+
 function addPrintSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Druckübersicht");
   setupSheet(sheet, { orientation: "landscape", widths: [22, 32, 32, 24, 40, 4] });
-  addTitleBlock(sheet, "Arbeitsheft-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
+  addTitleBlock(sheet, "Lernstand-Kompass – Druckübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
   const lastRow = addTable(sheet, 5, ["Tier", "Deutsch", "Mathe", "Offen", "Notiz"],
     report.printRows.map((row) => [row.tier, row.deutsch, row.mathe, row.open, row.note]),
     { statusColumn: 4, rowHeight: 38, animalColumn: 1 });
@@ -505,7 +567,7 @@ function addTitleBlock(sheet, title, subtitle, generatedAt, columns) {
 function addDashboardTitle(sheet, report) {
   sheet.mergeCells("A1:H3");
   const cell = sheet.getCell("A1");
-  cell.value = `Arbeitsheft-Kompass\nExport für ${report.scopeLabel} · erstellt am ${formatGermanDate(report.generatedAt)} um ${formatExcelTime(report.generatedAt)} Uhr`;
+  cell.value = `Lernstand-Kompass\nExport für ${report.scopeLabel} · erstellt am ${formatGermanDate(report.generatedAt)} um ${formatExcelTime(report.generatedAt)} Uhr`;
   cell.fill = solidFill(XLSX_COLORS.aubergine);
   cell.font = { bold: true, size: 22, color: { argb: XLSX_COLORS.white } };
   cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
@@ -644,7 +706,7 @@ function columnLetters(column) {
 }
 
 function assessmentResultPercent(result) {
-  const points = Number(result?.punkte);
+  const points = Number(result?.totalPoints ?? result?.punkte);
   const maxPoints = Number(result?.maxPunkteSnapshot);
   if (!Number.isFinite(points) || !Number.isFinite(maxPoints) || maxPoints <= 0) return "";
   return `${Math.round((points / maxPoints) * 100)} %`;
@@ -656,9 +718,11 @@ function formatAssessmentMatrixExportValue(assessment, result) {
   const grading = String(assessment?.bewertungsart || "");
   const parts = [];
   if (grading.includes("Punkte") && result.punkte !== "" && result.punkte != null) {
-    parts.push(`${result.punkte}${result.maxPunkteSnapshot ? `/${result.maxPunkteSnapshot}` : ""}`);
+    parts.push(`${result.totalPoints ?? result.punkte}${result.maxPunkteSnapshot ? `/${result.maxPunkteSnapshot}` : ""}`);
   }
-  if (grading.includes("Note") && result.note) parts.push(result.note);
+  if (result.percentage !== "" && result.percentage != null) parts.push(`${result.percentage} %`);
+  if (result.finalRating) parts.push(result.finalRating);
+  if (grading.includes("Note") && (result.finalNote || result.note)) parts.push(result.finalNote || result.note);
   if (grading.includes("Symbol") && result.symbol) parts.push(result.symbol);
   return parts.join(" | ");
 }
@@ -733,14 +797,32 @@ function importActiveClassAsNew(state, backup) {
     oldToNewAssessment.set(item.id, newId);
     return { ...item, id: newId, classId: newClassId };
   });
+  const oldToNewAssessmentTask = new Map();
+  const assessmentTasks = (backup.assessmentTasks || []).map((item) => {
+    const newId = makeId();
+    oldToNewAssessmentTask.set(item.id, newId);
+    return {
+      ...item,
+      id: newId,
+      assessmentId: oldToNewAssessment.get(item.assessmentId) || item.assessmentId,
+      classId: newClassId
+    };
+  });
   const assessmentResults = (backup.assessmentResults || []).map((item) => ({
     ...item,
     id: makeId(),
     assessmentId: oldToNewAssessment.get(item.assessmentId) || item.assessmentId,
     classId: newClassId,
-    animalId: oldToNewAnimal.get(item.animalId) || item.animalId
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId,
+    taskPoints: remapTaskPoints(item.taskPoints, oldToNewAssessmentTask)
   }));
   const trainingCompletions = (backup.trainingCompletions || []).map((item) => ({
+    ...item,
+    id: makeId(),
+    classId: newClassId,
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId
+  }));
+  const trainingHistory = (backup.trainingHistory || []).map((item) => ({
     ...item,
     id: makeId(),
     classId: newClassId,
@@ -761,9 +843,11 @@ function importActiveClassAsNew(state, backup) {
     materials: [...state.materials, ...materials],
     goals: [...state.goals, ...goals],
     assessments: [...(state.assessments || []), ...assessments],
+    assessmentTasks: [...(state.assessmentTasks || []), ...assessmentTasks],
     assessmentResults: [...(state.assessmentResults || []), ...assessmentResults],
     trainingTasks: backup.trainingTasks?.length ? mergeTrainingTasks(state.trainingTasks || [], backup.trainingTasks) : state.trainingTasks,
     trainingCompletions: [...(state.trainingCompletions || []), ...trainingCompletions],
+    trainingHistory: [...(state.trainingHistory || []), ...trainingHistory],
     entries: [...state.entries, ...entries]
   });
 }
@@ -788,14 +872,16 @@ function stateFromBackup(backup) {
       entries: backup.entries || [],
       goals: backup.goals || [],
       assessments: backup.assessments || [],
+      assessmentTasks: backup.assessmentTasks || [],
       assessmentResults: backup.assessmentResults || [],
       trainingTasks: backup.trainingTasks || [],
       trainingCompletions: backup.trainingCompletions || [],
+      trainingHistory: backup.trainingHistory || [],
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
   if (backup?.classes || backup?.entries) return normalizeState(backup);
-  throw new Error("Diese Datei ist kein gültiges Arbeitsheft-Kompass-Backup.");
+  throw new Error("Diese Datei ist kein gültiges Lernstand-Kompass-Backup.");
 }
 
 function mergeBackupData(currentState, importedBackup) {
@@ -808,12 +894,16 @@ function mergeBackupData(currentState, importedBackup) {
     addedEntries: 0,
     addedGoals: 0,
     addedAssessments: 0,
+    addedAssessmentTasks: 0,
     addedAssessmentResults: 0,
     addedTrainingTasks: 0,
     addedTrainingCompletions: 0,
+    addedTrainingHistory: 0,
     skippedDuplicateTrainingCompletions: 0,
     skippedDuplicateAssessments: 0,
+    skippedDuplicateAssessmentTasks: 0,
     skippedDuplicateAssessmentResults: 0,
+    skippedDuplicateTrainingHistory: 0,
     skippedDuplicateEntries: 0,
     conflicts: [],
     mergedAt: nowIso()
@@ -825,9 +915,11 @@ function mergeBackupData(currentState, importedBackup) {
   const entryIds = new Set(current.entries.map((item) => item.id || item.entryId).filter(Boolean));
   const goalIds = new Set((current.goals || []).map((item) => item.id));
   const assessmentIds = new Set((current.assessments || []).map((item) => item.id));
+  const assessmentTaskIds = new Set((current.assessmentTasks || []).map((item) => item.id));
   const assessmentResultIds = new Set((current.assessmentResults || []).map((item) => item.id));
   const trainingTaskCodes = new Set((current.trainingTasks || []).map((item) => item.code));
   const trainingCompletionKeys = new Set((current.trainingCompletions || []).map(trainingCompletionKey));
+  const trainingHistoryIds = new Set((current.trainingHistory || []).map((item) => item.id));
   const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
   const qrTokens = new Map(current.animals.filter((animal) => animal.qrToken).map((animal) => [animal.qrToken, animal.id]));
 
@@ -839,9 +931,11 @@ function mergeBackupData(currentState, importedBackup) {
     entries: [...current.entries],
     goals: [...(current.goals || [])],
     assessments: [...(current.assessments || [])],
+    assessmentTasks: [...(current.assessmentTasks || [])],
     assessmentResults: [...(current.assessmentResults || [])],
     trainingTasks: [...(current.trainingTasks || [])],
-    trainingCompletions: [...(current.trainingCompletions || [])]
+    trainingCompletions: [...(current.trainingCompletions || [])],
+    trainingHistory: [...(current.trainingHistory || [])]
   };
 
   imported.classes.forEach((item) => {
@@ -856,10 +950,10 @@ function mergeBackupData(currentState, importedBackup) {
     const animal = { ...item };
     if (!animal.qrToken) {
       animal.qrToken = makeQrToken(new Set(qrTokens.keys()));
-      report.conflicts.push(`QR-Code für ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} ergänzt.`);
+      report.conflicts.push(`Technischer Tier-Code für ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} ergänzt.`);
     } else if (qrTokens.has(animal.qrToken)) {
       animal.qrToken = makeQrToken(new Set(qrTokens.keys()));
-      report.conflicts.push(`Doppelter QR-Code bei ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} neu erzeugt.`);
+      report.conflicts.push(`Doppelter technischer Tier-Code bei ${animal.tierEmoji || ""} ${animal.tierName || "Tier"} neu erzeugt.`);
     }
     next.animals.push(animal);
     animalIds.add(animal.id);
@@ -905,6 +999,16 @@ function mergeBackupData(currentState, importedBackup) {
     report.addedAssessments += 1;
   });
 
+  (imported.assessmentTasks || []).forEach((item) => {
+    if (assessmentTaskIds.has(item.id)) {
+      report.skippedDuplicateAssessmentTasks += 1;
+      return;
+    }
+    next.assessmentTasks.push(item);
+    assessmentTaskIds.add(item.id);
+    report.addedAssessmentTasks += 1;
+  });
+
   (imported.assessmentResults || []).forEach((item) => {
     if (assessmentResultIds.has(item.id)) {
       report.skippedDuplicateAssessmentResults += 1;
@@ -925,7 +1029,14 @@ function mergeBackupData(currentState, importedBackup) {
   (imported.trainingCompletions || []).forEach((item) => {
     const key = trainingCompletionKey(item);
     if (trainingCompletionKeys.has(key)) {
-      report.skippedDuplicateTrainingCompletions += 1;
+      const index = next.trainingCompletions.findIndex((existing) => trainingCompletionKey(existing) === key);
+      const existing = next.trainingCompletions[index];
+      if (existing && new Date(item.updatedAt || item.completedAt || 0) > new Date(existing.updatedAt || existing.completedAt || 0)) {
+        next.trainingCompletions[index] = item;
+        report.conflicts.push(`Trainingsstatus ${item.taskCode || ""} wurde mit neuerem Zeitstempel übernommen.`);
+      } else {
+        report.skippedDuplicateTrainingCompletions += 1;
+      }
       return;
     }
     next.trainingCompletions.push(item);
@@ -933,7 +1044,22 @@ function mergeBackupData(currentState, importedBackup) {
     report.addedTrainingCompletions += 1;
   });
 
+  (imported.trainingHistory || []).forEach((item) => {
+    if (trainingHistoryIds.has(item.id)) {
+      report.skippedDuplicateTrainingHistory += 1;
+      return;
+    }
+    next.trainingHistory.push(item);
+    trainingHistoryIds.add(item.id);
+    report.addedTrainingHistory += 1;
+  });
+
   return { state: normalizeState(next), report };
+}
+
+function remapTaskPoints(taskPoints, idMap) {
+  if (!taskPoints || typeof taskPoints !== "object") return {};
+  return Object.fromEntries(Object.entries(taskPoints).map(([taskId, value]) => [idMap.get(taskId) || taskId, value]));
 }
 
 function mergeTrainingTasks(currentTasks, importedTasks) {

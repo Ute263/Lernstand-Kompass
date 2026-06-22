@@ -230,8 +230,8 @@ button:disabled {
 }
 
 .subject-grid {
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
-  max-width: 860px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  max-width: 1060px;
   margin: 0 auto;
 }
 
@@ -348,6 +348,82 @@ button:disabled {
 .training-task-symbol {
   font-size: 2.4rem;
   line-height: 1;
+}
+
+.training-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(23, 50, 77, 0.28);
+}
+
+.training-modal-card {
+  position: relative;
+  width: min(100%, 760px);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border-radius: 12px;
+  background: #fffdf7;
+  box-shadow: 0 22px 60px rgba(23, 50, 77, 0.28);
+}
+
+.training-modal-card h2 {
+  margin: 0;
+  color: var(--brand-dark);
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1.1;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  color: var(--text);
+  background: #edf4ff;
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+
+.task-code {
+  width: fit-content;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: #e8edff;
+  font-weight: 900;
+}
+
+.modal-task-section,
+.modal-task-grid > div {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.modal-task-section p,
+.modal-task-section ol,
+.modal-task-grid p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.modal-task-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .training-subject-button,
@@ -763,6 +839,20 @@ th {
   min-width: 86px;
 }
 
+.assessment-task-input {
+  min-height: 150px;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+.field-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
 .subject-chip {
   display: inline-flex;
   align-items: center;
@@ -1104,8 +1194,11 @@ th {
 
 @media (max-width: 920px) {
   .start-grid,
-  .subject-grid,
   .teacher-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-task-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1121,6 +1214,12 @@ th {
   .manage-row,
   .editor-row,
   .material-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .subject-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,6 @@
-# Arbeitsheft-Kompass
+# Lernstand-Kompass
 
-Eine GitHub-Pages-App für eine einzelne Lehrkraft. GitHub speichert nur diese App-Dateien. Die Arbeitsstände werden lokal auf dem iPad/in diesem Browser gespeichert.
+Eine GitHub-Pages-App für eine einzelne Lehrkraft. GitHub speichert nur diese App-Dateien. Lernstände, Trainingszeit und Lernzielkontrollen werden lokal auf dem iPad/in diesem Browser gespeichert.
 
 ## Dateien für GitHub Pages
 
@@ -13,9 +13,6 @@ Diese Dateien müssen direkt im Repository liegen:
 - `exceljs.min.js`
 - `exceljs-LICENSE.txt`
 - `export.js`
-- `qrcode.js`
-- `jsqr.js`
-- `jsqr-LICENSE.txt`
 - `app.js`
 - `pwa.js`
 - `manifest.json`
@@ -43,37 +40,29 @@ Diese Dateien müssen direkt im Repository liegen:
 - keine externe Datenbank
 - keine Cloud-Synchronisation
 
-## Excel-Export
+## Exporte
 
-Im Lehrkraftbereich gibt es den Tab `Excel-Export`. Dort können gestaltete `.xlsx`-Arbeitsmappen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden.
+In der `Lernstand-Übersicht` gibt es den Bereich `Exporte`. Dort können gestaltete `.xlsx`-Arbeitsmappen für die aktive Klasse, alle Klassen, den heutigen Tag und offene Hilfe-/Kontrollwünsche erstellt werden.
 
-Die Arbeitsmappe enthält die Blätter `Start`, `Klassenübersicht`, `Fortschritt`, `Hilfe & Kontrolle`, `Heute`, `Druckübersicht` und `Daten`. Sie enthält keine Kindernamen und keine QR-Tokens.
+Die Arbeitsmappe enthält unter anderem `Start`, `Klassenübersicht`, `Fortschritt`, `Trainingszeit`, `Lernzielkontrollen`, `LZK Aufgaben`, `LZK Ergebnisse`, `Bewertungsschlüssel`, `Druckübersicht` und `Daten`. Sie enthält keine Kindernamen.
 
 ## Druckansicht / PDF
 
-Im Lehrkraftbereich gibt es den Tab `Druckansicht / PDF`. Dort können Tagesübersicht, Wochenübersicht, Hilfe & Kontrolle, Fortschritt und Gesamtbericht direkt in der App als gestaltete Druckvorschau geöffnet werden. Über den Browser-Druckdialog kann die Lehrkraft die Ansicht drucken oder als PDF speichern.
+In der `Lernstand-Übersicht` gibt es den Bereich `Druckansicht / PDF`. Dort können Tagesübersicht, Wochenübersicht, Hilfe & Kontrolle, Fortschritt, Trainingszeit und Gesamtbericht direkt in der App als gestaltete Druckvorschau geöffnet werden. Über den Browser-Druckdialog kann die Lehrkraft die Ansicht drucken oder als PDF speichern.
 
-## Tests, Zusatzaufgaben und Sprachwelt
+## Lernzielkontrollen
 
-Im Lehrkraftbereich gibt es den Tab `Tests & Lernzielkontrollen` für Tests, Lernzielkontrollen, Diagnosen und kleine Überprüfungen mit Ergebnissen je Tier-Pseudonym. Bei Deutsch-Zusatzaufgaben sehen Kinder eine lokale Auswahl an Sprachwelt-Aufgaben; bei anderen Zusatzaufgaben erscheint ein Schreibfeld statt einer Seitenzahl. Es werden weiterhin keine Kindernamen, Fotos oder QR-Tokens exportiert oder gedruckt.
+In der `Lernstand-Übersicht` gibt es den Bereich `Lernzielkontrollen` für Tests, Diagnosen und kleine Überprüfungen mit Ergebnissen je Tier-Pseudonym. Lernzielkontrollen können Aufgaben mit Maximalpunkten enthalten. Die App berechnet Gesamtpunkte, Prozentwert, Bewertungsvorschlag und Notenvorschlag. Es werden weiterhin keine Kindernamen oder Fotos exportiert oder gedruckt.
 
 Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` erzeugt. Es wird kein CDN zur Laufzeit verwendet. Falls die `.xlsx`-Erzeugung in einem Browser nicht klappt, stehen einfache CSV-Exporte als Fallback bereit.
 
 ## Trainingszeit
 
-Im Kinderbereich gibt es zusätzlich `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. In `OGS / Zuhause` können Kinder Entdeckeraufgaben einmalig anklicken. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. Im Lehrkraftbereich zeigt der Tab `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym.
+In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. In `OGS / Zuhause` öffnen Kinder zuerst eine Entdeckeraufgabe mit genauer Anleitung. Erst der Button `Aufgabe starten` speichert die Aufgabe als bearbeitet. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. In der `Lernstand-Übersicht` zeigt `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym. Die Lehrkraft kann versehentliche Auswahlen zurücksetzen; die Änderung wird historisch gespeichert.
 
 ## Fortschritt
 
-Im Lehrkraftbereich gibt es den Tab `Fortschritt`. Dort werden Arbeitsstände chronologisch und neutral ausgewertet: letzte Aktivität, Seitenfortschritt, Gruppenschnitt, Soll-Seiten und offene Hilfe-/Kontrollwünsche. Soll-Seiten und Fortschritts-Einstellungen werden unter `Tiere & Materialien` verwaltet.
-
-## QR-Karten
-
-Im Lehrkraftbereich gibt es den Tab `QR-Karten`. Dort können QR-Karten für die aktive Klasse angezeigt, neu erzeugt und gedruckt werden. Die QR-Codes enthalten keine Kindernamen und keine Arbeitsstände, sondern nur einen zufälligen Tier-Code wie `ak-8F3KQ2M9`.
-
-Der Kinderbereich kann diesen QR-Code direkt in der App scannen. Dafür wird die Kamera nur während des Scans geöffnet. Es werden keine Fotos gespeichert.
-
-Die QR-Erkennung nutzt zuerst die lokale Browser-Funktion `BarcodeDetector`, falls verfügbar. Wenn nicht, nutzt die App die lokal mitgelieferte Datei `jsqr.js`. Es wird kein CDN und kein externer QR-Dienst verwendet.
+In der `Lernstand-Übersicht` gibt es den Bereich `Fortschritt`. Dort werden Lernstände chronologisch und neutral ausgewertet: letzte Aktivität, Seitenfortschritt, Gruppenschnitt, Soll-Seiten und offene Hilfe-/Kontrollwünsche. Soll-Seiten und Fortschritts-Einstellungen werden unter `Tiere & Materialien` verwaltet.
 
 ## PIN und Wiederherstellung
 

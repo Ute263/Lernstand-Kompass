@@ -42,6 +42,7 @@ let trainingFilters = {
   status: "bearbeitet",
   date: ""
 };
+let pendingTrainingTaskCode = "";
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -111,24 +112,24 @@ function render() {
     return;
   }
   if (screen === "childStart") {
-    app.innerHTML = `<main class="app-shell child">${renderTopbar("Kinderbereich")}${renderChildStart()}</main>`;
+    app.innerHTML = `<main class="app-shell child">${renderTopbar(CHILD_AREA_NAME)}${renderChildStart()}</main>`;
     return;
   }
   if (screen === "qrScanner") {
-    app.innerHTML = `<main class="app-shell child">${renderTopbar(scannerMode === "test" ? "QR-Scanner testen" : "Kinderbereich")}${renderQrScanner()}</main>`;
+    app.innerHTML = `<main class="app-shell child">${renderTopbar(CHILD_AREA_NAME)}${renderQrScanner()}</main>`;
     startQrScanner();
     return;
   }
   if (screen.startsWith("child")) {
-    app.innerHTML = `<main class="app-shell child">${renderTopbar("Kinderbereich")}${renderChildScreen()}</main>`;
+    app.innerHTML = `<main class="app-shell child">${renderTopbar(CHILD_AREA_NAME)}${renderChildScreen()}</main>`;
     return;
   }
   if (screen === "login") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Geschützter Bereich")}${renderLogin()}</main>`;
+    app.innerHTML = `<main class="app-shell">${renderTopbar(TEACHER_AREA_NAME)}${renderLogin()}</main>`;
     return;
   }
   if (screen === "teacher") {
-    app.innerHTML = `<main class="app-shell">${renderTopbar("Lehrkraftbereich")}${renderTeacher()}</main>`;
+    app.innerHTML = `<main class="app-shell">${renderTopbar(TEACHER_AREA_NAME)}${renderTeacher()}</main>`;
     appendSyncAssistant();
     return;
   }
@@ -144,7 +145,7 @@ function renderTopbar(subtitle) {
   return `
     <header class="topbar">
       <div class="brand">
-        <h1 class="brand-title">Arbeitsheft-Kompass</h1>
+        <h1 class="brand-title">${APP_NAME}</h1>
         <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
       </div>
       <button class="secondary" type="button" onclick="goHome()">Start</button>
@@ -156,7 +157,7 @@ function renderSetup() {
   return `
     <main class="app-shell setup-shell">
       <section class="setup-card">
-        <h1 class="brand-title">Arbeitsheft-Kompass einrichten</h1>
+        <h1 class="brand-title">${APP_NAME} einrichten</h1>
         <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
         <form class="setup-form" onsubmit="completeSetup(event)">
           <label class="field">Lehrkraft-PIN festlegen
@@ -237,18 +238,18 @@ function renderStart() {
       <section class="center-stage">
         <div>
           <div class="brand start-brand">
-            <h1 class="brand-title">Arbeitsheft-Kompass</h1>
-            <p class="brand-subtitle">Arbeitsstände einfach festhalten</p>
+            <h1 class="brand-title">Lernstand-Kompass</h1>
+            <p class="brand-subtitle">${APP_SUBTITLE}</p>
             <p class="active-note">Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
           </div>
           <div class="start-grid">
             <button class="start-card" type="button" onclick="startChildFlow()">
-              <span class="icon">👋</span>
-              <strong>Ich bin ein Kind</strong>
+              <span class="icon">🧭</span>
+              <strong>${CHILD_AREA_NAME}</strong>
             </button>
             <button class="start-card" type="button" onclick="openLogin()">
               <span class="icon">🔒</span>
-              <strong>Lehrkraftbereich 🔒</strong>
+              <strong>${TEACHER_AREA_NAME} 🔒</strong>
             </button>
           </div>
         </div>
@@ -260,6 +261,7 @@ function renderStart() {
 function startChildFlow() {
   stopQrScanner();
   childDraft = {};
+  pendingTrainingTaskCode = "";
   screen = "childStart";
   render();
 }
@@ -267,7 +269,7 @@ function startChildFlow() {
 async function startQrFlow(qrToken) {
   const animal = state.animals.find((item) => item.aktiv && item.qrToken === qrToken);
   if (!animal || !state.classes.some((item) => item.id === animal.classId)) {
-    qrErrorMessage = "Dieser QR-Code wurde nicht erkannt. Bitte wende dich an die Lehrkraft.";
+    qrErrorMessage = "Dieser Zugang wurde nicht erkannt. Bitte wende dich an die Lehrkraft.";
     screen = "qrInvalid";
     render();
     return;
@@ -289,6 +291,7 @@ function openLogin() {
 function goHome() {
   stopQrScanner();
   childDraft = {};
+  pendingTrainingTaskCode = "";
   loginError = "";
   qrErrorMessage = "";
   screen = "start";
@@ -300,8 +303,8 @@ function renderQrInvalid() {
     <main class="app-shell child">
       <section class="center-stage">
         <div class="setup-card qr-error-card">
-          <h1 class="brand-title">QR-Code</h1>
-          <p class="privacy-text">${escapeHtml(qrErrorMessage || "Dieser QR-Code wurde nicht erkannt. Bitte wende dich an die Lehrkraft.")}</p>
+          <h1 class="brand-title">Zugang</h1>
+          <p class="privacy-text">${escapeHtml(qrErrorMessage || "Dieser Zugang wurde nicht erkannt. Bitte wende dich an die Lehrkraft.")}</p>
           <button class="primary" type="button" onclick="goHome()">Zur Startseite</button>
         </div>
       </section>
@@ -325,15 +328,9 @@ function renderChildScreen() {
 function renderChildStart() {
   return `
     <section class="step-wrap child-start-wrap">
-      <h2 class="child-title">Wie möchtest du starten?</h2>
+      <h2 class="child-title">${CHILD_AREA_NAME}</h2>
       <div class="start-grid child-choice-grid">
-        ${state.qrScannerEnabled ? `
-          <button class="start-card primary-child-card" type="button" onclick="openQrScanner('child')">
-            <span class="icon">📷</span>
-            <strong>QR-Code scannen</strong>
-          </button>
-        ` : ""}
-        <button class="start-card" type="button" onclick="setChildScreen('childAnimal')">
+        <button class="start-card primary-child-card" type="button" onclick="setChildScreen('childAnimal')">
           <span class="icon">🐾</span>
           <strong>Tier auswählen</strong>
         </button>
@@ -383,7 +380,7 @@ function renderSubjectSelection() {
     <section class="step-wrap">
       ${childDraft.fromQr ? "" : renderBackButton("childAnimal")}
       ${qrGreeting}
-      <h2 class="child-title">Was hast du bearbeitet?</h2>
+      <h2 class="child-title">${CHILD_AREA_NAME}</h2>
       <div class="subject-grid">
         <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
         <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
@@ -401,6 +398,7 @@ function selectSubject(subject) {
 
 function openTrainingStart() {
   childDraft.trainingArea = "";
+  pendingTrainingTaskCode = "";
   screen = "childTraining";
   render();
 }
@@ -424,6 +422,7 @@ function renderTrainingStart() {
 
 function selectTrainingArea(area) {
   childDraft.trainingArea = area;
+  pendingTrainingTaskCode = "";
   screen = "childTrainingArea";
   render();
 }
@@ -449,24 +448,73 @@ function renderTrainingArea() {
         ${tasks.map((task) => {
           const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
           return `
-            <button class="training-task-card ${completed ? "completed" : ""}" type="button" ${completed ? "disabled" : `onclick="completeTrainingTask('${escapeAttribute(task.code)}')"`}>
+            <button class="training-task-card ${completed ? "completed" : ""}" type="button" ${completed ? "disabled" : `onclick="openTrainingTaskModal('${escapeAttribute(task.code)}')"`}>
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
               <strong>${escapeHtml(task.code)}</strong>
-              <span>${escapeHtml(task.text)}</span>
-              <em>${completed ? "schon erledigt" : "anklicken und erledigen"}</em>
+              <span>${escapeHtml(task.title || task.text)}</span>
+              <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
             </button>
           `;
         }).join("")}
       </div>
       ${tasks.length ? "" : `<div class="empty">Keine Entdeckeraufgaben vorhanden.</div>`}
+      ${renderTrainingTaskModal()}
     </section>
   `;
+}
+
+function renderTrainingTaskModal() {
+  if (!pendingTrainingTaskCode) return "";
+  const area = childDraft.trainingArea || "OGS/Zuhause";
+  const task = (state.trainingTasks || []).find((item) => item.code === pendingTrainingTaskCode && item.area === area);
+  if (!task) return "";
+  return `
+    <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="trainingModalTitle">
+      <section class="training-modal-card">
+        <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTrainingTaskModal()">×</button>
+        <p class="task-code">${escapeHtml(task.code)}</p>
+        <h2 id="trainingModalTitle">${escapeHtml(task.code)}: ${escapeHtml(task.title)}</h2>
+        <div class="modal-task-section">
+          <strong>Aufgabe:</strong>
+          <p>${escapeHtml(task.text)}</p>
+        </div>
+        <div class="modal-task-section">
+          <strong>So gehst du vor:</strong>
+          <ol>${(task.instructions || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+        </div>
+        <div class="modal-task-grid">
+          <div><strong>Tipp:</strong><p>${escapeHtml(task.tip || "Arbeite Schritt für Schritt.")}</p></div>
+          <div><strong>Material:</strong><p>${escapeHtml(task.material || "Heft oder Zettel, Stift")}</p></div>
+        </div>
+        <div class="confirm-actions">
+          <button class="primary" type="button" onclick="startTrainingTask('${escapeAttribute(task.code)}')">Aufgabe starten</button>
+          <button class="secondary" type="button" onclick="closeTrainingTaskModal()">Abbrechen</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function openTrainingTaskModal(taskCode) {
+  pendingTrainingTaskCode = taskCode;
+  render();
+}
+
+function closeTrainingTaskModal() {
+  pendingTrainingTaskCode = "";
+  render();
+}
+
+async function startTrainingTask(taskCode) {
+  pendingTrainingTaskCode = "";
+  await completeTrainingTask(taskCode);
 }
 
 async function completeTrainingTask(taskCode) {
   const animal = selectedAnimal();
   const task = (state.trainingTasks || []).find((item) => item.code === taskCode && item.area === (childDraft.trainingArea || "OGS/Zuhause"));
   if (!animal || !task || isTrainingTaskCompleted(animal.id, task.code)) return;
+  const timestamp = nowIso();
   const completion = {
     id: makeId(),
     classId: state.activeClassId,
@@ -477,7 +525,8 @@ async function completeTrainingTask(taskCode) {
     trainingArea: task.area,
     subject: task.subject,
     taskText: task.text,
-    completedAt: nowIso(),
+    completedAt: timestamp,
+    updatedAt: timestamp,
     status: "bearbeitet"
   };
   await persist({ ...state, trainingCompletions: [...(state.trainingCompletions || []), completion] });
@@ -691,7 +740,7 @@ function renderLogin() {
     <section class="center-stage">
       <form class="login-box big-card" onsubmit="checkPin(event)">
         <div class="lock-icon">🔒</div>
-        <h2 class="child-title compact-title">Lehrkraftbereich</h2>
+        <h2 class="child-title compact-title">${TEACHER_AREA_NAME}</h2>
         <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary" type="submit">Öffnen</button>
@@ -734,7 +783,7 @@ function renderQrScanner() {
       <div class="step-actions">
         <button class="secondary" type="button" onclick="closeQrScanner()">Zurück</button>
       </div>
-      <h2 class="child-title">${scannerMode === "test" ? "QR-Scanner testen" : "QR-Code scannen"}</h2>
+      <h2 class="child-title">Tier-Zugang scannen</h2>
       <div class="scanner-panel">
         <video id="qrVideo" class="qr-video" autoplay playsinline muted></video>
         <canvas id="qrCanvas" class="qr-canvas"></canvas>
@@ -754,7 +803,7 @@ async function startQrScanner() {
     scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
     video.srcObject = scannerStream;
     await video.play();
-    message.textContent = "Halte die QR-Karte vor die Kamera.";
+    message.textContent = "Halte die Karte vor die Kamera.";
     if ("BarcodeDetector" in window) {
       try {
         barcodeDetector = new BarcodeDetector({ formats: ["qr_code"] });
@@ -788,7 +837,7 @@ async function scanQrFrame() {
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       token = window.jsQR(imageData.data, imageData.width, imageData.height)?.data || "";
     } else if (!("BarcodeDetector" in window)) {
-      message.textContent = "QR-Erkennung ist in diesem Browser nicht verfügbar. Bitte wähle dein Tier über die Tierauswahl.";
+      message.textContent = "Die Erkennung ist in diesem Browser nicht verfügbar. Bitte wähle dein Tier über die Tierauswahl.";
     }
 
     if (token) {
@@ -796,7 +845,7 @@ async function scanQrFrame() {
       return;
     }
   } catch {
-    message.textContent = "Der QR-Code konnte nicht gelesen werden. Bitte erneut versuchen.";
+    message.textContent = "Der Code konnte nicht gelesen werden. Bitte erneut versuchen.";
   }
   scannerTimer = window.setTimeout(scanQrFrame, 350);
 }
@@ -806,15 +855,15 @@ async function handleScannedQrToken(token) {
   stopQrScanner();
   if (scannerMode === "test") {
     globalMessage = animal
-      ? `QR-Code erkannt: ${animal.tierEmoji} ${animal.tierName}`
-      : "QR-Code wurde erkannt, gehört aber zu keinem Tier der gespeicherten Klassen.";
+      ? `Tier-Code erkannt: ${animal.tierEmoji} ${animal.tierName}`
+      : "Der Code wurde erkannt, gehört aber zu keinem Tier der gespeicherten Klassen.";
     screen = "teacher";
     teacherTab = "qrCards";
     render();
     return;
   }
   if (!animal) {
-    qrErrorMessage = "Dieser QR-Code wurde nicht gefunden. Bitte frage deine Lehrkraft.";
+    qrErrorMessage = "Dieser Zugang wurde nicht gefunden. Bitte frage deine Lehrkraft.";
     screen = "qrInvalid";
     render();
     return;
@@ -899,7 +948,7 @@ async function resetPinWithRecovery(event) {
 }
 
 async function resetWholeAppFromLogin() {
-  if (!confirm("Dadurch werden alle lokal gespeicherten Klassen, Tiere, Materialien und Arbeitsstände gelöscht. Fortfahren?")) return;
+  if (!confirm("Dadurch werden alle lokal gespeicherten Klassen, Tiere, Materialien und Lernstände gelöscht. Fortfahren?")) return;
   if (!confirm("Bitte bestätige: App wirklich zurücksetzen.")) return;
   await storage.clear();
   state = emptyState();
@@ -910,27 +959,26 @@ async function resetWholeAppFromLogin() {
 
 function renderTeacher() {
   const tabs = [
-    ["overview", "Übersicht"],
+    ["overview", "Übersicht Tiere"],
     ["progress", "Fortschritt"],
-    ["assessments", "Tests & Lernzielkontrollen"],
+    ["assessments", "Lernzielkontrollen"],
     ["training", "Trainingszeit"],
     ["today", "Heute"],
     ["help", "Hilfe/Kontrolle"],
     ["history", "Verlauf"],
     ["classes", "Klassen & Gruppen"],
     ["resources", "Tiere & Materialien"],
-    ["qrCards", "QR-Karten"],
     ["security", "PIN & Sicherheit"],
     ["storageStatus", "Speicherstatus"],
-    ["excelExport", "Excel-Export"],
+    ["excelExport", "Exporte"],
     ["printPdf", "Druckansicht / PDF"],
-    ["backup", "Datensicherung"],
+    ["backup", "Backup / Wiederherstellung"],
     ["privacy", "Datenschutz & Zweck"]
   ];
 
   return `
     <section class="teacher-layout">
-      <nav class="tabs" aria-label="Lehrkraftbereich">
+      <nav class="tabs" aria-label="${TEACHER_AREA_NAME}">
         ${tabs.map(([id, label]) => `
           <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
         `).join("")}
@@ -961,7 +1009,6 @@ function renderTeacherTab() {
   if (teacherTab === "history") return renderHistory();
   if (teacherTab === "classes") return renderClasses();
   if (teacherTab === "resources") return renderResources();
-  if (teacherTab === "qrCards") return renderQrCards();
   if (teacherTab === "security") return renderSecurity();
   if (teacherTab === "storageStatus") return renderStorageStatus();
   if (teacherTab === "excelExport") return renderExcelExport();
@@ -1145,7 +1192,7 @@ function renderAssessments() {
             <span>${item.datum ? formatGermanDate(item.datum) : "ohne Datum"}</span>
             <span>${escapeHtml(item.typ)}</span>
           </div>
-          <p class="message">${escapeHtml(item.bereich || "ohne Bereich")} · ${escapeHtml(item.bewertungsart)}${item.maxPunkte ? ` · max. ${escapeHtml(item.maxPunkte)} Punkte` : ""}</p>
+          <p class="message">${escapeHtml(item.bereich || "ohne Bereich")} · ${escapeHtml(item.bewertungsart)}${assessmentMaxPoints(item) ? ` · max. ${escapeHtml(assessmentMaxPoints(item))} Punkte` : ""} · ${assessmentTasksFor(item.id).length} Aufgaben</p>
           ${item.notizKurz ? `<p class="message">${escapeHtml(item.notizKurz)}</p>` : ""}
           <p class="message">Eingetragene Ergebnisse: <strong>${assessmentResultsFor(item.id).filter((result) => result.status === "eingetragen").length}</strong></p>
           <div class="backup-actions">
@@ -1212,7 +1259,7 @@ function renderTrainingOverview() {
       <div class="table-scroll">
         <table class="training-overview-table">
           <thead>
-            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th></tr>
+            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th><th>Aktion</th></tr>
           </thead>
           <tbody>
             ${rows.map((row) => `
@@ -1225,8 +1272,9 @@ function renderTrainingOverview() {
                 <td>${row.completedAt ? formatGermanDate(row.completedAt) : "–"}</td>
                 <td>${row.completedAt ? formatTime(row.completedAt) : "–"}</td>
                 <td>${row.status === "bearbeitet" ? `<span class="badge done">bearbeitet</span>` : `<span class="badge stale">offen</span>`}</td>
+                <td>${row.status === "bearbeitet" ? `<button class="small-button" type="button" onclick="resetTrainingCompletion('${row.animalId}', '${escapeAttribute(row.taskCode)}')">Aufgabe zurücksetzen</button>` : "–"}</td>
               </tr>
-            `).join("") || `<tr><td colspan="8">Keine passenden Trainingsaufgaben gefunden.</td></tr>`}
+            `).join("") || `<tr><td colspan="9">Keine passenden Trainingsaufgaben gefunden.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1237,6 +1285,37 @@ function renderTrainingOverview() {
 function setTrainingFilter(field, value) {
   trainingFilters = { ...trainingFilters, [field]: value };
   render();
+}
+
+async function resetTrainingCompletion(animalId, taskCode) {
+  if (!confirm("Möchtest du diese Aufgabe wirklich für dieses Tier zurücksetzen?")) return;
+  const completion = (state.trainingCompletions || []).find((item) => (
+    item.classId === state.activeClassId
+    && item.animalId === animalId
+    && item.taskCode === taskCode
+    && item.status === "bearbeitet"
+  ));
+  if (!completion) return;
+  const timestamp = nowIso();
+  const trainingCompletions = (state.trainingCompletions || []).map((item) => (
+    item.id === completion.id
+      ? { ...item, status: "offen", updatedAt: timestamp, resetAt: timestamp, resetNote: "durch Lehrkraft zurückgesetzt" }
+      : item
+  ));
+  const trainingHistory = [
+    ...(state.trainingHistory || []),
+    {
+      id: makeId(),
+      classId: completion.classId,
+      animalId: completion.animalId,
+      taskCode: completion.taskCode,
+      oldStatus: "bearbeitet",
+      newStatus: "offen",
+      changedAt: timestamp,
+      note: "durch Lehrkraft zurückgesetzt"
+    }
+  ];
+  await persistAndRender({ ...state, trainingCompletions, trainingHistory });
 }
 
 function renderAssessmentForm() {
@@ -1270,6 +1349,10 @@ function renderAssessmentForm() {
         <label class="field assessment-wide">Kurze Inhaltsbeschreibung
           <input class="text-input" id="newAssessmentNote" maxlength="120" placeholder="Plusaufgaben bis 20" autocomplete="off">
         </label>
+        <label class="field assessment-wide">Aufgabenliste
+          <textarea class="text-input assessment-task-input" id="newAssessmentTasks" rows="5" placeholder="Aufgabe 1; Zahlen ordnen; 4; Zahlverständnis&#10;Aufgabe 2; Plusaufgaben; 6; Rechnen&#10;Aufgabe 3; Sachaufgabe; 5; Modellieren"></textarea>
+          <span class="field-help">Eine Aufgabe pro Zeile: Nummer; kurzer Aufgabenname; Maximalpunkte; Kompetenz optional.</span>
+        </label>
         <div class="backup-actions assessment-wide">
           <button class="primary" type="submit">Speichern</button>
           <button class="secondary" type="button" onclick="closeAssessmentForm()">Abbrechen</button>
@@ -1281,35 +1364,48 @@ function renderAssessmentForm() {
 
 function renderAssessmentResultsEditor(assessment) {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const tasks = assessmentTasksFor(assessment.id);
   const showPoints = assessmentUsesPoints(assessment);
   const showNote = assessmentUsesNote(assessment);
   const showSymbol = assessmentUsesSymbol(assessment);
+  const maxPoints = assessmentMaxPoints(assessment);
   return `
     <section class="panel">
       <button class="secondary" type="button" onclick="closeAssessmentResults()">Zur Übersicht</button>
       <h2>Ergebnisse eintragen</h2>
-      <p class="message"><strong>${escapeHtml(assessment.titel)}</strong> · ${escapeHtml(assessment.fach)} · ${escapeHtml(assessment.bereich || "ohne Bereich")} · ${assessment.datum ? formatGermanDate(assessment.datum) : "ohne Datum"}</p>
+      <p class="message"><strong>${escapeHtml(assessment.titel)}</strong> · ${escapeHtml(assessment.fach)} · ${escapeHtml(assessment.bereich || "ohne Bereich")} · ${assessment.datum ? formatGermanDate(assessment.datum) : "ohne Datum"}${maxPoints ? ` · max. ${escapeHtml(maxPoints)} Punkte` : ""}</p>
       <div class="table-scroll">
         <table class="assessment-result-table">
           <thead>
             <tr>
               <th>Tier</th>
-              ${showPoints ? "<th>Punkte</th>" : ""}
+              ${showPoints && tasks.length ? tasks.map((task) => `<th>${escapeHtml(task.number)}<br><small>${escapeHtml(task.title)}<br>/${escapeHtml(task.maxPoints)}</small></th>`).join("") : ""}
+              ${showPoints && !tasks.length ? "<th>Punkte</th>" : ""}
+              ${showPoints ? "<th>Gesamt</th><th>%</th><th>Vorschlag</th>" : ""}
+              ${showPoints ? "<th>Endgültige Bewertung</th>" : ""}
               ${showNote ? "<th>Note</th>" : ""}
+              ${showPoints ? "<th>Endgültige Note</th>" : ""}
               ${showSymbol ? "<th>Symbol</th>" : ""}
               <th>Status</th>
+              <th>Bemerkung</th>
             </tr>
           </thead>
           <tbody>
             ${animals.map((animal) => {
               const result = assessmentResultFor(assessment.id, animal.id);
+              const summary = calculateAssessmentResultSummary(assessment, result);
               return `
                 <tr>
                   <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
-                  ${showPoints ? `<td><input class="text-input small-input" type="number" min="0" step="0.5" value="${escapeAttribute(result?.punkte ?? "")}" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'punkte', this.value)"></td>` : ""}
+                  ${showPoints && tasks.length ? tasks.map((task) => `<td><input class="text-input small-input" type="number" min="0" max="${escapeAttribute(task.maxPoints)}" step="0.5" value="${escapeAttribute(result?.taskPoints?.[task.id] ?? "")}" onchange="updateAssessmentTaskPoint('${assessment.id}', '${animal.id}', '${task.id}', this.value)"></td>`).join("") : ""}
+                  ${showPoints && !tasks.length ? `<td><input class="text-input small-input" type="number" min="0" step="0.5" value="${escapeAttribute(result?.punkte ?? "")}" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'punkte', this.value)"></td>` : ""}
+                  ${showPoints ? `<td>${escapeHtml(summary.pointsLabel)}</td><td>${escapeHtml(summary.percentLabel)}</td><td>${escapeHtml(summary.rating || "–")}</td>` : ""}
+                  ${showPoints ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'finalRating', this.value)">${["", "sehr gut", "gut", "befriedigend", "ausreichend", "mangelhaft", "ungenügend"].map((rating) => `<option value="${rating}" ${String(result?.finalRating || "") === rating ? "selected" : ""}>${rating || "–"}</option>`).join("")}</select></td>` : ""}
                   ${showNote ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'note', this.value)">${["", "1", "2", "3", "4", "5", "6"].map((note) => `<option value="${note}" ${String(result?.note || "") === note ? "selected" : ""}>${note || "–"}</option>`).join("")}</select></td>` : ""}
+                  ${showPoints ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'finalNote', this.value)">${["", "1", "2", "3", "4", "5", "6"].map((note) => `<option value="${note}" ${String(result?.finalNote || "") === note ? "selected" : ""}>${note || "–"}</option>`).join("")}</select></td>` : ""}
                   ${showSymbol ? `<td><select class="select-input small-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'symbol', this.value)">${["", ...ASSESSMENT_SYMBOLS].map((symbol) => `<option value="${escapeAttribute(symbol)}" ${String(result?.symbol || "") === symbol ? "selected" : ""}>${symbol || "–"}</option>`).join("")}</select></td>` : ""}
                   <td><select class="select-input" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'status', this.value)">${ASSESSMENT_RESULT_STATUSES.map((status) => `<option value="${escapeAttribute(status)}" ${String(result?.status || "eingetragen") === status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}</select></td>
+                  <td><input class="text-input" maxlength="120" value="${escapeAttribute(result?.remark || "")}" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'remark', this.value)" placeholder="kurz und sachlich"></td>
                 </tr>
               `;
             }).join("")}
@@ -1549,14 +1645,14 @@ function renderClasses() {
   return `
     <section class="panel">
       <h2>Klassen & Gruppen</h2>
-      <p class="message">Aktive Klasse für Kinderbereich: <strong>${escapeHtml(activeClass()?.name || "keine")}</strong></p>
+      <p class="message">Aktive Klasse für ${CHILD_AREA_NAME}: <strong>${escapeHtml(activeClass()?.name || "keine")}</strong></p>
       <div class="class-list">
         ${state.classes.map((classItem) => `
           <div class="manage-row">
             <input class="text-input" value="${escapeAttribute(classItem.name)}" aria-label="Name" onchange="updateClassItem('${classItem.id}', 'name', this.value)">
             <input class="text-input" value="${escapeAttribute(classItem.beschreibung || "")}" aria-label="Beschreibung" placeholder="Beschreibung optional" onchange="updateClassItem('${classItem.id}', 'beschreibung', this.value)">
             <button class="small-button" type="button" onclick="useClass('${classItem.id}')" ${classItem.id === state.activeClassId ? "disabled" : ""}>Als aktive Klasse verwenden</button>
-            <button class="danger" type="button" onclick="deleteEntriesForClass('${classItem.id}')">Arbeitsstände dieser Klasse löschen</button>
+            <button class="danger" type="button" onclick="deleteEntriesForClass('${classItem.id}')">Lernstände dieser Klasse löschen</button>
             <button class="danger" type="button" onclick="deleteClassItem('${classItem.id}')">Klasse löschen</button>
           </div>
         `).join("")}
@@ -1600,7 +1696,7 @@ async function updateClassItem(classId, field, value) {
 }
 
 async function deleteEntriesForClass(classId) {
-  if (!confirm("Alle Arbeitsstände dieser Klasse löschen? Tiere und Materialien bleiben erhalten.")) return;
+  if (!confirm("Alle Lernstände dieser Klasse löschen? Tiere und Materialien bleiben erhalten.")) return;
   await persistAndRender({ ...state, entries: state.entries.filter((entry) => entry.classId !== classId) });
 }
 
@@ -1609,7 +1705,7 @@ async function deleteClassItem(classId) {
     alert("Die letzte Klasse kann nicht gelöscht werden.");
     return;
   }
-  if (!confirm("Diese Klasse und alle dazugehörigen Arbeitsstände werden gelöscht. Fortfahren?")) return;
+  if (!confirm("Diese Klasse und alle dazugehörigen Lernstände werden gelöscht. Fortfahren?")) return;
   if (!confirm("Bitte bestätige: Klasse wirklich löschen.")) return;
   const classes = state.classes.filter((item) => item.id !== classId);
   const activeClassId = state.activeClassId === classId ? classes[0]?.id || null : state.activeClassId;
@@ -1622,8 +1718,10 @@ async function deleteClassItem(classId) {
     entries: state.entries.filter((item) => item.classId !== classId),
     goals: state.goals.filter((item) => item.classId !== classId),
     assessments: (state.assessments || []).filter((item) => item.classId !== classId),
+    assessmentTasks: (state.assessmentTasks || []).filter((item) => item.classId !== classId),
     assessmentResults: (state.assessmentResults || []).filter((item) => item.classId !== classId),
-    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId !== classId)
+    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId !== classId),
+    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId !== classId)
   });
 }
 
@@ -1681,7 +1779,7 @@ function renderGoalSettings() {
   return `
     <section class="panel">
       <h2>Soll-Seiten</h2>
-      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur im Lehrkraftbereich angezeigt.</p>
+      <p class="message">Lege pro Fach und Material eine aktuelle Soll-Seite fest. Diese Werte werden nur in der ${TEACHER_AREA_NAME} angezeigt.</p>
       ${goals.map((goal) => `
         <div class="editor-row goal-row">
           <select class="select-input" onchange="updateGoal('${goal.id}', 'fach', this.value)">
@@ -1904,8 +2002,10 @@ async function addAssessment(event) {
   const bewertungsart = document.querySelector("#newAssessmentGrading").value;
   const maxPunkteValue = Number(document.querySelector("#newAssessmentMaxPoints")?.value || 0);
   const notizKurz = document.querySelector("#newAssessmentNote").value.trim();
+  const tasks = parseAssessmentTasksInput(document.querySelector("#newAssessmentTasks")?.value || "");
   if (!titel) return;
   const timestamp = nowIso();
+  const taskMaxPoints = tasks.reduce((sum, task) => sum + Number(task.maxPoints || 0), 0);
   const item = {
     id: makeId(),
     classId: state.activeClassId,
@@ -1915,14 +2015,27 @@ async function addAssessment(event) {
     datum,
     typ,
     bewertungsart,
-    maxPunkte: assessmentGradingNeedsPoints(bewertungsart) && maxPunkteValue > 0 ? maxPunkteValue : "",
+    maxPunkte: assessmentGradingNeedsPoints(bewertungsart) ? (taskMaxPoints || (maxPunkteValue > 0 ? maxPunkteValue : "")) : "",
     notizKurz,
     createdAt: timestamp,
     updatedAt: timestamp
   };
+  const assessmentTasks = tasks.map((task, index) => ({
+    ...task,
+    id: makeId(),
+    assessmentId: item.id,
+    classId: state.activeClassId,
+    number: task.number || String(index + 1),
+    createdAt: timestamp,
+    updatedAt: timestamp
+  }));
   assessmentFormOpen = false;
   assessmentEditorId = item.id;
-  await persistAndRender({ ...state, assessments: [...(state.assessments || []), item] });
+  await persistAndRender({
+    ...state,
+    assessments: [...(state.assessments || []), item],
+    assessmentTasks: [...(state.assessmentTasks || []), ...assessmentTasks]
+  });
 }
 
 async function updateAssessment(assessmentId, field, value) {
@@ -1939,6 +2052,7 @@ async function deleteAssessment(assessmentId) {
   await persistAndRender({
     ...state,
     assessments: (state.assessments || []).filter((item) => item.id !== assessmentId),
+    assessmentTasks: (state.assessmentTasks || []).filter((item) => item.assessmentId !== assessmentId),
     assessmentResults: (state.assessmentResults || []).filter((item) => item.assessmentId !== assessmentId)
   });
 }
@@ -1977,7 +2091,7 @@ async function updateAssessmentResult(assessmentId, animalId, field, value) {
   const timestamp = nowIso();
   const existing = assessmentResultFor(assessmentId, animalId);
   const cleanValue = cleanAssessmentResultValue(field, value);
-  const result = {
+  const result = enrichAssessmentResult(assessment, {
     ...(existing || {
       id: makeId(),
       assessmentId,
@@ -1993,11 +2107,41 @@ async function updateAssessmentResult(assessmentId, animalId, field, value) {
       createdAt: timestamp
     }),
     [field]: cleanValue,
-    maxPunkteSnapshot: assessment.maxPunkte || existing?.maxPunkteSnapshot || "",
+    maxPunkteSnapshot: assessmentMaxPoints(assessment) || existing?.maxPunkteSnapshot || "",
     updatedAt: timestamp
-  };
+  });
   const others = (state.assessmentResults || []).filter((item) => !(item.assessmentId === assessmentId && item.animalId === animalId));
-  await persist({ ...state, assessmentResults: [...others, result] });
+  await persist({ ...state, assessmentResults: withAssessmentPercentiles(assessmentId, [...others, result]) });
+}
+
+async function updateAssessmentTaskPoint(assessmentId, animalId, taskId, value) {
+  const assessment = (state.assessments || []).find((item) => item.id === assessmentId);
+  const animal = state.animals.find((item) => item.id === animalId);
+  if (!assessment || !animal) return;
+  const timestamp = nowIso();
+  const existing = assessmentResultFor(assessmentId, animalId);
+  const cleanValue = cleanAssessmentResultValue("punkte", value);
+  const taskPoints = { ...(existing?.taskPoints || {}) };
+  if (cleanValue === "") delete taskPoints[taskId];
+  else taskPoints[taskId] = cleanValue;
+  const result = enrichAssessmentResult(assessment, {
+    ...(existing || {
+      id: makeId(),
+      assessmentId,
+      classId: assessment.classId,
+      animalId,
+      tierNameSnapshot: animal.tierName,
+      tierEmojiSnapshot: animal.tierEmoji,
+      note: "",
+      symbol: "",
+      status: "eingetragen",
+      createdAt: timestamp
+    }),
+    taskPoints,
+    updatedAt: timestamp
+  });
+  const others = (state.assessmentResults || []).filter((item) => !(item.assessmentId === assessmentId && item.animalId === animalId));
+  await persist({ ...state, assessmentResults: withAssessmentPercentiles(assessmentId, [...others, result]) });
 }
 
 function cleanAssessmentResultValue(field, value) {
@@ -2008,6 +2152,8 @@ function cleanAssessmentResultValue(field, value) {
   }
   if (field === "status") return ASSESSMENT_RESULT_STATUSES.includes(value) ? value : "eingetragen";
   if (field === "symbol") return ASSESSMENT_SYMBOLS.includes(value) ? value : "";
+  if (field === "finalNote" || field === "note") return ["", "1", "2", "3", "4", "5", "6"].includes(String(value)) ? String(value) : "";
+  if (field === "finalRating") return ["", "sehr gut", "gut", "befriedigend", "ausreichend", "mangelhaft", "ungenügend"].includes(String(value)) ? String(value) : "";
   return String(value || "").trim();
 }
 
@@ -2038,7 +2184,7 @@ function renderBackup() {
   return `
     <section class="panel">
       <h2>Datensicherung</h2>
-      <p class="privacy-text">Die Arbeitsstände werden lokal auf diesem iPad/in diesem Browser gespeichert. GitHub speichert nur die App-Dateien, nicht die Einträge. Erstelle regelmäßig ein Backup und speichere es an einem geschützten Ort.</p>
+      <p class="privacy-text">Die Lernstände werden lokal auf diesem iPad/in diesem Browser gespeichert. GitHub speichert nur die App-Dateien, nicht die Einträge. Erstelle regelmäßig ein Backup und speichere es an einem geschützten Ort.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportActiveClassBackup()">Backup aktive Klasse speichern</button>
         <button class="primary" type="button" onclick="exportFullBackup()">Gesamtbackup speichern</button>
@@ -2101,13 +2247,17 @@ function renderMergeReport() {
         <div>neu ergänzte Materialien</div><strong>${lastMergeReport.addedMaterials}</strong>
         <div>neu ergänzte Arbeitsstand-Einträge</div><strong>${lastMergeReport.addedEntries}</strong>
         <div>neu ergänzte Lernzielkontrollen</div><strong>${lastMergeReport.addedAssessments || 0}</strong>
+        <div>neu ergänzte LZK-Aufgaben</div><strong>${lastMergeReport.addedAssessmentTasks || 0}</strong>
         <div>neu ergänzte Testergebnisse</div><strong>${lastMergeReport.addedAssessmentResults || 0}</strong>
         <div>neu ergänzte Trainingsaufgaben</div><strong>${lastMergeReport.addedTrainingTasks || 0}</strong>
         <div>neu ergänzte Trainings-Bearbeitungen</div><strong>${lastMergeReport.addedTrainingCompletions || 0}</strong>
+        <div>neu ergänzte Trainings-Änderungen</div><strong>${lastMergeReport.addedTrainingHistory || 0}</strong>
         <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
         <div>übersprungene doppelte Lernzielkontrollen</div><strong>${lastMergeReport.skippedDuplicateAssessments || 0}</strong>
+        <div>übersprungene doppelte LZK-Aufgaben</div><strong>${lastMergeReport.skippedDuplicateAssessmentTasks || 0}</strong>
         <div>übersprungene doppelte Testergebnisse</div><strong>${lastMergeReport.skippedDuplicateAssessmentResults || 0}</strong>
         <div>übersprungene doppelte Trainings-Bearbeitungen</div><strong>${lastMergeReport.skippedDuplicateTrainingCompletions || 0}</strong>
+        <div>übersprungene doppelte Trainings-Änderungen</div><strong>${lastMergeReport.skippedDuplicateTrainingHistory || 0}</strong>
         <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
         <div>Zeitpunkt</div><strong>${formatDateTime(lastMergeReport.mergedAt)}</strong>
       </div>
@@ -2301,7 +2451,7 @@ function renderExcelExport() {
   return `
     <section class="panel">
       <h2>Excel-Export</h2>
-      <p class="privacy-text">Erstellt eine gestaltete Excel-Datei als Lernstands- und Arbeitsheft-Planer. Es werden keine Kindernamen, QR-Tokens, Fotos oder KI-Daten exportiert.</p>
+      <p class="privacy-text">Erstellt eine gestaltete Excel-Datei als Lernstands-Planer. Es werden keine Kindernamen, Fotos oder KI-Daten exportiert.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportBeautifulExcel('active')">Schöne Excel-Datei aktive Klasse</button>
         <button class="primary" type="button" onclick="exportBeautifulExcel('all')">Schöne Excel-Datei alle Klassen</button>
@@ -2326,7 +2476,7 @@ function renderPrintPdf() {
   return `
     <section class="panel">
       <h2>Druckansicht / PDF</h2>
-      <p class="privacy-text">Öffnet eine gestaltete Druckansicht direkt aus der App. Im Druckdialog kann die Übersicht auch als PDF gespeichert werden. Es werden keine Kindernamen, QR-Tokens, Fotos oder KI-Daten angezeigt.</p>
+      <p class="privacy-text">Öffnet eine gestaltete Druckansicht direkt aus der App. Im Druckdialog kann die Übersicht auch als PDF gespeichert werden. Es werden keine Kindernamen, Fotos oder KI-Daten angezeigt.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="renderPrintView('today')">Tagesübersicht drucken</button>
         <button class="primary" type="button" onclick="renderPrintView('week')">Wochenübersicht drucken</button>
@@ -2335,7 +2485,7 @@ function renderPrintPdf() {
         <button class="secondary" type="button" onclick="renderPrintView('training')">Trainingszeit drucken</button>
         <button class="primary" type="button" onclick="renderPrintView('report')">Gesamtbericht drucken</button>
       </div>
-      <p class="message">Die Druckansicht liest nur die lokal gespeicherten Daten und verändert keine Arbeitsstände.</p>
+      <p class="message">Die Druckansicht liest nur die lokal gespeicherten Daten und verändert keine Lernstände.</p>
     </section>
   `;
 }
@@ -2361,19 +2511,19 @@ function renderPrintScreen() {
   const generatedAt = new Date();
   const context = buildPrintContext(classItem, generatedAt);
   const titles = {
-    today: "Arbeitsheft-Kompass – Tagesübersicht",
-    week: "Arbeitsheft-Kompass – Wochenübersicht",
+    today: "Lernstand-Kompass – Tagesübersicht",
+    week: "Lernstand-Kompass – Wochenübersicht",
     helpControl: "Offene Hilfe und Kontrolle",
     progress: "Fortschritt und Arbeitstempo",
     training: "Trainingszeit",
-    report: "Arbeitsheft-Kompass – Gesamtbericht",
+    report: "Lernstand-Kompass – Gesamtbericht",
     assessmentSummary: "Tests & Lernzielkontrollen – Gesamtübersicht"
   };
   const type = currentPrintType || "today";
   const assessmentId = type.startsWith("assessment:") ? type.split(":")[1] : "";
   const assessment = assessmentId ? (state.assessments || []).find((item) => item.id === assessmentId) : null;
   return `
-    <style>${printViewCss(type.startsWith("assessment") || type === "assessmentSummary" || type === "training")}</style>
+    <style>${printViewCss(true)}</style>
     <div class="print-toolbar" aria-label="Druckwerkzeuge">
       <strong>${escapeHtml(assessment ? assessment.titel : titles[type] || "Druckansicht")}</strong>
       <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
@@ -2442,7 +2592,7 @@ function buildPrintContext(classItem, generatedAt) {
 
 function renderPrintToday(context, className, generatedAt) {
   return `
-    ${printHero("Arbeitsheft-Kompass – Tagesübersicht", `Klasse: ${className} · Datum: ${formatGermanDate(generatedAt)}`)}
+    ${printHero("Lernstand-Kompass – Tagesübersicht", `Klasse: ${className} · Datum: ${formatGermanDate(generatedAt)}`)}
     ${renderPrintKpis([
       ["Einträge heute", context.todayEntries.length, "neutral"],
       ["Offene Hilfe", context.openEntries.filter((entry) => entry.status === "brauche Hilfe").length, "help"],
@@ -2451,14 +2601,14 @@ function renderPrintToday(context, className, generatedAt) {
     ])}
     <section class="print-section">
       <h2>Heute bearbeitet</h2>
-      ${context.todayEntries.length ? renderPrintEntryTable(context.todayEntries, ["Uhrzeit", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status"], false) : printEmpty("Heute wurden noch keine Arbeitsstände eingetragen.")}
+      ${context.todayEntries.length ? renderPrintEntryTable(context.todayEntries, ["Uhrzeit", "Tier", "Fach", "Material", "Seite/Aufgabe", "Status"], false) : printEmpty("Heute wurden noch keine Lernstände eingetragen.")}
     </section>
   `;
 }
 
 function renderPrintWeek(context, className, generatedAt) {
   return `
-    ${printHero("Arbeitsheft-Kompass – Wochenübersicht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    ${printHero("Lernstand-Kompass – Wochenübersicht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
     ${renderPrintKpis([
       ["Tiere mit Eintrag", new Set(context.weekEntries.map((entry) => entry.tierID)).size, "neutral"],
       ["Einträge diese Woche", context.weekEntries.length, "neutral"],
@@ -2522,7 +2672,7 @@ function renderPrintTraining(context, className, generatedAt) {
 function renderPrintReport(context, className, generatedAt) {
   const dataRows = context.entries.slice().sort(sortNewest).slice(0, 20);
   return `
-    ${printHero("Arbeitsheft-Kompass – Gesamtbericht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    ${printHero("Lernstand-Kompass – Gesamtbericht", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
     ${renderPrintKpis([
       ["Aktive Tiere", context.animals.length, "neutral"],
       ["Einträge diese Woche", context.weekEntries.length, "neutral"],
@@ -2591,10 +2741,10 @@ function renderAssessmentResultPrintTable(assessment, results) {
   const showNote = assessmentUsesNote(assessment);
   const showSymbol = assessmentUsesSymbol(assessment);
   const headers = ["Tier"];
-  if (showPoints) headers.push("Punkte", "Prozent");
+  if (showPoints) headers.push("Punkte", "Prozent", "Bewertungsvorschlag", "Endgültige Bewertung", "Notenvorschlag", "Endgültige Note");
   if (showNote) headers.push("Note");
   if (showSymbol) headers.push("Symbol");
-  headers.push("Status");
+  headers.push("Status", "Bemerkung");
   return `
     <table class="planner-table assessment-print-table">
       <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
@@ -2602,10 +2752,11 @@ function renderAssessmentResultPrintTable(assessment, results) {
         ${results.length ? results.map((result) => `
           <tr>
             <td class="print-animal">${escapeHtml(assessmentAnimalLabel(result))}</td>
-            ${showPoints ? `<td>${escapeHtml(formatAssessmentPoints(result))}</td><td>${escapeHtml(formatAssessmentPercent(result))}</td>` : ""}
+            ${showPoints ? `<td>${escapeHtml(formatAssessmentPoints(result))}</td><td>${escapeHtml(formatAssessmentPercent(result))}</td><td>${escapeHtml(result.suggestedRating || "–")}</td><td>${escapeHtml(result.finalRating || "–")}</td><td>${escapeHtml(result.suggestedNote || "–")}</td><td>${escapeHtml(result.finalNote || "–")}</td>` : ""}
             ${showNote ? `<td>${escapeHtml(result.note || "–")}</td>` : ""}
             ${showSymbol ? `<td>${escapeHtml(result.symbol || "–")}</td>` : ""}
             <td>${escapeHtml(result.status || "–")}</td>
+            <td>${escapeHtml(result.remark || "–")}</td>
           </tr>
         `).join("") : `<tr><td colspan="${headers.length}">Noch keine Ergebnisse eingetragen.</td></tr>`}
       </tbody>
@@ -2740,7 +2891,7 @@ function renderPrintEntryTable(entries, headers, showDate) {
 function printHero(title, subtitle) {
   return `
     <header class="print-hero">
-      <p>Arbeitsheft-Kompass</p>
+      <p>Lernstand-Kompass</p>
       <h1>${escapeHtml(title)}</h1>
       <span>${escapeHtml(subtitle)}</span>
     </header>
@@ -3078,12 +3229,10 @@ function renderQrCards() {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   return `
     <section class="panel">
-      <h2>QR-Karten</h2>
-      <p class="message">Die QR-Codes enthalten keine Kindernamen und keine Leistungsdaten. Sie enthalten nur einen technischen Tier-Code. Die Zuordnung Tier zu Kind bleibt analog bei der Lehrkraft.</p>
+      <h2>Tier-Codes</h2>
+      <p class="message">Diese alte Funktion ist in der aktuellen Version nicht in der Navigation aktiv.</p>
       <div class="backup-actions">
-        <button class="primary" type="button" onclick="printAllQrCards()">Alle QR-Karten der aktiven Klasse drucken</button>
-        <button class="secondary" type="button" onclick="openQrScanner('test')">QR-Scanner testen</button>
-        <label class="toggle-label qr-toggle"><input type="checkbox" ${state.qrScannerEnabled ? "checked" : ""} onchange="setQrScannerEnabled(this.checked)"> QR-Scanner im Kinderbereich anzeigen</label>
+        <button class="primary" type="button" disabled>In dieser Version deaktiviert</button>
       </div>
     </section>
     <section class="qr-card-grid">
@@ -3102,17 +3251,17 @@ function renderQrCardPreview(animal) {
       </div>
       <div class="qr-code-wrap">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
       <p class="qr-token">${escapeHtml(animal.qrToken)}</p>
-      <p class="qr-small">Arbeitsheft-Kompass</p>
+      <p class="qr-small">Lernstand-Kompass</p>
       <div class="qr-actions">
-        <button class="secondary" type="button" onclick="regenerateQrToken('${animal.id}')">QR-Code neu erzeugen</button>
-        <button class="primary" type="button" onclick="printSingleQrCard('${animal.id}')">QR-Karte drucken</button>
+        <button class="secondary" type="button" onclick="regenerateQrToken('${animal.id}')">Tier-Code neu erzeugen</button>
+        <button class="primary" type="button" onclick="printSingleQrCard('${animal.id}')">Karte drucken</button>
       </div>
     </article>
   `;
 }
 
 async function regenerateQrToken(animalId) {
-  if (!confirm("Der alte QR-Code funktioniert danach nicht mehr. Fortfahren?")) return;
+  if (!confirm("Der alte Tier-Code funktioniert danach nicht mehr. Fortfahren?")) return;
   const animals = state.animals.map((animal) => animal.id === animalId ? { ...animal, qrToken: makeUniqueQrToken(animalId) } : animal);
   await persistAndRender({ ...state, animals });
 }
@@ -3141,7 +3290,7 @@ function printQrCards(animals) {
           <div class="qr-print-emoji">${escapeHtml(animal.tierEmoji)}</div>
           <div class="qr-print-name">${escapeHtml(animal.tierName)}</div>
           <div class="qr-print-code">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
-          <div class="qr-print-title">Arbeitsheft-Kompass</div>
+          <div class="qr-print-title">Lernstand-Kompass</div>
         </article>
       `).join("")}
     </div>
@@ -3170,7 +3319,7 @@ function renderSecurity() {
     </section>
     <section class="panel">
       <h2>Wiederherstellungsschlüssel</h2>
-      <p class="privacy-text">Die PIN schützt den Lehrkraftbereich auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
+      <p class="privacy-text">Die PIN schützt die ${TEACHER_AREA_NAME} auf diesem Gerät. Es gibt keinen geheimen Universal-PIN. Falls du die PIN vergisst, kannst du sie nur mit dem Wiederherstellungsschlüssel zurücksetzen. Ohne Wiederherstellungsschlüssel bleibt nur das Zurücksetzen der App und anschließend der Import eines Backups.</p>
       <button class="secondary" type="button" onclick="regenerateRecoveryKey()">Neuen Wiederherstellungsschlüssel erzeugen</button>
       ${pendingRecoveryKey ? `
         <div class="recovery-key-panel">
@@ -3228,16 +3377,18 @@ function renderStorageStatus() {
         <div>Anzahl Klassen</div><strong>${state.classes.length}</strong>
         <div>Anzahl Tiere</div><strong>${state.animals.length}</strong>
         <div>Anzahl Materialien</div><strong>${state.materials.length}</strong>
-        <div>Anzahl Arbeitsstände</div><strong>${state.entries.length}</strong>
+        <div>Anzahl Lernstände</div><strong>${state.entries.length}</strong>
         <div>Anzahl Lernzielkontrollen</div><strong>${(state.assessments || []).length}</strong>
+        <div>Anzahl LZK-Aufgaben</div><strong>${(state.assessmentTasks || []).length}</strong>
         <div>Anzahl gespeicherter Testergebnisse</div><strong>${(state.assessmentResults || []).length}</strong>
         <div>Anzahl Trainingsaufgaben</div><strong>${(state.trainingTasks || []).length}</strong>
-        <div>Anzahl bearbeiteter Trainingsaufgaben</div><strong>${(state.trainingCompletions || []).length}</strong>
+        <div>Anzahl bearbeiteter Trainingsaufgaben</div><strong>${(state.trainingCompletions || []).filter((item) => item.status === "bearbeitet").length}</strong>
+        <div>Anzahl Trainings-Änderungen</div><strong>${(state.trainingHistory || []).length}</strong>
         <div>letzte Änderung Tests & Lernzielkontrollen</div><strong>${latestAssessmentChange ? formatDateTime(latestAssessmentChange) : "noch keine"}</strong>
         <div>assessments vorhanden</div><strong>${(state.assessments || []).length ? "ja" : "nein"}</strong>
+        <div>assessmentTasks vorhanden</div><strong>${(state.assessmentTasks || []).length ? "ja" : "nein"}</strong>
         <div>assessmentResults vorhanden</div><strong>${(state.assessmentResults || []).length ? "ja" : "nein"}</strong>
         <div>letzte lokale Speicherung</div><strong>${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</strong>
-        <div>QR-Scanner aktiviert</div><strong>${state.qrScannerEnabled ? "ja" : "nein"}</strong>
         <div>Mehrgeräte-Hinweis aktiviert</div><strong>${state.multiDeviceReminderEnabled !== false ? "ja" : "nein"}</strong>
         <div>Mehrgeräte-Hinweis Uhrzeit</div><strong>${escapeHtml(state.multiDeviceReminderTime || "13:00")}</strong>
       </div>
@@ -3249,7 +3400,7 @@ function renderStorageStatus() {
 async function exportActiveClassBackup() {
   try {
     const classItem = activeClass();
-    const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-backup-${formatFileDate(new Date())}.json`;
+    const filename = `lernstand-kompass-${safeFilePart(classItem?.name)}-backup-${formatFileDate(new Date())}.json`;
     const content = JSON.stringify(makeActiveClassBackup(state, state.activeClassId), null, 2);
     globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
   } catch {
@@ -3260,7 +3411,7 @@ async function exportActiveClassBackup() {
 
 async function exportFullBackup() {
   try {
-    const filename = `arbeitsheft-kompass-gesamtbackup-${formatFileDate(new Date())}.json`;
+    const filename = `lernstand-kompass-gesamtbackup-${formatFileDate(new Date())}.json`;
     const content = JSON.stringify(makeFullBackup(state), null, 2);
     globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
   } catch {
@@ -3272,7 +3423,7 @@ async function exportFullBackup() {
 async function exportActiveClassCsv() {
   try {
     const classItem = activeClass();
-    const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-export-${formatFileDate(new Date())}.csv`;
+    const filename = `lernstand-kompass-${safeFilePart(classItem?.name)}-export-${formatFileDate(new Date())}.csv`;
     globalMessage = await saveFileWithPickerOrDownload(filename, "text/csv", makeCsvForClass(state, state.activeClassId));
   } catch {
     globalMessage = "Die Datei konnte nicht erstellt werden.";
@@ -3312,12 +3463,12 @@ function buildBeautifulExcelReport(mode) {
         ? "Hilfe & Kontrolle"
         : "Alle Klassen";
   const filename = mode === "active"
-    ? `arbeitsheft-kompass-${safeFilePart(active?.name)}-${formatFileDate(now)}.xlsx`
+    ? `lernstand-kompass-${safeFilePart(active?.name)}-${formatFileDate(now)}.xlsx`
     : mode === "today"
-      ? `arbeitsheft-kompass-heute-${formatFileDate(now)}.xlsx`
+      ? `lernstand-kompass-heute-${formatFileDate(now)}.xlsx`
       : mode === "help"
-        ? `arbeitsheft-kompass-hilfe-kontrolle-${formatFileDate(now)}.xlsx`
-        : `arbeitsheft-kompass-alle-klassen-${formatFileDate(now)}.xlsx`;
+        ? `lernstand-kompass-hilfe-kontrolle-${formatFileDate(now)}.xlsx`
+        : `lernstand-kompass-alle-klassen-${formatFileDate(now)}.xlsx`;
   const animals = state.animals.filter((animal) => classIds.includes(animal.classId) && animal.aktiv);
   const materials = state.materials.filter((material) => classIds.includes(material.classId));
   const reportEntries = decorateEntries(entries).sort(sortNewest);
@@ -3330,6 +3481,7 @@ function buildBeautifulExcelReport(mode) {
   const printRows = buildPrintRows(animals, baseEntries);
   const assessments = (state.assessments || []).filter((item) => classIds.includes(item.classId));
   const assessmentIds = new Set(assessments.map((item) => item.id));
+  const assessmentTasks = (state.assessmentTasks || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
   const assessmentResults = (state.assessmentResults || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
   const trainingRows = classIds.flatMap((classId) => buildTrainingRowsForClass(classId))
     .filter((row) => row.status === "bearbeitet")
@@ -3351,6 +3503,7 @@ function buildBeautifulExcelReport(mode) {
     allEntries,
     printRows,
     assessments,
+    assessmentTasks,
     assessmentResults,
     trainingRows,
     stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now, assessments, assessmentResults, trainingRows })
@@ -3533,19 +3686,19 @@ function sortEntriesByClassAnimalDate(a, b) {
 
 function exportExcelActiveClass() {
   const classItem = activeClass();
-  const filename = `arbeitsheft-kompass-${safeFilePart(classItem?.name)}-${formatFileDate(new Date())}.csv`;
+  const filename = `lernstand-kompass-${safeFilePart(classItem?.name)}-${formatFileDate(new Date())}.csv`;
   finishExcelExport(entriesForActiveClass(), filename);
 }
 
 function exportExcelAllClasses() {
-  const filename = `arbeitsheft-kompass-alle-klassen-${formatFileDate(new Date())}.csv`;
+  const filename = `lernstand-kompass-alle-klassen-${formatFileDate(new Date())}.csv`;
   finishExcelExport(state.entries, filename);
 }
 
 function exportExcelToday() {
   const today = new Date().toDateString();
   const entries = state.entries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === today);
-  const filename = `arbeitsheft-kompass-heute-${formatFileDate(new Date())}.csv`;
+  const filename = `lernstand-kompass-heute-${formatFileDate(new Date())}.csv`;
   finishExcelExport(entries, filename);
 }
 
@@ -3553,7 +3706,7 @@ function exportExcelHelpControl() {
   const entries = state.entries.filter((entry) => (
     !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren")
   ));
-  const filename = `arbeitsheft-kompass-hilfe-kontrolle-${formatFileDate(new Date())}.csv`;
+  const filename = `lernstand-kompass-hilfe-kontrolle-${formatFileDate(new Date())}.csv`;
   finishExcelExport(entries, filename);
 }
 
@@ -3589,8 +3742,7 @@ function renderPrivacy() {
   return `
     <section class="panel privacy-panel">
       <h2>Datenschutz & Zweck</h2>
-      <p>Diese App dient der Dokumentation von Arbeitsständen in Deutsch und Mathe zur Unterrichtsorganisation. Es werden keine Klarnamen der Kinder gespeichert. Die Kinder arbeiten mit Tier-Pseudonymen. Die Zuordnung Tier zu Kind wird nicht digital gespeichert, sondern bleibt ausschließlich analog bei der Lehrkraft.</p>
-      <p>Für jedes Tier kann ein QR-Code erzeugt werden. Der QR-Code enthält keinen Kindernamen und keine Leistungsdaten, sondern nur einen zufälligen technischen Zugangscode. Die Zuordnung Tier zu Kind bleibt weiterhin ausschließlich analog bei der Lehrkraft.</p>
+      <p>Diese App dient der datenschutzarmen Dokumentation von Lernständen zur Unterrichtsorganisation. Es werden keine Klarnamen der Kinder gespeichert. Die Kinder arbeiten mit Tier-Pseudonymen. Die Zuordnung Tier zu Kind wird nicht digital gespeichert, sondern bleibt ausschließlich analog bei der Lehrkraft.</p>
       <h3>Gespeichert werden nur:</h3>
       <ul>
         <li>Klasse/Lerngruppe</li>
@@ -3642,6 +3794,12 @@ function assessmentResultsFor(assessmentId) {
   return (state.assessmentResults || []).filter((item) => item.assessmentId === assessmentId);
 }
 
+function assessmentTasksFor(assessmentId) {
+  return (state.assessmentTasks || [])
+    .filter((item) => item.assessmentId === assessmentId)
+    .sort((a, b) => String(a.number).localeCompare(String(b.number), "de", { numeric: true }));
+}
+
 function assessmentResultFor(assessmentId, animalId) {
   return (state.assessmentResults || []).find((item) => item.assessmentId === assessmentId && item.animalId === animalId) || null;
 }
@@ -3651,13 +3809,15 @@ function assessmentAnimalLabel(result) {
 }
 
 function formatAssessmentPoints(result) {
-  if (!result || result.punkte === "" || result.punkte == null) return "–";
+  if (!result) return "–";
+  const points = result.totalPoints ?? result.punkte;
+  if (points === "" || points == null) return "–";
   const max = result.maxPunkteSnapshot ? `/${result.maxPunkteSnapshot}` : "";
-  return `${result.punkte}${max}`;
+  return `${points}${max}`;
 }
 
 function formatAssessmentPercent(result) {
-  const points = Number(result?.punkte);
+  const points = Number(result?.totalPoints ?? result?.punkte);
   const maxPoints = Number(result?.maxPunkteSnapshot);
   if (!Number.isFinite(points) || !Number.isFinite(maxPoints) || maxPoints <= 0) return "–";
   return `${Math.round((points / maxPoints) * 100)} %`;
@@ -3668,7 +3828,10 @@ function formatAssessmentMatrixValue(assessment, result) {
   if (result.status && result.status !== "eingetragen") return result.status;
   const parts = [];
   if (assessmentUsesPoints(assessment)) parts.push(formatAssessmentPoints(result));
+  if (result.percentage !== "" && result.percentage != null) parts.push(`${result.percentage} %`);
+  if (result.finalRating || result.suggestedRating) parts.push(result.finalRating || result.suggestedRating);
   if (assessmentUsesNote(assessment) && result.note) parts.push(result.note);
+  if (result.finalNote && !parts.includes(result.finalNote)) parts.push(result.finalNote);
   if (assessmentUsesSymbol(assessment) && result.symbol) parts.push(result.symbol);
   return parts.filter((part) => part && part !== "–").join(" | ") || "–";
 }
@@ -3685,9 +3848,111 @@ function assessmentResultCounts(results) {
   }, {});
 }
 
+function parseAssessmentTasksInput(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const parts = line.split(";").map((part) => part.trim());
+      const maxPoints = Number((parts[2] || parts[1] || "").replace(",", "."));
+      return {
+        number: parts[0] || String(index + 1),
+        title: parts[1] || parts[0] || `Aufgabe ${index + 1}`,
+        maxPoints: Number.isFinite(maxPoints) && maxPoints > 0 ? maxPoints : 0,
+        competency: parts[3] || ""
+      };
+    })
+    .filter((task) => task.maxPoints > 0);
+}
+
+function assessmentMaxPoints(assessment) {
+  const taskSum = assessmentTasksFor(assessment.id).reduce((sum, task) => sum + Number(task.maxPoints || 0), 0);
+  return taskSum || Number(assessment.maxPunkte || 0) || "";
+}
+
+function calculateAssessmentResultSummary(assessment, result) {
+  const tasks = assessmentTasksFor(assessment.id);
+  const maxPoints = Number(assessmentMaxPoints(assessment));
+  if (!result) {
+    return { totalPoints: "", maxPoints: maxPoints || "", percentage: "", rating: "", note: "", pointsLabel: "–", percentLabel: "–" };
+  }
+  if (tasks.length && !Object.keys(result.taskPoints || {}).length) {
+    return { totalPoints: "", maxPoints: maxPoints || "", percentage: "", rating: "", note: "", pointsLabel: "–", percentLabel: "–" };
+  }
+  const points = tasks.length
+    ? tasks.reduce((sum, task) => sum + (Number(result?.taskPoints?.[task.id]) || 0), 0)
+    : Number(result?.punkte ?? result?.totalPoints);
+  if (!Number.isFinite(points) || !Number.isFinite(maxPoints) || maxPoints <= 0) {
+    return { totalPoints: "", maxPoints: maxPoints || "", percentage: "", rating: "", note: "", pointsLabel: "–", percentLabel: "–" };
+  }
+  const percentage = Math.round((points / maxPoints) * 100);
+  const rating = ratingForPercentage(percentage);
+  const note = noteForRating(rating);
+  return {
+    totalPoints: points,
+    maxPoints,
+    percentage,
+    rating,
+    note,
+    pointsLabel: `${points}/${maxPoints}`,
+    percentLabel: `${percentage} %`
+  };
+}
+
+function enrichAssessmentResult(assessment, result) {
+  const summary = calculateAssessmentResultSummary(assessment, result);
+  return {
+    ...result,
+    punkte: summary.totalPoints !== "" ? summary.totalPoints : result.punkte ?? "",
+    totalPoints: summary.totalPoints,
+    maxPunkteSnapshot: summary.maxPoints || result.maxPunkteSnapshot || assessment.maxPunkte || "",
+    percentage: summary.percentage,
+    suggestedRating: summary.rating,
+    suggestedNote: summary.note,
+    finalRating: result.finalRating || summary.rating || "",
+    finalNote: result.finalNote || result.note || summary.note || ""
+  };
+}
+
+function withAssessmentPercentiles(assessmentId, results) {
+  const relevant = results
+    .filter((item) => item.assessmentId === assessmentId && Number.isFinite(Number(item.percentage)))
+    .sort((a, b) => Number(a.percentage) - Number(b.percentage));
+  if (relevant.length < 2) return results.map((item) => item.assessmentId === assessmentId ? { ...item, percentileRank: "" } : item);
+  return results.map((item) => {
+    if (item.assessmentId !== assessmentId || !Number.isFinite(Number(item.percentage))) return item;
+    const belowOrEqual = relevant.filter((other) => Number(other.percentage) <= Number(item.percentage)).length;
+    return { ...item, percentileRank: Math.round((belowOrEqual / relevant.length) * 100) };
+  });
+}
+
+function ratingForPercentage(percentage) {
+  const value = Number(percentage);
+  if (!Number.isFinite(value)) return "";
+  if (value >= 96) return "sehr gut";
+  if (value >= 87) return "gut";
+  if (value >= 71) return "befriedigend";
+  if (value >= 50) return "ausreichend";
+  if (value >= 21) return "mangelhaft";
+  return "ungenügend";
+}
+
+function noteForRating(rating) {
+  return {
+    "sehr gut": "1",
+    gut: "2",
+    befriedigend: "3",
+    ausreichend: "4",
+    mangelhaft: "5",
+    ungenügend: "6"
+  }[rating] || "";
+}
+
 function latestAssessmentUpdatedAt() {
   const dates = [
     ...(state.assessments || []).map((item) => item.updatedAt || item.createdAt),
+    ...(state.assessmentTasks || []).map((item) => item.updatedAt || item.createdAt),
     ...(state.assessmentResults || []).map((item) => item.updatedAt || item.createdAt)
   ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
   return dates[0] || "";
@@ -3700,12 +3965,10 @@ function trainingTasksForArea(area) {
 }
 
 function isTrainingTaskCompleted(animalId, taskCode) {
-  return (state.trainingCompletions || []).some((item) => (
-    item.classId === state.activeClassId
-    && item.animalId === animalId
-    && item.taskCode === taskCode
-    && item.status === "bearbeitet"
-  ));
+  const latest = (state.trainingCompletions || [])
+    .filter((item) => item.classId === state.activeClassId && item.animalId === animalId && item.taskCode === taskCode)
+    .sort((a, b) => new Date(b.updatedAt || b.completedAt || 0) - new Date(a.updatedAt || a.completedAt || 0))[0];
+  return latest?.status === "bearbeitet";
 }
 
 function buildTrainingRowsForClass(classId) {
@@ -3713,7 +3976,9 @@ function buildTrainingRowsForClass(classId) {
   const tasks = (state.trainingTasks || []).filter((task) => task.active !== false);
   const completions = state.trainingCompletions || [];
   return animals.flatMap((animal) => tasks.map((task) => {
-    const completion = completions.find((item) => item.classId === classId && item.animalId === animal.id && item.taskCode === task.code);
+    const completion = completions
+      .filter((item) => item.classId === classId && item.animalId === animal.id && item.taskCode === task.code)
+      .sort((a, b) => new Date(b.updatedAt || b.completedAt || 0) - new Date(a.updatedAt || a.completedAt || 0))[0];
     return {
       classId,
       animalId: animal.id,

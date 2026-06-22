@@ -1,6 +1,10 @@
 const APP_VERSION = 1;
 const STORE_KEY = "arbeitsheftKompass_v1";
 const LEGACY_STORE_KEYS = ["arbeitsheft-kompass-state-v2"];
+const APP_NAME = "Lernstand-Kompass";
+const APP_SUBTITLE = "Arbeitshefte, Trainingszeit und Lernzielkontrollen im Blick";
+const CHILD_AREA_NAME = "Meine Lernreise";
+const TEACHER_AREA_NAME = "Lernstand-Übersicht";
 
 const SUBJECTS = ["Deutsch", "Mathe"];
 const STATUSES = ["fertig", "brauche Hilfe", "bitte kontrollieren"];
@@ -120,10 +124,12 @@ function emptyState() {
     entries: [],
     goals: [],
     assessments: [],
+    assessmentTasks: [],
     assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: [],
+    trainingHistory: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -183,10 +189,12 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     entries: [],
     goals: [],
     assessments: [],
+    assessmentTasks: [],
     assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
     trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: [],
+    trainingHistory: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -210,6 +218,7 @@ function normalizeState(candidate) {
     entries: Array.isArray(candidate.entries) ? candidate.entries : [],
     goals: Array.isArray(candidate.goals) ? candidate.goals : [],
     assessments: Array.isArray(candidate.assessments) ? candidate.assessments : [],
+    assessmentTasks: Array.isArray(candidate.assessmentTasks) ? candidate.assessmentTasks : [],
     assessmentResults: Array.isArray(candidate.assessmentResults) ? candidate.assessmentResults : [],
     sprachweltTasks: Array.isArray(candidate.sprachweltTasks) && candidate.sprachweltTasks.length
       ? candidate.sprachweltTasks
@@ -218,6 +227,7 @@ function normalizeState(candidate) {
       ? mergeDefaultTrainingTasks(candidate.trainingTasks)
       : DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: Array.isArray(candidate.trainingCompletions) ? candidate.trainingCompletions : [],
+    trainingHistory: Array.isArray(candidate.trainingHistory) ? candidate.trainingHistory : [],
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
@@ -234,10 +244,12 @@ function normalizeState(candidate) {
   state.entries = state.entries.map((item) => ({ ...item, id: item.id || item.entryId || makeId(), classId: item.classId || state.activeClassId }));
   state.goals = state.goals.map((item) => ({ ...item, id: item.id || makeId(), classId: item.classId || state.activeClassId }));
   state.assessments = state.assessments.map((item) => normalizeAssessment(item, state.activeClassId));
+  state.assessmentTasks = state.assessmentTasks.map((item) => normalizeAssessmentTask(item, state.activeClassId));
   state.assessmentResults = state.assessmentResults.map((item) => normalizeAssessmentResult(item, state.activeClassId));
   state.sprachweltTasks = state.sprachweltTasks.map((item) => ({ ...item, id: item.id || makeId(), aktiv: item.aktiv !== false }));
   state.trainingTasks = state.trainingTasks.map((item) => normalizeTrainingTask(item));
   state.trainingCompletions = state.trainingCompletions.map((item) => normalizeTrainingCompletion(item, state.activeClassId));
+  state.trainingHistory = state.trainingHistory.map((item) => normalizeTrainingHistory(item, state.activeClassId));
 
   const usedTokens = new Set();
   state.animals = state.animals.map((animal) => ({
@@ -261,14 +273,20 @@ function mergeDefaultTrainingTasks(tasks) {
 }
 
 function normalizeTrainingTask(item) {
+  const code = item.code || item.taskCode || item.id || makeId();
+  const title = item.title || item.titel || code || "Trainingsaufgabe";
+  const text = item.text || item.taskText || item.auftrag || "";
   return {
     ...item,
-    id: item.id || `training-${item.code || makeId()}`,
+    id: item.id || `training-${code}`,
     area: item.area || item.trainingArea || "OGS/Zuhause",
-    subject: item.subject || item.fach || (String(item.code || "").startsWith("M-") ? "Mathe" : "Deutsch"),
-    code: item.code || item.taskCode || item.id || makeId(),
-    title: item.title || item.titel || item.code || "Trainingsaufgabe",
-    text: item.text || item.taskText || item.auftrag || "",
+    subject: item.subject || item.fach || (String(code || "").startsWith("M-") ? "Mathe" : "Deutsch"),
+    code,
+    title,
+    text,
+    instructions: Array.isArray(item.instructions) && item.instructions.length ? item.instructions : defaultTrainingSteps(code, text),
+    tip: item.tip || defaultTrainingTip(code),
+    material: item.material || item.materialNeeded || defaultTrainingMaterial(code),
     symbol: item.symbol || "⭐",
     active: item.active !== false
   };
@@ -287,7 +305,22 @@ function normalizeTrainingCompletion(item, fallbackClassId) {
     subject: item.subject || item.fach || "",
     taskText: item.taskText || item.text || "",
     completedAt: item.completedAt || item.datumUhrzeit || nowIso(),
+    updatedAt: item.updatedAt || item.completedAt || item.datumUhrzeit || nowIso(),
     status: item.status || "bearbeitet"
+  };
+}
+
+function normalizeTrainingHistory(item, fallbackClassId) {
+  return {
+    ...item,
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    animalId: item.animalId || item.tierID || "",
+    taskCode: item.taskCode || item.code || "",
+    oldStatus: item.oldStatus || item.urspruenglicherStatus || "",
+    newStatus: item.newStatus || item.neuerStatus || "",
+    changedAt: item.changedAt || item.resetAt || item.datumUhrzeit || nowIso(),
+    note: item.note || item.hinweis || "durch Lehrkraft zurückgesetzt"
   };
 }
 
@@ -311,8 +344,25 @@ function normalizeAssessment(item, fallbackClassId) {
   };
 }
 
+function normalizeAssessmentTask(item, fallbackClassId) {
+  const maxPoints = Number(item.maxPoints ?? item.maxPunkte ?? item.punkteMax);
+  return {
+    ...item,
+    id: item.id || makeId(),
+    assessmentId: item.assessmentId || item.lernzielkontrolleId || "",
+    classId: item.classId || item.klasseId || fallbackClassId,
+    number: String(item.number || item.aufgabenNummer || item.nr || "").trim() || "1",
+    title: item.title || item.name || item.inhalt || "Aufgabe",
+    maxPoints: Number.isFinite(maxPoints) && maxPoints > 0 ? maxPoints : 0,
+    competency: item.competency || item.kompetenz || "",
+    createdAt: item.createdAt || nowIso(),
+    updatedAt: item.updatedAt || item.createdAt || nowIso()
+  };
+}
+
 function normalizeAssessmentResult(item, fallbackClassId) {
   const now = nowIso();
+  const taskPoints = item.taskPoints && typeof item.taskPoints === "object" ? item.taskPoints : {};
   return {
     ...item,
     id: item.id || makeId(),
@@ -324,12 +374,53 @@ function normalizeAssessmentResult(item, fallbackClassId) {
     tierEmojiSnapshot: item.tierEmojiSnapshot || "",
     punkte: item.punkte ?? "",
     maxPunkteSnapshot: Number(item.maxPunkteSnapshot) > 0 ? Number(item.maxPunkteSnapshot) : "",
+    taskPoints,
+    totalPoints: item.totalPoints ?? item.punkte ?? "",
+    percentage: item.percentage ?? "",
+    suggestedRating: item.suggestedRating || "",
+    finalRating: item.finalRating || item.endgueltigeBewertung || "",
+    suggestedNote: item.suggestedNote || "",
+    finalNote: item.finalNote || item.endgueltigeNote || "",
+    percentileRank: item.percentileRank ?? "",
+    remark: item.remark || item.bemerkung || "",
     note: item.note || "",
     symbol: ASSESSMENT_SYMBOLS.includes(item.symbol) ? item.symbol : "",
     status: ASSESSMENT_RESULT_STATUSES.includes(item.status) ? item.status : "eingetragen",
     createdAt: item.createdAt || now,
     updatedAt: item.updatedAt || item.createdAt || now
   };
+}
+
+function defaultTrainingSteps(code, text) {
+  if (String(code).startsWith("D-")) {
+    return [
+      "Lies die Aufgabe langsam durch.",
+      "Bereite Heft oder Zettel und Stift vor.",
+      "Bearbeite die Aufgabe sorgfältig.",
+      "Kontrolliere zum Schluss, ob alles vollständig ist."
+    ];
+  }
+  if (String(code).startsWith("M-")) {
+    return [
+      "Lies die Aufgabe langsam durch.",
+      "Lege dir Material oder einen Zettel bereit.",
+      "Rechne, zeichne oder ordne deine Ergebnisse.",
+      "Kontrolliere zum Schluss noch einmal."
+    ];
+  }
+  return text ? ["Lies die Aufgabe.", "Bearbeite sie sorgfältig.", "Kontrolliere dein Ergebnis."] : [];
+}
+
+function defaultTrainingTip(code) {
+  if (String(code).startsWith("D-")) return "Sprich Wörter leise mit und achte auf sauberes Schreiben.";
+  if (String(code).startsWith("M-")) return "Nutze Material, eine Zeichnung oder eine Probe, wenn du unsicher bist.";
+  return "Arbeite ruhig und Schritt für Schritt.";
+}
+
+function defaultTrainingMaterial(code) {
+  if (String(code).startsWith("D-")) return "Heft oder Zettel, Stift";
+  if (String(code).startsWith("M-")) return "Heft oder Zettel, Stift, bei Bedarf Material";
+  return "Material nach Aufgabe";
 }
 
 function formatInputDate(date) {

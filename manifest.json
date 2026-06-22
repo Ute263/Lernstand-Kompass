@@ -1,6 +1,6 @@
 {
-  "name": "Arbeitsheft-Kompass",
-  "short_name": "Heft-Kompass",
+  "name": "Lernstand-Kompass",
+  "short_name": "Lern-Kompass",
   "display": "standalone",
   "start_url": "./",
   "scope": "./",
