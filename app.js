@@ -666,7 +666,7 @@ function renderSprachweltTaskSelection() {
       <div class="sprachwelt-task-grid">
         ${tasks.map((task) => `
           <button class="sprachwelt-task-card" type="button" onclick="selectSprachweltTask('${escapeAttribute(task.id)}')">
-            <span class="task-check">☐</span>
+            <span class="task-check">✏️</span>
             <strong>${escapeHtml(task.id)} ${escapeHtml(task.titel)}</strong>
             <span>${escapeHtml(task.auftrag)}</span>
           </button>
@@ -1071,6 +1071,7 @@ function renderTeacher() {
     ["history", "Verlauf"],
     ["classes", "Klassen & Gruppen"],
     ["resources", "Tiere & Materialien"],
+    ["materialPrint", "Material drucken"],
     ["animalMapping", "Tier-Zuordnung"],
     ["qrCards", "Tier-QR"],
     ["security", "PIN & Sicherheit"],
@@ -1114,6 +1115,7 @@ function renderTeacherTab() {
   if (teacherTab === "history") return renderHistory();
   if (teacherTab === "classes") return renderClasses();
   if (teacherTab === "resources") return renderResources();
+  if (teacherTab === "materialPrint") return renderMaterialPrint();
   if (teacherTab === "animalMapping") return renderAnimalMapping();
   if (teacherTab === "qrCards") return renderQrCards();
   if (teacherTab === "security") return renderSecurity();
@@ -1870,6 +1872,198 @@ function renderResources() {
     ${renderGoalSettings()}
     ${renderProgressSettings()}
   `;
+}
+
+function renderMaterialPrint() {
+  const tasks = printableTrainingTasks();
+  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  return `
+    <section class="panel">
+      <h2>Material drucken</h2>
+      <p class="privacy-text">Drucke Material für das Lerntagebuch. Die Ausdrucke enthalten nur Aufgaben-Code, kurze Beschreibung, Bereich und optional ein Symbol. Sie enthalten keine Vornamen, keine Tier-Zuordnung, keine Bewertungen und keine Punkte.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="printTrainingMaterial('all', 'overview')">Aufgabenüberblick drucken</button>
+        <button class="secondary" type="button" onclick="printTrainingMaterial('all', 'stickers')">Stickerbogen drucken</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Druckauswahl</h2>
+      <div class="material-print-mode">
+        <label><input type="radio" name="materialPrintMode" value="overview" checked> Übersichtsliste</label>
+        <label><input type="radio" name="materialPrintMode" value="stickers"> Stickerbogen</label>
+        <label><input type="radio" name="materialPrintMode" value="both"> beides</label>
+      </div>
+      <div class="sticker-select-tools">
+        <button class="small-button" type="button" onclick="setStickerSelection('all')">alle auswählen</button>
+        <button class="small-button" type="button" onclick="setStickerSelection('none')">Auswahl löschen</button>
+        ${groups.map((group) => `<button class="small-button" type="button" onclick="setStickerSelection('${escapeAttribute(group)}')">${escapeHtml(group)}</button>`).join("")}
+      </div>
+      <div class="backup-actions material-print-actions">
+        <button class="primary" type="button" onclick="printTrainingMaterial('all')">Alle Aufgaben drucken</button>
+        ${groups.map((group) => `<button class="secondary" type="button" onclick="printTrainingMaterial('${escapeAttribute(group)}')">Nur ${escapeHtml(group)}</button>`).join("")}
+        <button class="secondary" type="button" onclick="printSelectedTrainingMaterial()">Ausgewählte Aufgaben drucken</button>
+      </div>
+      <div class="sticker-task-select-grid">
+        ${tasks.map((task) => `
+          <label class="sticker-task-select">
+            <input type="checkbox" class="sticker-task-checkbox" value="${escapeAttribute(task.code)}">
+            <span class="sticker-select-icon">${escapeHtml(stickerIconForTask(task))}</span>
+            <strong>${escapeHtml(task.code)}</strong>
+            <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
+            <em>${escapeHtml(task.subcategory || "")}</em>
+          </label>
+        `).join("")}
+      </div>
+      <div id="printArea" class="print-area" aria-hidden="true"></div>
+    </section>
+  `;
+}
+
+function printableTrainingTasks() {
+  return (state.trainingTasks || [])
+    .filter((task) => task.active !== false && task.area === "OGS/Zuhause" && ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"].includes(task.subcategory))
+    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || String(a.code || "").localeCompare(String(b.code || ""), "de", { numeric: true }));
+}
+
+function setStickerSelection(mode) {
+  document.querySelectorAll(".sticker-task-checkbox").forEach((checkbox) => {
+    const task = (state.trainingTasks || []).find((item) => item.code === checkbox.value);
+    checkbox.checked = mode === "all" || (task && task.subcategory === mode);
+  });
+}
+
+function selectedMaterialPrintMode() {
+  return document.querySelector("input[name='materialPrintMode']:checked")?.value || "overview";
+}
+
+function printSelectedTrainingMaterial() {
+  const selectedCodes = [...document.querySelectorAll(".sticker-task-checkbox:checked")].map((item) => item.value);
+  const tasks = printableTrainingTasks().filter((task) => selectedCodes.includes(task.code));
+  if (!tasks.length) {
+    globalMessage = "Bitte wähle mindestens eine Aufgabe aus.";
+    render();
+    return;
+  }
+  printTrainingMaterialTasks(tasks, selectedMaterialPrintMode());
+}
+
+function printTrainingMaterial(group, mode = selectedMaterialPrintMode()) {
+  const tasks = printableTrainingTasks().filter((task) => group === "all" || task.subcategory === group);
+  printTrainingMaterialTasks(tasks, mode);
+}
+
+function printTrainingMaterialTasks(tasks, mode) {
+  const printArea = document.querySelector("#printArea");
+  if (!printArea) return;
+  if (!tasks.length) {
+    globalMessage = "Für diese Auswahl gibt es keine Aufgaben.";
+    render();
+    return;
+  }
+  const normalizedMode = ["overview", "stickers", "both"].includes(mode) ? mode : "overview";
+  const sections = [];
+  if (normalizedMode === "overview" || normalizedMode === "both") sections.push(renderTrainingOverviewPrint(tasks));
+  if (normalizedMode === "stickers" || normalizedMode === "both") sections.push(renderTrainingStickerPrint(tasks));
+  printArea.innerHTML = sections.join("");
+  window.print();
+}
+
+function printSelectedTrainingStickers() {
+  const selectedCodes = [...document.querySelectorAll(".sticker-task-checkbox:checked")].map((item) => item.value);
+  const tasks = printableTrainingTasks().filter((task) => selectedCodes.includes(task.code));
+  if (!tasks.length) {
+    globalMessage = "Bitte wähle mindestens eine Aufgabe aus.";
+    render();
+    return;
+  }
+  printTrainingStickerTasks(tasks);
+}
+
+function printTrainingStickers(group) {
+  const tasks = printableTrainingTasks().filter((task) => group === "all" || task.subcategory === group);
+  printTrainingStickerTasks(tasks);
+}
+
+function printTrainingStickerTasks(tasks) {
+  printTrainingMaterialTasks(tasks, "stickers");
+}
+
+function renderTrainingOverviewPrint(tasks) {
+  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  return `
+    <section class="training-overview-print-page">
+      <header class="training-print-header">
+        <h1>Meine Trainingsaufgaben</h1>
+        <p>Aufgabenüberblick für dein Lerntagebuch</p>
+      </header>
+      ${groups.map((group) => {
+        const groupTasks = tasks.filter((task) => task.subcategory === group);
+        if (!groupTasks.length) return "";
+        return `
+          <section class="training-print-group ${stickerClassForTask({ subcategory: group })}">
+            <h2>${escapeHtml(group)}</h2>
+            <div class="training-overview-list">
+              ${groupTasks.map((task) => `
+                <div class="training-overview-row">
+                  <strong>${escapeHtml(task.code)}</strong>
+                  <span>${escapeHtml(stickerText(task))}</span>
+                  <span class="overview-check" aria-hidden="true">☐</span>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+        `;
+      }).join("")}
+    </section>
+  `;
+}
+
+function renderTrainingStickerPrint(tasks) {
+  return `
+    <div class="sticker-print-page">
+      ${tasks.map((task) => `
+        <article class="task-sticker ${stickerClassForTask(task)}">
+          <div class="task-sticker-code">${escapeHtml(task.code)}</div>
+          <div class="task-sticker-text">${escapeHtml(stickerText(task))}</div>
+          <div class="task-sticker-icon" aria-hidden="true">${escapeHtml(stickerIconForTask(task))}</div>
+          <div class="task-sticker-area">${escapeHtml(task.subcategory || "")}</div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function stickerText(task) {
+  return String(task.shortText || task.text || task.title || "")
+    .replace(/\s+in dein Lerntagebuch\.?$/i, "")
+    .replace(/\s+und schreibe sie in dein Lerntagebuch\.?$/i, " und schreibe sie auf.")
+    .trim();
+}
+
+function stickerClassForTask(task) {
+  if (task.subcategory === "Deutsch-Entdecker") return "deutsch-sticker";
+  if (task.subcategory === "Mathe-Entdecker") return "mathe-sticker";
+  return "forscher-sticker";
+}
+
+function stickerIconForTask(task) {
+  const code = String(task.code || "");
+  const title = `${task.title || ""} ${task.text || ""}`.toLowerCase();
+  if (code.startsWith("D-10") || title.includes("buch") || title.includes("les")) return "📖";
+  if (code.startsWith("D-")) return "✏️";
+  if (code === "M-02") return "➕";
+  if (code === "M-03") return "➖";
+  if (code === "M-05") return "🔷";
+  if (code.startsWith("M-")) return "🔢";
+  if (code === "F-03") return "💧";
+  if (code === "F-04") return "🧲";
+  if (code === "F-05") return "👂";
+  if (code === "F-06" || code === "F-07") return "🌿";
+  if (code === "F-11") return "🌦️";
+  if (code === "F-12") return "☀️";
+  if (code === "F-14") return "🧍";
+  if (code.startsWith("F-")) return "🔎";
+  return task.symbol || "⭐";
 }
 
 function renderAnimalMapping() {

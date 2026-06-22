@@ -51,6 +51,10 @@ Die Arbeitsmappe enthält unter anderem `Start`, `Klassenübersicht`, `Fortschri
 
 In der `Lernstand-Übersicht` gibt es den Bereich `Druckansicht / PDF`. Dort können Tagesübersicht, Wochenübersicht, Hilfe & Kontrolle, Fortschritt, Trainingszeit und Gesamtbericht direkt in der App als gestaltete Druckvorschau geöffnet werden. Über den Browser-Druckdialog kann die Lehrkraft die Ansicht drucken oder als PDF speichern.
 
+## Material drucken
+
+Im geschützten Bereich `Material drucken` kann die Lehrkraft Material für das Lerntagebuch drucken. Es gibt eine kindgerechte Übersichtsliste mit Aufgaben-Code, kurzer Beschreibung und kleinem Abhakfeld sowie einen Stickerbogen im Etikettenformat `64,6 mm × 33,8 mm`. Die Sticker enthalten Aufgaben-Code, kurze Beschreibung, Bereich und ein kleines Symbol. Druckbar sind alle Aufgaben, einzelne Bereiche oder eine eigene Auswahl. Die Ausdrucke enthalten keine Tiernamen, keine Vornamen, keine Bewertungen und keine Punkte.
+
 ## Lernzielkontrollen
 
 In der `Lernstand-Übersicht` gibt es den Bereich `Lernzielkontrollen` für Tests, Diagnosen und kleine Überprüfungen mit Ergebnissen je Tier-Pseudonym. Lernzielkontrollen können Aufgaben mit Maximalpunkten enthalten. Die App berechnet Gesamtpunkte, Prozentwert, Bewertungsvorschlag und Notenvorschlag. In Kinderansicht, QR-Codes und anonymisierten Exporten erscheinen keine Vornamen oder Fotos.
