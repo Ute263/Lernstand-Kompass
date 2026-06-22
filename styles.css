@@ -179,6 +179,26 @@ button:disabled {
   box-shadow: 0 16px 34px rgba(22, 138, 74, 0.14);
 }
 
+.child-quiet-actions {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.lernpost-button {
+  border-color: rgba(69, 33, 67, 0.18);
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.lernpost-button:hover,
+.lernpost-button:focus-visible {
+  color: var(--brand-dark);
+  background: #fff;
+}
+
 .step-wrap {
   max-width: 1120px;
   margin: 0 auto;
@@ -335,6 +355,11 @@ button:disabled {
   font-weight: 850;
 }
 
+.training-task-card small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
 .training-task-card.completed {
   opacity: 0.48;
   filter: grayscale(0.35);
@@ -348,6 +373,15 @@ button:disabled {
 .training-task-symbol {
   font-size: 2.4rem;
   line-height: 1;
+}
+
+.private-name {
+  color: var(--brand-dark);
+  font-weight: 800;
+}
+
+.mapping-toggle {
+  margin-top: 16px;
 }
 
 .training-modal-overlay {

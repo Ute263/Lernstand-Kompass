@@ -7,6 +7,7 @@ let teacherTab = "overview";
 let childDraft = {};
 let loginError = "";
 let globalMessage = "";
+let childMessage = "";
 let qrErrorMessage = "";
 let pendingRecoveryKey = "";
 let securityMessage = "";
@@ -39,6 +40,7 @@ let trainingFilters = {
   animalId: "",
   subject: "",
   area: "",
+  subcategory: "",
   status: "bearbeitet",
   date: ""
 };
@@ -158,7 +160,7 @@ function renderSetup() {
     <main class="app-shell setup-shell">
       <section class="setup-card">
         <h1 class="brand-title">${APP_NAME} einrichten</h1>
-        <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Es werden keine Kindernamen gespeichert. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
+        <p class="privacy-text">Richte die App einmalig für deine Klasse oder Lerngruppe ein. Der Kinderbereich arbeitet nur mit Tieren. Die Daten bleiben lokal auf diesem iPad/in diesem Browser.</p>
         <form class="setup-form" onsubmit="completeSetup(event)">
           <label class="field">Lehrkraft-PIN festlegen
             <input class="text-input" id="setupPin" type="password" autocomplete="new-password" inputmode="numeric">
@@ -320,6 +322,7 @@ function renderChildScreen() {
   if (screen === "childStatus") return renderStatusSelection();
   if (screen === "childConfirm") return renderConfirmation();
   if (screen === "childTraining") return renderTrainingStart();
+  if (screen === "childTrainingSubcategory") return renderTrainingSubcategorySelection();
   if (screen === "childTrainingArea") return renderTrainingArea();
   if (screen === "childTrainingConfirm") return renderTrainingConfirmation();
   return "";
@@ -330,10 +333,18 @@ function renderChildStart() {
     <section class="step-wrap child-start-wrap">
       <h2 class="child-title">${CHILD_AREA_NAME}</h2>
       <div class="start-grid child-choice-grid">
+        <button class="start-card primary-child-card" type="button" onclick="openQrScanner('child')">
+          <span class="icon">📷</span>
+          <strong>QR-Code scannen</strong>
+        </button>
         <button class="start-card primary-child-card" type="button" onclick="setChildScreen('childAnimal')">
           <span class="icon">🐾</span>
           <strong>Tier auswählen</strong>
         </button>
+      </div>
+      <div class="child-quiet-actions">
+        <button class="lernpost-button" type="button" onclick="exportLernpost()">✉️ Lernpost</button>
+        ${childMessage ? `<p class="message success">${escapeHtml(childMessage)}</p>` : ""}
       </div>
     </section>
   `;
@@ -398,6 +409,7 @@ function selectSubject(subject) {
 
 function openTrainingStart() {
   childDraft.trainingArea = "";
+  childDraft.trainingSubcategory = "";
   pendingTrainingTaskCode = "";
   screen = "childTraining";
   render();
@@ -422,6 +434,34 @@ function renderTrainingStart() {
 
 function selectTrainingArea(area) {
   childDraft.trainingArea = area;
+  childDraft.trainingSubcategory = "";
+  pendingTrainingTaskCode = "";
+  screen = area === "OGS/Zuhause" ? "childTrainingSubcategory" : "childTrainingArea";
+  render();
+}
+
+function renderTrainingSubcategorySelection() {
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childTraining")}
+      <h2 class="child-title">OGS / Zuhause</h2>
+      <div class="subject-grid training-area-grid">
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Deutsch-Entdecker')">
+          <span class="subject-icon">📘</span>Deutsch-Entdecker
+        </button>
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Mathe-Entdecker')">
+          <span class="subject-icon">🔢</span>Mathe-Entdecker
+        </button>
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Forscher')">
+          <span class="subject-icon">🔎</span>Forscher
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function selectTrainingSubcategory(subcategory) {
+  childDraft.trainingSubcategory = subcategory;
   pendingTrainingTaskCode = "";
   screen = "childTrainingArea";
   render();
@@ -430,7 +470,9 @@ function selectTrainingArea(area) {
 function renderTrainingArea() {
   const area = childDraft.trainingArea || "OGS/Zuhause";
   const animal = selectedAnimal();
-  const tasks = trainingTasksForArea(area);
+  const subcategory = childDraft.trainingSubcategory || "";
+  const tasks = trainingTasksForArea(area)
+    .filter((task) => !subcategory || task.subcategory === subcategory);
   if (area === "Schule") {
     return `
       <section class="step-wrap">
@@ -442,8 +484,8 @@ function renderTrainingArea() {
   }
   return `
     <section class="step-wrap">
-      ${renderBackButton("childTraining")}
-      <h2 class="child-title">OGS / Zuhause</h2>
+      ${renderBackButton("childTrainingSubcategory")}
+      <h2 class="child-title">${escapeHtml(subcategory || "OGS / Zuhause")}</h2>
       <div class="training-task-grid">
         ${tasks.map((task) => {
           const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
@@ -452,6 +494,7 @@ function renderTrainingArea() {
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
               <strong>${escapeHtml(task.code)}</strong>
               <span>${escapeHtml(task.title || task.text)}</span>
+              <small>${escapeHtml(task.subject)} · ${escapeHtml(task.subcategory || "")}</small>
               <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
             </button>
           `;
@@ -468,6 +511,9 @@ function renderTrainingTaskModal() {
   const area = childDraft.trainingArea || "OGS/Zuhause";
   const task = (state.trainingTasks || []).find((item) => item.code === pendingTrainingTaskCode && item.area === area);
   if (!task) return "";
+  const tips = Array.isArray(task.tips) ? task.tips : [task.tip].filter(Boolean);
+  const material = Array.isArray(task.material) ? task.material : String(task.material || "Lerntagebuch, Stift").split(/[,;\n]/).map((item) => item.trim()).filter(Boolean);
+  const steps = Array.isArray(task.steps) && task.steps.length ? task.steps : task.instructions || [];
   return `
     <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="trainingModalTitle">
       <section class="training-modal-card">
@@ -478,13 +524,19 @@ function renderTrainingTaskModal() {
           <strong>Aufgabe:</strong>
           <p>${escapeHtml(task.text)}</p>
         </div>
+        ${task.researchQuestion ? `
+          <div class="modal-task-section">
+            <strong>Forscherfrage:</strong>
+            <p>${escapeHtml(task.researchQuestion)}</p>
+          </div>
+        ` : ""}
         <div class="modal-task-section">
           <strong>So gehst du vor:</strong>
-          <ol>${(task.instructions || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+          <ol>${steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
         </div>
         <div class="modal-task-grid">
-          <div><strong>Tipp:</strong><p>${escapeHtml(task.tip || "Arbeite Schritt für Schritt.")}</p></div>
-          <div><strong>Material:</strong><p>${escapeHtml(task.material || "Heft oder Zettel, Stift")}</p></div>
+          <div><strong>Tipp:</strong>${tips.length ? `<ul>${tips.map((tip) => `<li>${escapeHtml(tip)}</li>`).join("")}</ul>` : `<p>Arbeite Schritt für Schritt.</p>`}</div>
+          <div><strong>Material:</strong><ul>${material.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
         </div>
         <div class="confirm-actions">
           <button class="primary" type="button" onclick="startTrainingTask('${escapeAttribute(task.code)}')">Aufgabe starten</button>
@@ -523,7 +575,9 @@ async function completeTrainingTask(taskCode) {
     tierEmojiSnapshot: animal.tierEmoji,
     taskCode: task.code,
     trainingArea: task.area,
+    subcategory: task.subcategory || "",
     subject: task.subject,
+    taskTitle: task.title,
     taskText: task.text,
     completedAt: timestamp,
     updatedAt: timestamp,
@@ -712,8 +766,11 @@ function renderConfirmation() {
       <section class="confirm-box">
         <div class="confirm-icon">✅</div>
         <h2 class="confirm-title">Danke! Dein Stand ist gespeichert.</h2>
+        <p class="message">Alles ist auf diesem iPad gesichert.</p>
+        ${childMessage ? `<p class="message success">${escapeHtml(childMessage)}</p>` : ""}
         <div class="confirm-actions">
           <button class="primary" type="button" onclick="startQrAgain()">Noch etwas eintragen</button>
+          <button class="secondary lernpost-button" type="button" onclick="exportLernpost()">✉️ Lernpost</button>
           <button class="secondary" type="button" onclick="goHome()">Zur Startseite</button>
         </div>
       </section>
@@ -723,7 +780,12 @@ function renderConfirmation() {
     <section class="confirm-box">
       <div class="confirm-icon">✅</div>
       <h2 class="confirm-title">Danke! Dein Stand ist gespeichert.</h2>
-      <button class="primary" type="button" onclick="startChildFlow()">Nächstes Kind</button>
+      <p class="message">Alles ist auf diesem iPad gesichert.</p>
+      ${childMessage ? `<p class="message success">${escapeHtml(childMessage)}</p>` : ""}
+      <div class="confirm-actions">
+        <button class="primary" type="button" onclick="startChildFlow()">Nächstes Kind</button>
+        <button class="secondary lernpost-button" type="button" onclick="exportLernpost()">✉️ Lernpost</button>
+      </div>
     </section>
   `;
 }
@@ -732,6 +794,42 @@ function startQrAgain() {
   childDraft = { animalId: childDraft.animalId, fromQr: true };
   screen = "childSubject";
   render();
+}
+
+async function exportLernpost() {
+  try {
+    const packageData = makeLernpostPackage(state, state.activeClassId);
+    const filename = `lernpost-${safeFilePart(activeClass()?.name || "klasse")}-${formatFileDate(new Date())}-${formatTimeForFilename(new Date())}.json`;
+    const content = JSON.stringify(packageData, null, 2);
+    childMessage = await shareOrSaveLernpost(filename, content);
+  } catch (error) {
+    childMessage = error?.name === "AbortError"
+      ? "Lernpost wurde nicht verschickt."
+      : "Die Lernpost konnte gerade nicht erstellt werden.";
+  }
+  render();
+}
+
+async function shareOrSaveLernpost(filename, content) {
+  const mimeType = "application/json";
+  if (typeof File !== "undefined" && navigator.share) {
+    const file = new File([content], filename, { type: mimeType });
+    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: "Lernpost",
+        text: "Lernpost an die Lehrkraft",
+        files: [file]
+      });
+      return "Lernpost ist bereit.";
+    }
+  }
+  await saveFileWithPickerOrDownload(filename, mimeType, content);
+  return "Lernpost wurde erstellt.";
+}
+
+function formatTimeForFilename(value) {
+  const date = new Date(value);
+  return `${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function renderLogin() {
@@ -789,7 +887,13 @@ function renderQrScanner() {
         <canvas id="qrCanvas" class="qr-canvas"></canvas>
         <p class="message" id="scannerMessage">Kamera wird geöffnet...</p>
       </div>
-      <p class="privacy-text">Die Erkennung läuft lokal im Browser. Es werden keine Fotos gespeichert und keine Daten übertragen.</p>
+      <form class="inline-form qr-manual-form" onsubmit="submitManualQrCode(event)">
+        <label class="field">Tier-ID manuell eingeben
+          <input class="text-input" id="manualQrInput" placeholder="animalId=..." autocomplete="off">
+        </label>
+        <button class="secondary" type="submit">Tier öffnen</button>
+      </form>
+      <p class="privacy-text">Die Erkennung läuft lokal im Browser. Es werden keine Fotos gespeichert und keine Daten übertragen. Der Code enthält nur eine anonyme Tier-ID.</p>
     </section>
   `;
 }
@@ -829,15 +933,8 @@ async function scanQrFrame() {
     if (barcodeDetector && video.readyState >= 2) {
       const codes = await barcodeDetector.detect(video);
       token = codes[0]?.rawValue || "";
-    } else if (window.jsQR && video.videoWidth && video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      token = window.jsQR(imageData.data, imageData.width, imageData.height)?.data || "";
     } else if (!("BarcodeDetector" in window)) {
-      message.textContent = "Die Erkennung ist in diesem Browser nicht verfügbar. Bitte wähle dein Tier über die Tierauswahl.";
+      message.textContent = "Die automatische Erkennung ist in diesem Browser nicht verfügbar. Bitte gib die Tier-ID ein oder wähle dein Tier über die Tierauswahl.";
     }
 
     if (token) {
@@ -851,7 +948,7 @@ async function scanQrFrame() {
 }
 
 async function handleScannedQrToken(token) {
-  const animal = state.animals.find((item) => item.aktiv && item.qrToken === token);
+  const animal = findAnimalForQrValue(token);
   stopQrScanner();
   if (scannerMode === "test") {
     globalMessage = animal
@@ -874,6 +971,12 @@ async function handleScannedQrToken(token) {
   }
   screen = "childSubject";
   render();
+}
+
+async function submitManualQrCode(event) {
+  event.preventDefault();
+  const value = document.querySelector("#manualQrInput")?.value || "";
+  await handleScannedQrToken(value);
 }
 
 function closeQrScanner() {
@@ -968,6 +1071,8 @@ function renderTeacher() {
     ["history", "Verlauf"],
     ["classes", "Klassen & Gruppen"],
     ["resources", "Tiere & Materialien"],
+    ["animalMapping", "Tier-Zuordnung"],
+    ["qrCards", "Tier-QR"],
     ["security", "PIN & Sicherheit"],
     ["storageStatus", "Speicherstatus"],
     ["excelExport", "Exporte"],
@@ -1009,6 +1114,8 @@ function renderTeacherTab() {
   if (teacherTab === "history") return renderHistory();
   if (teacherTab === "classes") return renderClasses();
   if (teacherTab === "resources") return renderResources();
+  if (teacherTab === "animalMapping") return renderAnimalMapping();
+  if (teacherTab === "qrCards") return renderQrCards();
   if (teacherTab === "security") return renderSecurity();
   if (teacherTab === "storageStatus") return renderStorageStatus();
   if (teacherTab === "excelExport") return renderExcelExport();
@@ -1029,7 +1136,7 @@ function renderOverview() {
     const statusEntry = open || latest;
     return `
       <tr>
-        <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
+        <td><strong>${teacherAnimalLabel(animal)}</strong></td>
         <td>${deutsch ? escapeHtml(entryStandLabel(deutsch)) : "noch kein Eintrag"}</td>
         <td>${mathe ? escapeHtml(entryStandLabel(mathe)) : "noch kein Eintrag"}</td>
         <td>${latest ? formatSmartDate(latest.datumUhrzeit) : "noch kein Eintrag"}</td>
@@ -1146,7 +1253,7 @@ function renderProgressTable(rows) {
         <tbody>
           ${rows.map((row) => `
             <tr>
-              <td><button class="link-button" type="button" onclick="openProgressDetail('${row.animal.id}')">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</button></td>
+              <td><button class="link-button" type="button" onclick="openProgressDetail('${row.animal.id}')">${teacherAnimalLabel(row.animal)}</button></td>
               <td>${escapeHtml(row.fach)}</td>
               <td>${escapeHtml(row.material)}</td>
               <td>${row.firstEntry ? escapeHtml(entryWorkLabel(row.firstEntry)) : "kein Eintrag"}</td>
@@ -1173,7 +1280,7 @@ function renderAssessments() {
   return `
     <section class="panel">
       <h2>Tests & Lernzielkontrollen</h2>
-      <p class="message">Die Ergebnisse werden nur den Tier-Pseudonymen zugeordnet. Es werden keine Kindernamen gespeichert. Die Zuordnung Tier → Kind bleibt außerhalb der App bei der Lehrkraft.</p>
+      <p class="message">Die Ergebnisse werden in der Kinderansicht nur den Tier-Pseudonymen zugeordnet. Optional hinterlegte Vornamen erscheinen ausschließlich im geschützten Lehrkraftbereich.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="openAssessmentForm()">Neue Lernzielkontrolle anlegen</button>
         <button class="secondary" type="button" onclick="renderAssessmentSummaryPrintView()">Gesamtübersicht als PDF</button>
@@ -1209,10 +1316,12 @@ function renderAssessments() {
 function renderTrainingOverview() {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   const tasks = (state.trainingTasks || []).filter((task) => task.active !== false && task.area !== "Schule");
+  const subcategories = [...new Set(tasks.map((task) => task.subcategory).filter(Boolean))];
   const rows = buildTrainingRowsForClass(state.activeClassId)
     .filter((row) => !trainingFilters.animalId || row.animalId === trainingFilters.animalId)
     .filter((row) => !trainingFilters.subject || row.subject === trainingFilters.subject)
     .filter((row) => !trainingFilters.area || row.trainingArea === trainingFilters.area)
+    .filter((row) => !trainingFilters.subcategory || row.subcategory === trainingFilters.subcategory)
     .filter((row) => !trainingFilters.status || row.status === trainingFilters.status)
     .filter((row) => !trainingFilters.date || (row.completedAt && formatFileDate(new Date(row.completedAt)) === trainingFilters.date))
     .sort((a, b) => {
@@ -1234,13 +1343,19 @@ function renderTrainingOverview() {
         <label class="field">Fach
           <select class="select-input" onchange="setTrainingFilter('subject', this.value)">
             <option value="">alle Fächer</option>
-            ${["Deutsch", "Mathe"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
+            ${["Deutsch", "Mathe", "Forscher"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
           </select>
         </label>
         <label class="field">Bereich
           <select class="select-input" onchange="setTrainingFilter('area', this.value)">
             <option value="">alle Bereiche</option>
             ${["Schule", "OGS/Zuhause"].map((area) => `<option value="${area}" ${trainingFilters.area === area ? "selected" : ""}>${area}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Unterbereich
+          <select class="select-input" onchange="setTrainingFilter('subcategory', this.value)">
+            <option value="">alle Unterbereiche</option>
+            ${subcategories.map((subcategory) => `<option value="${escapeAttribute(subcategory)}" ${trainingFilters.subcategory === subcategory ? "selected" : ""}>${escapeHtml(subcategory)}</option>`).join("")}
           </select>
         </label>
         <label class="field">Status
@@ -1259,13 +1374,14 @@ function renderTrainingOverview() {
       <div class="table-scroll">
         <table class="training-overview-table">
           <thead>
-            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th><th>Aktion</th></tr>
+            <tr><th>Tier</th><th>Bereich</th><th>Unterbereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th><th>Aktion</th></tr>
           </thead>
           <tbody>
             ${rows.map((row) => `
               <tr class="${row.status === "offen" ? "muted-row" : ""}">
-                <td><strong>${escapeHtml(row.tierEmoji)} ${escapeHtml(row.tierName)}</strong></td>
+                <td><strong>${teacherAnimalLabel(row)}</strong></td>
                 <td>${escapeHtml(row.trainingArea)}</td>
+                <td>${escapeHtml(row.subcategory || "–")}</td>
                 <td>${escapeHtml(row.taskCode)}</td>
                 <td>${escapeHtml(row.subject)}</td>
                 <td>${escapeHtml(row.taskText)}</td>
@@ -1274,7 +1390,7 @@ function renderTrainingOverview() {
                 <td>${row.status === "bearbeitet" ? `<span class="badge done">bearbeitet</span>` : `<span class="badge stale">offen</span>`}</td>
                 <td>${row.status === "bearbeitet" ? `<button class="small-button" type="button" onclick="resetTrainingCompletion('${row.animalId}', '${escapeAttribute(row.taskCode)}')">Aufgabe zurücksetzen</button>` : "–"}</td>
               </tr>
-            `).join("") || `<tr><td colspan="9">Keine passenden Trainingsaufgaben gefunden.</td></tr>`}
+            `).join("") || `<tr><td colspan="10">Keine passenden Trainingsaufgaben gefunden.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1309,6 +1425,7 @@ async function resetTrainingCompletion(animalId, taskCode) {
       classId: completion.classId,
       animalId: completion.animalId,
       taskCode: completion.taskCode,
+      subcategory: completion.subcategory || defaultTrainingSubcategory(completion.taskCode),
       oldStatus: "bearbeitet",
       newStatus: "offen",
       changedAt: timestamp,
@@ -1396,7 +1513,7 @@ function renderAssessmentResultsEditor(assessment) {
               const summary = calculateAssessmentResultSummary(assessment, result);
               return `
                 <tr>
-                  <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
+                  <td><strong>${teacherAnimalLabel(animal)}</strong></td>
                   ${showPoints && tasks.length ? tasks.map((task) => `<td><input class="text-input small-input" type="number" min="0" max="${escapeAttribute(task.maxPoints)}" step="0.5" value="${escapeAttribute(result?.taskPoints?.[task.id] ?? "")}" onchange="updateAssessmentTaskPoint('${assessment.id}', '${animal.id}', '${task.id}', this.value)"></td>`).join("") : ""}
                   ${showPoints && !tasks.length ? `<td><input class="text-input small-input" type="number" min="0" step="0.5" value="${escapeAttribute(result?.punkte ?? "")}" onchange="updateAssessmentResult('${assessment.id}', '${animal.id}', 'punkte', this.value)"></td>` : ""}
                   ${showPoints ? `<td>${escapeHtml(summary.pointsLabel)}</td><td>${escapeHtml(summary.percentLabel)}</td><td>${escapeHtml(summary.rating || "–")}</td>` : ""}
@@ -1447,7 +1564,7 @@ function renderProgressDetail(classId, classOptions, materialOptions) {
   return `
     <section class="panel">
       <button class="secondary" type="button" onclick="closeProgressDetail()">Zur Fortschrittstabelle</button>
-      <h2>Verlauf von ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</h2>
+      <h2>Verlauf von ${teacherAnimalLabel(animal)}</h2>
       <form class="filters" onsubmit="event.preventDefault();">
         <label class="field">Klasse
           <select class="select-input" onchange="setProgressFilter('classId', this.value)">${classOptions}</select>
@@ -1753,6 +1870,48 @@ function renderResources() {
     ${renderGoalSettings()}
     ${renderProgressSettings()}
   `;
+}
+
+function renderAnimalMapping() {
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  return `
+    <section class="panel">
+      <h2>Tier-Zuordnung</h2>
+      <p class="privacy-text">Optional kann die Lehrkraft hier einen Vornamen zum Tier hinterlegen. Diese Zuordnung ist nur im PIN-geschützten Bereich sichtbar. Im Kinderbereich, in QR-Codes und in anonymisierten Exporten erscheinen weiterhin nur Tiere.</p>
+      <label class="toggle-label mapping-toggle">
+        <input type="checkbox" ${state.teacherShowFirstNames ? "checked" : ""} onchange="updateTeacherNameVisibility(this.checked)">
+        Vornamen im Lehrkraftbereich anzeigen
+      </label>
+    </section>
+    <section class="panel">
+      <h2>Vornamen verwalten</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tier</th><th>Vorname optional</th><th>Anzeige im Lehrkraftbereich</th></tr></thead>
+          <tbody>
+            ${animals.map((animal) => `
+              <tr>
+                <td><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong></td>
+                <td><input class="text-input" value="${escapeAttribute(animal.firstName || "")}" autocomplete="off" placeholder="Vorname optional" onchange="updateAnimalFirstName('${animal.id}', this.value)"></td>
+                <td>${state.teacherShowFirstNames && animal.firstName ? `${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)} · ${escapeHtml(animal.firstName)}` : `${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}`}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="3">Keine aktiven Tiere vorhanden.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <p class="message">Backups enthalten die lokal gespeicherte Zuordnung, damit sie auf einem Hauptgerät wiederhergestellt werden kann. QR-Codes enthalten weiterhin nur die anonyme Tier-ID.</p>
+    </section>
+  `;
+}
+
+async function updateTeacherNameVisibility(showNames) {
+  await persistAndRender({ ...state, teacherShowFirstNames: Boolean(showNames) });
+}
+
+async function updateAnimalFirstName(animalId, value) {
+  const firstName = String(value || "").trim();
+  const animals = state.animals.map((animal) => animal.id === animalId ? { ...animal, firstName } : animal);
+  await persist({ ...state, animals });
 }
 
 function renderSprachweltSettings() {
@@ -2198,6 +2357,7 @@ function renderBackup() {
       <p class="message"><strong>Wichtig:</strong> Die Geräte synchronisieren sich nicht von allein. Der Abgleich funktioniert über Backup-Dateien. Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportFullBackup()">Backup exportieren</button>
+        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Lernpost zusammenführen</button>
         <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Backup zusammenführen</button>
         <button class="danger" type="button" onclick="openBackupFilePicker()">Backup wiederherstellen</button>
         <button class="secondary" type="button" onclick="startMultiDeviceSyncGuide()">Mehrgeräte-Abgleich starten</button>
@@ -2222,18 +2382,28 @@ function renderBackup() {
 
 function renderPendingBackupChoice() {
   if (!pendingBackup) return "";
+  const type = pendingBackupType();
+  const isLernpost = type === "lernpost";
   return `
     <div class="backup-decision">
-      <h3>Was möchtest du tun?</h3>
+      <h3>${isLernpost ? "Lernpost gefunden" : "Was möchtest du tun?"}</h3>
       <p class="message">Ausgewählte Datei: <strong>${escapeHtml(pendingBackup.name)}</strong></p>
       <div class="backup-actions">
-        <button class="primary recommended-action" type="button" onclick="finishBackupImport('merge')">Backup zusammenführen</button>
-        <button class="danger" type="button" onclick="finishBackupImport('restore')">Backup wiederherstellen</button>
+        <button class="primary recommended-action" type="button" onclick="finishBackupImport('merge')">${isLernpost ? "Lernpost zusammenführen" : "Backup zusammenführen"}</button>
+        ${isLernpost ? "" : `<button class="danger" type="button" onclick="finishBackupImport('restore')">Backup wiederherstellen</button>`}
         <button class="secondary" type="button" onclick="cancelPendingBackup()">Abbrechen</button>
       </div>
-      <p class="message">Empfohlen ist „Backup zusammenführen“. Dabei werden nur neue Daten ergänzt; vorhandene Daten bleiben erhalten.</p>
+      <p class="message">${isLernpost ? "Die Lernpost ergänzt nur neue Kindereingaben. Vorhandene Daten bleiben erhalten." : "Empfohlen ist „Backup zusammenführen“. Dabei werden nur neue Daten ergänzt; vorhandene Daten bleiben erhalten."}</p>
     </div>
   `;
+}
+
+function pendingBackupType() {
+  try {
+    return JSON.parse(pendingBackup?.content || "{}")?.type || "";
+  } catch {
+    return "";
+  }
 }
 
 function renderMergeReport() {
@@ -2327,7 +2497,7 @@ async function finishBackupImport(mode) {
       const result = mergeBackupData(state, backup);
       await persist(result.state);
       lastMergeReport = result.report;
-      globalMessage = "Backup wurde zusammengeführt.";
+      globalMessage = backup.type === "lernpost" ? "Lernpost wurde zusammengeführt." : "Backup wurde zusammengeführt.";
     }
     pendingBackup = null;
   } catch (error) {
@@ -2451,13 +2621,23 @@ function renderExcelExport() {
   return `
     <section class="panel">
       <h2>Excel-Export</h2>
-      <p class="privacy-text">Erstellt eine gestaltete Excel-Datei als Lernstands-Planer. Es werden keine Kindernamen, Fotos oder KI-Daten exportiert.</p>
+      <p class="privacy-text">Erstellt eine gestaltete Excel-Datei als Lernstands-Planer. Standardmäßig werden nur Tier-Pseudonyme exportiert. Interne Exporte mit Vornamen müssen bewusst gewählt werden.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportBeautifulExcel('active')">Schöne Excel-Datei aktive Klasse</button>
         <button class="primary" type="button" onclick="exportBeautifulExcel('all')">Schöne Excel-Datei alle Klassen</button>
         <button class="secondary" type="button" onclick="exportBeautifulExcel('today')">Schöne Tagesliste</button>
         <button class="secondary" type="button" onclick="exportBeautifulExcel('help')">Schöne Hilfe-/Kontrollliste</button>
       </div>
+      <details class="fallback-export">
+        <summary>Interner Export mit Vornamen</summary>
+        <p class="message">Nur für die interne Arbeit der Lehrkraft. Diese Dateien enthalten die optional gespeicherten Vornamen und sollten geschützt abgelegt werden.</p>
+        <div class="backup-actions">
+          <button class="primary" type="button" onclick="exportBeautifulExcel('active', true)">Interne Excel-Datei aktive Klasse</button>
+          <button class="primary" type="button" onclick="exportBeautifulExcel('all', true)">Interne Excel-Datei alle Klassen</button>
+          <button class="secondary" type="button" onclick="exportExcelActiveClass(true)">Interne CSV aktive Klasse</button>
+          <button class="secondary" type="button" onclick="exportExcelAllClasses(true)">Interne CSV alle Klassen</button>
+        </div>
+      </details>
       <p class="message">Die Datei wird lokal im Browser als echte .xlsx-Arbeitsmappe erzeugt. Falls das nicht klappt, erscheint ein Hinweis für den einfachen CSV-Export.</p>
       <details class="fallback-export">
         <summary>Einfache CSV-Dateien als Fallback</summary>
@@ -2647,13 +2827,14 @@ function renderPrintTraining(context, className, generatedAt) {
       ${rows.length ? `
         <table class="planner-table training-print-table">
           <thead>
-            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th></tr>
+            <tr><th>Tier</th><th>Bereich</th><th>Unterbereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th></tr>
           </thead>
           <tbody>
             ${rows.map((row) => `
               <tr>
-                <td class="print-animal">${escapeHtml(row.tierEmoji)} ${escapeHtml(row.tierName)}</td>
+                <td class="print-animal">${teacherAnimalLabel(row)}</td>
                 <td>${escapeHtml(row.trainingArea)}</td>
+                <td>${escapeHtml(row.subcategory || "–")}</td>
                 <td>${escapeHtml(row.taskCode)}</td>
                 <td>${escapeHtml(row.subject)}</td>
                 <td>${escapeHtml(row.taskText)}</td>
@@ -2781,7 +2962,7 @@ function renderPrintAssessmentSummary(className, generatedAt) {
           <tbody>
             ${animals.map((animal) => `
               <tr>
-                <td class="print-animal">${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</td>
+                <td class="print-animal">${teacherAnimalLabel(animal)}</td>
                 ${assessments.map((assessment) => `<td>${escapeHtml(formatAssessmentMatrixValue(assessment, assessmentResultFor(assessment.id, animal.id)))}</td>`).join("")}
               </tr>
             `).join("")}
@@ -2803,7 +2984,7 @@ function renderPrintOverviewSection(rows) {
         <tbody>
           ${rows.map((row) => `
             <tr>
-              <td class="print-animal">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</td>
+              <td class="print-animal">${teacherAnimalLabel(row.animal)}</td>
               <td>${escapeHtml(row.deutsch)}</td>
               <td>${escapeHtml(row.mathe)}</td>
               <td>${escapeHtml(row.latestActivity)}</td>
@@ -2831,7 +3012,7 @@ function renderPrintProgressTable(rows) {
       <tbody>
         ${visibleRows.map((row) => `
           <tr>
-            <td class="print-animal">${escapeHtml(row.animal.tierEmoji)} ${escapeHtml(row.animal.tierName)}</td>
+            <td class="print-animal">${teacherAnimalLabel(row.animal)}</td>
             <td><span class="subject-chip ${row.fach === "Deutsch" ? "deutsch" : "mathe"}">${escapeHtml(row.fach)}</span></td>
             <td>${escapeHtml(row.material)}</td>
             <td>${row.firstEntry ? escapeHtml(entryWorkLabel(row.firstEntry)) : "–"}</td>
@@ -3229,10 +3410,11 @@ function renderQrCards() {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   return `
     <section class="panel">
-      <h2>Tier-Codes</h2>
-      <p class="message">Diese alte Funktion ist in der aktuellen Version nicht in der Navigation aktiv.</p>
+      <h2>Tier-QR-Codes</h2>
+      <p class="message">Die QR-Codes enthalten keine Vornamen und keine Lernstände. Sie enthalten nur eine anonyme Tier-ID.</p>
       <div class="backup-actions">
-        <button class="primary" type="button" disabled>In dieser Version deaktiviert</button>
+        <button class="primary" type="button" onclick="printAllQrCards()">Alle QR-Karten der aktiven Klasse drucken</button>
+        <button class="secondary" type="button" onclick="openQrScanner('test')">QR-Reader testen</button>
       </div>
     </section>
     <section class="qr-card-grid">
@@ -3243,17 +3425,17 @@ function renderQrCards() {
 }
 
 function renderQrCardPreview(animal) {
+  const payload = qrPayloadForAnimal(animal);
   return `
-    <article class="qr-card-preview" data-qr-token="${escapeAttribute(animal.qrToken)}">
+    <article class="qr-card-preview" data-qr-token="${escapeAttribute(payload)}">
       <div class="qr-animal">
         <span class="qr-animal-emoji">${escapeHtml(animal.tierEmoji)}</span>
         <strong>${escapeHtml(animal.tierName)}</strong>
       </div>
-      <div class="qr-code-wrap">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
-      <p class="qr-token">${escapeHtml(animal.qrToken)}</p>
+      <div class="qr-code-wrap">${makeQrSvg(payload, { scale: 4 })}</div>
+      <p class="qr-token">Tier-ID: ${escapeHtml(animal.id)}</p>
       <p class="qr-small">Lernstand-Kompass</p>
       <div class="qr-actions">
-        <button class="secondary" type="button" onclick="regenerateQrToken('${animal.id}')">Tier-Code neu erzeugen</button>
         <button class="primary" type="button" onclick="printSingleQrCard('${animal.id}')">Karte drucken</button>
       </div>
     </article>
@@ -3285,17 +3467,65 @@ function printQrCards(animals) {
   if (!printArea) return;
   printArea.innerHTML = `
     <div class="qr-print-page">
-      ${animals.map((animal) => `
+      ${animals.map((animal) => {
+        const payload = qrPayloadForAnimal(animal);
+        return `
         <article class="qr-print-card">
           <div class="qr-print-emoji">${escapeHtml(animal.tierEmoji)}</div>
           <div class="qr-print-name">${escapeHtml(animal.tierName)}</div>
-          <div class="qr-print-code">${makeQrSvg(animal.qrToken, { scale: 4 })}</div>
+          <div class="qr-print-code">${makeQrSvg(payload, { scale: 4 })}</div>
+          <div class="qr-token">Tier-ID: ${escapeHtml(animal.id)}</div>
           <div class="qr-print-title">Lernstand-Kompass</div>
         </article>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
   window.print();
+}
+
+function qrPayloadForAnimal(animal) {
+  return `animalId=${animal.id}`;
+}
+
+function findAnimalForQrValue(value) {
+  const raw = String(value || "").trim();
+  const candidates = new Set([raw]);
+  try {
+    const parsed = new URL(raw);
+    ["animalId", "tier", "qr"].forEach((key) => {
+      const param = parsed.searchParams.get(key);
+      if (param) candidates.add(param);
+    });
+  } catch {
+    if (raw.includes("=")) {
+      const params = new URLSearchParams(raw);
+      ["animalId", "tier", "qr"].forEach((key) => {
+        const param = params.get(key);
+        if (param) candidates.add(param);
+      });
+    }
+  }
+  return state.animals.find((item) => (
+    item.aktiv
+    && (
+      candidates.has(item.id)
+      || candidates.has(item.qrToken)
+      || candidates.has(slugifyAnimalName(item.tierName))
+      || candidates.has(item.tierName)
+    )
+  )) || null;
+}
+
+function slugifyAnimalName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll("ä", "ae")
+    .replaceAll("ö", "oe")
+    .replaceAll("ü", "ue")
+    .replaceAll("ß", "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function makeUniqueQrToken(exceptAnimalId = "") {
@@ -3376,6 +3606,8 @@ function renderStorageStatus() {
         <div>aktive Klasse</div><strong>${escapeHtml(activeClass()?.name || "keine")}</strong>
         <div>Anzahl Klassen</div><strong>${state.classes.length}</strong>
         <div>Anzahl Tiere</div><strong>${state.animals.length}</strong>
+        <div>Tier-Zuordnung mit Vornamen</div><strong>${state.animals.some((animal) => animal.firstName) ? "ja" : "nein"}</strong>
+        <div>Vornamen im Lehrkraftbereich sichtbar</div><strong>${state.teacherShowFirstNames ? "ja" : "nein"}</strong>
         <div>Anzahl Materialien</div><strong>${state.materials.length}</strong>
         <div>Anzahl Lernstände</div><strong>${state.entries.length}</strong>
         <div>Anzahl Lernzielkontrollen</div><strong>${(state.assessments || []).length}</strong>
@@ -3431,11 +3663,11 @@ async function exportActiveClassCsv() {
   render();
 }
 
-async function exportBeautifulExcel(mode) {
+async function exportBeautifulExcel(mode, includeFirstNames = false) {
   try {
-    const report = buildBeautifulExcelReport(mode);
+    const report = buildBeautifulExcelReport(mode, includeFirstNames);
     await exportBeautifulWorkbook(report);
-    globalMessage = "Schöne Excel-Datei wurde erstellt.";
+    globalMessage = includeFirstNames ? "Interne Excel-Datei mit Vornamen wurde erstellt." : "Schöne Excel-Datei wurde erstellt.";
   } catch (error) {
     console.error(error);
     globalMessage = "Die schöne Excel-Datei konnte nicht erstellt werden. Du kannst stattdessen eine einfache CSV-Datei exportieren.";
@@ -3443,7 +3675,7 @@ async function exportBeautifulExcel(mode) {
   render();
 }
 
-function buildBeautifulExcelReport(mode) {
+function buildBeautifulExcelReport(mode, includeFirstNames = false) {
   const now = new Date();
   const active = activeClass();
   const allClassIds = state.classes.map((item) => item.id);
@@ -3462,29 +3694,36 @@ function buildBeautifulExcelReport(mode) {
       : mode === "help"
         ? "Hilfe & Kontrolle"
         : "Alle Klassen";
+  const internalPart = includeFirstNames ? "-intern" : "";
   const filename = mode === "active"
-    ? `lernstand-kompass-${safeFilePart(active?.name)}-${formatFileDate(now)}.xlsx`
+    ? `lernstand-kompass${internalPart}-${safeFilePart(active?.name)}-${formatFileDate(now)}.xlsx`
     : mode === "today"
-      ? `lernstand-kompass-heute-${formatFileDate(now)}.xlsx`
+      ? `lernstand-kompass${internalPart}-heute-${formatFileDate(now)}.xlsx`
       : mode === "help"
-        ? `lernstand-kompass-hilfe-kontrolle-${formatFileDate(now)}.xlsx`
-        : `lernstand-kompass-alle-klassen-${formatFileDate(now)}.xlsx`;
-  const animals = state.animals.filter((animal) => classIds.includes(animal.classId) && animal.aktiv);
+        ? `lernstand-kompass${internalPart}-hilfe-kontrolle-${formatFileDate(now)}.xlsx`
+        : `lernstand-kompass${internalPart}-alle-klassen-${formatFileDate(now)}.xlsx`;
+  const animals = state.animals
+    .filter((animal) => classIds.includes(animal.classId) && animal.aktiv)
+    .map((animal) => ({ ...animal, exportLabel: exportAnimalLabel(animal, includeFirstNames) }));
   const materials = state.materials.filter((material) => classIds.includes(material.classId));
-  const reportEntries = decorateEntries(entries).sort(sortNewest);
+  const reportEntries = decorateEntries(entries, includeFirstNames).sort(sortNewest);
   const overviewRows = buildBeautifulOverviewRows(animals, baseEntries);
-  const progressRows = buildBeautifulProgressRows(classIds, mode === "today" ? entries : baseEntries);
-  const todayEntries = decorateEntries(baseEntries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === todayKey)).sort(sortNewest);
-  const helpEntries = decorateEntries(baseEntries.filter((entry) => !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren"))).sort(sortNewest);
-  const trailEntries = decorateEntries(entries).sort(sortEntriesByClassAnimalDate);
+  const progressRows = buildBeautifulProgressRows(classIds, mode === "today" ? entries : baseEntries)
+    .map((row) => ({ ...row, animal: { ...row.animal, exportLabel: exportAnimalLabel(row.animal, includeFirstNames) } }));
+  const todayEntries = decorateEntries(baseEntries.filter((entry) => new Date(entry.datumUhrzeit).toDateString() === todayKey), includeFirstNames).sort(sortNewest);
+  const helpEntries = decorateEntries(baseEntries.filter((entry) => !entry.erledigt && (entry.status === "brauche Hilfe" || entry.status === "bitte kontrollieren")), includeFirstNames).sort(sortNewest);
+  const trailEntries = decorateEntries(entries, includeFirstNames).sort(sortEntriesByClassAnimalDate);
   const allEntries = reportEntries;
   const printRows = buildPrintRows(animals, baseEntries);
   const assessments = (state.assessments || []).filter((item) => classIds.includes(item.classId));
   const assessmentIds = new Set(assessments.map((item) => item.id));
   const assessmentTasks = (state.assessmentTasks || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
-  const assessmentResults = (state.assessmentResults || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
+  const assessmentResults = (state.assessmentResults || [])
+    .filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId))
+    .map((result) => ({ ...result, tierLabel: exportAnimalLabel(state.animals.find((animal) => animal.id === result.animalId) || result, includeFirstNames) }));
   const trainingRows = classIds.flatMap((classId) => buildTrainingRowsForClass(classId))
     .filter((row) => row.status === "bearbeitet")
+    .map((row) => ({ ...row, tierLabel: exportAnimalLabel(row, includeFirstNames) }))
     .sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   return {
     filename,
@@ -3506,16 +3745,24 @@ function buildBeautifulExcelReport(mode) {
     assessmentTasks,
     assessmentResults,
     trainingRows,
+    includeFirstNames,
     stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now, assessments, assessmentResults, trainingRows })
   };
 }
 
-function decorateEntries(entries) {
+function decorateEntries(entries, includeFirstNames = false) {
   return entries.map((entry) => ({
     ...entry,
     klasseName: getClassNameForEntry(entry),
-    tierLabel: `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim()
+    tierLabel: exportAnimalLabel(state.animals.find((animal) => animal.id === entry.tierID) || entry, includeFirstNames)
   }));
+}
+
+function exportAnimalLabel(animalLike, includeFirstNames = false) {
+  const animal = state.animals.find((item) => item.id === animalLike.id || item.id === animalLike.animalId || item.id === animalLike.tierID) || animalLike;
+  const base = `${animal.tierEmoji || animal.tierEmojiSnapshot || ""} ${animal.tierName || animal.tierNameSnapshot || ""}`.trim();
+  if (includeFirstNames && animal.firstName) return `${base} · ${animal.firstName}`;
+  return base;
 }
 
 function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now, assessments = [], assessmentResults = [], trainingRows = [] }) {
@@ -3665,7 +3912,7 @@ function buildPrintRows(animals, entries) {
       const latest = animalEntries[0] || null;
       const open = animalEntries.find((entry) => !entry.erledigt && entry.status !== "fertig") || null;
       return {
-        tier: `${animal.tierEmoji} ${animal.tierName}`,
+        tier: animal.exportLabel || `${animal.tierEmoji} ${animal.tierName}`,
         deutsch: deutsch ? entryStandLabel(deutsch) : "–",
         mathe: mathe ? entryStandLabel(mathe) : "–",
         latestActivity: latest ? relativeActivity(latest.datumUhrzeit) : "–",
@@ -3684,15 +3931,15 @@ function sortEntriesByClassAnimalDate(a, b) {
   return new Date(a.datumUhrzeit) - new Date(b.datumUhrzeit);
 }
 
-function exportExcelActiveClass() {
+function exportExcelActiveClass(includeFirstNames = false) {
   const classItem = activeClass();
-  const filename = `lernstand-kompass-${safeFilePart(classItem?.name)}-${formatFileDate(new Date())}.csv`;
-  finishExcelExport(entriesForActiveClass(), filename);
+  const filename = `lernstand-kompass${includeFirstNames ? "-intern" : ""}-${safeFilePart(classItem?.name)}-${formatFileDate(new Date())}.csv`;
+  finishExcelExport(entriesForActiveClass(), filename, includeFirstNames);
 }
 
-function exportExcelAllClasses() {
-  const filename = `lernstand-kompass-alle-klassen-${formatFileDate(new Date())}.csv`;
-  finishExcelExport(state.entries, filename);
+function exportExcelAllClasses(includeFirstNames = false) {
+  const filename = `lernstand-kompass${includeFirstNames ? "-intern" : ""}-alle-klassen-${formatFileDate(new Date())}.csv`;
+  finishExcelExport(state.entries, filename, includeFirstNames);
 }
 
 function exportExcelToday() {
@@ -3710,10 +3957,11 @@ function exportExcelHelpControl() {
   finishExcelExport(entries, filename);
 }
 
-function finishExcelExport(entries, filename) {
+function finishExcelExport(entries, filename, includeFirstNames = false) {
   try {
-    const created = exportToExcelCsv(entries, filename);
-    globalMessage = created ? "Excel-Liste wurde erstellt." : "Für diese Auswahl gibt es noch keine Einträge.";
+    const decorated = decorateEntries(entries, includeFirstNames);
+    const created = exportToExcelCsv(decorated, filename);
+    globalMessage = created ? (includeFirstNames ? "Interne Excel-Liste mit Vornamen wurde erstellt." : "Excel-Liste wurde erstellt.") : "Für diese Auswahl gibt es noch keine Einträge.";
   } catch {
     globalMessage = "Die Excel-Liste konnte nicht erstellt werden.";
   }
@@ -3742,7 +3990,7 @@ function renderPrivacy() {
   return `
     <section class="panel privacy-panel">
       <h2>Datenschutz & Zweck</h2>
-      <p>Diese App dient der datenschutzarmen Dokumentation von Lernständen zur Unterrichtsorganisation. Es werden keine Klarnamen der Kinder gespeichert. Die Kinder arbeiten mit Tier-Pseudonymen. Die Zuordnung Tier zu Kind wird nicht digital gespeichert, sondern bleibt ausschließlich analog bei der Lehrkraft.</p>
+      <p>Diese App dient der datenschutzarmen Dokumentation von Lernständen zur Unterrichtsorganisation. Die Kinder arbeiten mit Tier-Pseudonymen. Optional kann die Lehrkraft im PIN-geschützten Bereich eine lokale Tier-Zuordnung mit Vornamen pflegen; im Kinderbereich, in QR-Codes und in anonymisierten Exporten erscheinen diese Vornamen nicht.</p>
       <h3>Gespeichert werden nur:</h3>
       <ul>
         <li>Klasse/Lerngruppe</li>
@@ -3754,10 +4002,11 @@ function renderPrivacy() {
         <li>Datum/Uhrzeit</li>
         <li>erledigt-Status</li>
         <li>Tests/Lernzielkontrollen und zugehörige Ergebnisse zu Tier-Pseudonymen</li>
+        <li>optional Vornamen in der geschützten Tier-Zuordnung</li>
       </ul>
       <h3>Nicht gespeichert werden:</h3>
       <ul>
-        <li>Namen</li>
+        <li>Vornamen im Kinderbereich, in QR-Codes und in anonymisierten Exporten</li>
         <li>Fotos</li>
         <li>Handschrift</li>
         <li>freie Leistungs- oder Verhaltenskommentare</li>
@@ -3805,7 +4054,10 @@ function assessmentResultFor(assessmentId, animalId) {
 }
 
 function assessmentAnimalLabel(result) {
-  return `${result?.tierEmojiSnapshot || ""} ${result?.tierNameSnapshot || ""}`.trim() || "Tier";
+  const animal = state.animals.find((item) => item.id === result?.animalId);
+  const base = `${result?.tierEmojiSnapshot || animal?.tierEmoji || ""} ${result?.tierNameSnapshot || animal?.tierName || ""}`.trim() || "Tier";
+  if (state.teacherShowFirstNames && animal?.firstName) return `${base} · ${animal.firstName}`;
+  return base;
 }
 
 function formatAssessmentPoints(result) {
@@ -3961,7 +4213,7 @@ function latestAssessmentUpdatedAt() {
 function trainingTasksForArea(area) {
   return (state.trainingTasks || [])
     .filter((task) => task.area === area && task.active !== false)
-    .sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de"));
+    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de"));
 }
 
 function isTrainingTaskCompleted(animalId, taskCode) {
@@ -3985,10 +4237,11 @@ function buildTrainingRowsForClass(classId) {
       tierName: animal.tierName,
       tierEmoji: animal.tierEmoji,
       trainingArea: task.area,
+      subcategory: task.subcategory || completion?.subcategory || defaultTrainingSubcategory(task.code),
       taskCode: task.code,
       subject: task.subject,
-      taskTitle: task.title,
-      taskText: task.text,
+      taskTitle: task.title || completion?.taskTitle || task.code,
+      taskText: task.text || completion?.taskText || "",
       completedAt: completion?.completedAt || "",
       status: completion?.status || "offen"
     };
@@ -4005,6 +4258,15 @@ function selectedAnimal() {
 
 function animalsForActiveClass() {
   return state.animals.filter((item) => item.classId === state.activeClassId);
+}
+
+function teacherAnimalLabel(animalLike) {
+  const animal = state.animals.find((item) => item.id === animalLike.id || item.id === animalLike.animalId || item.id === animalLike.tierID) || animalLike;
+  const base = `${escapeHtml(animal.tierEmoji || animal.tierEmojiSnapshot || "")} ${escapeHtml(animal.tierName || animal.tierNameSnapshot || "")}`.trim();
+  if (state.teacherShowFirstNames && animal.firstName) {
+    return `${base} <span class="private-name">· ${escapeHtml(animal.firstName)}</span>`;
+  }
+  return base;
 }
 
 function materialsForActiveClass() {
@@ -4326,6 +4588,8 @@ function statusBadge(status, finished) {
 }
 
 function entryAnimal(entry) {
+  const animal = state.animals.find((item) => item.id === entry.tierID || item.id === entry.animalId);
+  if (animal) return teacherAnimalLabel(animal);
   return `${escapeHtml(entry.tierEmojiSnapshot)} ${escapeHtml(entry.tierNameSnapshot)}`;
 }
 

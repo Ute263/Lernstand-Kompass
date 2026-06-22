@@ -43,6 +43,27 @@ function makeActiveClassBackup(state, classId) {
   };
 }
 
+function makeLernpostPackage(state, classId) {
+  const classItem = state.classes.find((item) => item.id === classId);
+  return {
+    app: "Lernstand-Kompass",
+    type: "lernpost",
+    version: APP_VERSION,
+    exportedAt: nowIso(),
+    classItem,
+    animals: state.animals
+      .filter((item) => item.classId === classId)
+      .map(({ firstName, ...animal }) => animal),
+    materials: state.materials.filter((item) => item.classId === classId),
+    entries: state.entries.filter((item) => item.classId === classId),
+    sprachweltTasks: state.sprachweltTasks || [],
+    trainingTasks: state.trainingTasks || [],
+    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
+    trainingHistory: [],
+    childSafe: true
+  };
+}
+
 function makeFullBackup(state) {
   return {
     app: "Lernstand-Kompass",
@@ -82,7 +103,7 @@ function exportToExcelCsv(entries, filename) {
     formatGermanDate(entry.datumUhrzeit),
     formatExcelTime(entry.datumUhrzeit),
     entry.klasseName || getClassNameForEntry(entry),
-    `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim(),
+    entry.tierLabel || `${entry.tierEmojiSnapshot || ""} ${entry.tierNameSnapshot || ""}`.trim(),
     entry.fach || "",
     entry.materialName || "",
     entryExportWork(entry),
@@ -187,7 +208,9 @@ function addStartSheet(workbook, report) {
 
   sheet.mergeCells("A29:H31");
   const note = sheet.getCell("A29");
-  note.value = "Diese Datei enthält keine Kindernamen. Die Lernstände werden über Tier-Pseudonyme dargestellt.";
+  note.value = report.includeFirstNames
+    ? "Interner Export: Diese Datei enthält optionale Vornamen aus der geschützten Tier-Zuordnung. Bitte geschützt ablegen."
+    : "Diese Datei enthält keine Kindernamen. Die Lernstände werden über Tier-Pseudonyme dargestellt.";
   note.fill = solidFill(XLSX_COLORS.cream);
   note.font = { bold: true, size: 12, color: { argb: XLSX_COLORS.text } };
   note.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
@@ -206,7 +229,7 @@ function addClassOverviewSheet(workbook, report) {
   addTitleBlock(sheet, "Klassenübersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, 6);
   const lastRow = addTable(sheet, 5, ["Tier", "Deutsch letzter Stand", "Mathe letzter Stand", "Letzte Aktivität", "Offener Status", "Hinweis"],
     report.overviewRows.map((row) => [
-      `${row.animal.tierEmoji} ${row.animal.tierName}`, row.deutsch, row.mathe, row.latestActivity, row.status, row.hint
+      row.animal.exportLabel || `${row.animal.tierEmoji} ${row.animal.tierName}`, row.deutsch, row.mathe, row.latestActivity, row.status, row.hint
     ]),
     { statusColumn: 5, hintColumn: 6, rowHeight: 30, animalColumn: 1 });
   finishWorksheetLayout(sheet, {
@@ -226,7 +249,7 @@ function addProgressSheet(workbook, report) {
     "Tier", "Fach", "Material", "erste Seite", "aktuelle Seite", "Fortschritt", "Gruppenschnitt", "Abstand",
     "letzte Aktivität", "Hinweis", "Balken"
   ], report.progressRows.map((row) => [
-    `${row.animal.tierEmoji} ${row.animal.tierName}`,
+    row.animal.exportLabel || `${row.animal.tierEmoji} ${row.animal.tierName}`,
     row.fach,
     row.material,
     row.firstEntry ? entryExportWork(row.firstEntry) : "kein Eintrag",
@@ -294,12 +317,13 @@ function addHelpSheet(workbook, report) {
 
 function addTrainingSheet(workbook, report) {
   const sheet = workbook.addWorksheet("Trainingszeit");
-  setupSheet(sheet, { orientation: "landscape", widths: [22, 18, 16, 16, 14, 42, 14, 10, 16] });
-  addTitleBlock(sheet, "Trainingszeit", `Export für: ${report.scopeLabel}`, report.generatedAt, 9);
-  const lastRow = addTable(sheet, 5, ["Tier", "Bereich", "Aufgaben-Code", "Fach", "Aufgabe", "Aufgabentext", "Datum", "Uhrzeit", "Status"],
+  setupSheet(sheet, { orientation: "landscape", widths: [24, 18, 20, 16, 16, 18, 42, 14, 10, 16] });
+  addTitleBlock(sheet, "Trainingszeit", `Export für: ${report.scopeLabel}`, report.generatedAt, 10);
+  const lastRow = addTable(sheet, 5, ["Tier", "Bereich", "Unterbereich", "Aufgaben-Code", "Fach", "Aufgabe", "Aufgabentext", "Datum", "Uhrzeit", "Status"],
     report.trainingRows.map((row) => [
-      `${row.tierEmoji} ${row.tierName}`,
+      row.tierLabel || `${row.tierEmoji} ${row.tierName}`,
       row.trainingArea,
+      row.subcategory || "",
       row.taskCode,
       row.subject,
       row.taskTitle || row.taskCode,
@@ -308,11 +332,11 @@ function addTrainingSheet(workbook, report) {
       row.completedAt ? formatExcelTime(row.completedAt) : "",
       row.status
     ]),
-    { statusColumn: 9, animalColumn: 1, rowHeight: 30 });
+    { statusColumn: 10, animalColumn: 1, rowHeight: 30 });
   finishWorksheetLayout(sheet, {
-    maxVisibleColumn: 9,
+    maxVisibleColumn: 10,
     maxVisibleRow: Math.max(lastRow + 2, 16),
-    printArea: `A1:I${Math.max(lastRow, 16)}`,
+    printArea: `A1:J${Math.max(lastRow, 16)}`,
     landscape: true,
     freezeRow: 5
   });
@@ -386,7 +410,7 @@ function addAssessmentResultsSheet(workbook, report) {
     const maxPoints = result.maxPunkteSnapshot || assessment.maxPunkte || "";
     return [
       getClassNameById(result.classId),
-      `${result.tierEmojiSnapshot || ""} ${result.tierNameSnapshot || ""}`.trim(),
+      result.tierLabel || `${result.tierEmojiSnapshot || ""} ${result.tierNameSnapshot || ""}`.trim(),
       assessment.fach || "",
       assessment.bereich || "",
       assessment.titel || "",
@@ -420,7 +444,7 @@ function addAssessmentMatrixSheet(workbook, report) {
   setupSheet(sheet, { orientation: "landscape", widths: [22, ...assessments.map(() => 20)] });
   addTitleBlock(sheet, "LZK Übersicht", `Export für: ${report.scopeLabel}`, report.generatedAt, Math.max(2, assessments.length + 1));
   const rows = report.animals.map((animal) => [
-    `${animal.tierEmoji} ${animal.tierName}`,
+    animal.exportLabel || `${animal.tierEmoji} ${animal.tierName}`,
     ...assessments.map((assessment) => formatAssessmentMatrixExportValue(assessment, report.assessmentResults.find((result) => result.assessmentId === assessment.id && result.animalId === animal.id)))
   ]);
   const headers = ["Tier", ...assessments.map((assessment) => `${assessment.titel}${assessment.datum ? ` ${formatGermanDate(assessment.datum)}` : ""}`)];
@@ -880,6 +904,24 @@ function stateFromBackup(backup) {
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
+  if (backup?.type === "lernpost" && backup.classItem) {
+    return normalizeState({
+      ...emptyState(),
+      setupComplete: true,
+      activeClassId: backup.classItem.id,
+      classes: [backup.classItem],
+      animals: backup.animals || [],
+      materials: backup.materials || [],
+      entries: backup.entries || [],
+      assessments: [],
+      assessmentTasks: [],
+      assessmentResults: [],
+      trainingTasks: backup.trainingTasks || [],
+      trainingCompletions: backup.trainingCompletions || [],
+      trainingHistory: backup.trainingHistory || [],
+      sprachweltTasks: backup.sprachweltTasks || []
+    });
+  }
   if (backup?.classes || backup?.entries) return normalizeState(backup);
   throw new Error("Diese Datei ist kein gültiges Lernstand-Kompass-Backup.");
 }
@@ -946,7 +988,13 @@ function mergeBackupData(currentState, importedBackup) {
   });
 
   imported.animals.forEach((item) => {
-    if (animalIds.has(item.id)) return;
+    if (animalIds.has(item.id)) {
+      const index = next.animals.findIndex((animal) => animal.id === item.id);
+      if (index >= 0 && !next.animals[index].firstName && item.firstName) {
+        next.animals[index] = { ...next.animals[index], firstName: item.firstName };
+      }
+      return;
+    }
     const animal = { ...item };
     if (!animal.qrToken) {
       animal.qrToken = makeQrToken(new Set(qrTokens.keys()));
