@@ -61,6 +61,26 @@ const DEFAULT_SPRACHWELT_TASKS = [
   { id: "D-12", titel: "Genau lesen", auftrag: "Lies 6 Aufträge ganz genau und führe sie aus. Male oder schreibe passend dazu." }
 ];
 
+const DEFAULT_TRAINING_TASKS = [
+  { id: "schule-placeholder", area: "Schule", subject: "Schule", code: "S-01", title: "Schule", text: "Hier kommen später Trainingsaufgaben für die Schule hinzu.", symbol: "🏫", active: false },
+  ...DEFAULT_SPRACHWELT_TASKS.map((task) => ({
+    id: `training-${task.id}`,
+    area: "OGS/Zuhause",
+    subject: "Deutsch",
+    code: task.id,
+    title: task.titel,
+    text: task.auftrag,
+    symbol: "📘",
+    active: true
+  })),
+  { id: "training-M-01", area: "OGS/Zuhause", subject: "Mathe", code: "M-01", title: "Zahlen sammeln", text: "Finde 10 Zahlen im Alltag und schreibe sie geordnet auf.", symbol: "🔢", active: true },
+  { id: "training-M-02", area: "OGS/Zuhause", subject: "Mathe", code: "M-02", title: "Plusforscher", text: "Rechne 10 Plusaufgaben bis 20 und kontrolliere mit Material oder Zeichnung.", symbol: "➕", active: true },
+  { id: "training-M-03", area: "OGS/Zuhause", subject: "Mathe", code: "M-03", title: "Minusforscher", text: "Rechne 10 Minusaufgaben bis 20 und markiere die Ergebnisse.", symbol: "➖", active: true },
+  { id: "training-M-04", area: "OGS/Zuhause", subject: "Mathe", code: "M-04", title: "Formen entdecken", text: "Suche 8 Formen in deiner Umgebung und zeichne sie.", symbol: "🔷", active: true },
+  { id: "training-M-05", area: "OGS/Zuhause", subject: "Mathe", code: "M-05", title: "Muster bauen", text: "Lege oder zeichne 3 Muster und setze sie fort.", symbol: "🧩", active: true },
+  { id: "training-M-06", area: "OGS/Zuhause", subject: "Mathe", code: "M-06", title: "Zerlegezahlen", text: "Zerlege 5 Zahlen auf verschiedene Arten.", symbol: "🟰", active: true }
+];
+
 function makeId() {
   if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -102,6 +122,8 @@ function emptyState() {
     assessments: [],
     assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
+    trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
+    trainingCompletions: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -163,6 +185,8 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     assessments: [],
     assessmentResults: [],
     sprachweltTasks: DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
+    trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
+    trainingCompletions: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -190,6 +214,10 @@ function normalizeState(candidate) {
     sprachweltTasks: Array.isArray(candidate.sprachweltTasks) && candidate.sprachweltTasks.length
       ? candidate.sprachweltTasks
       : DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true })),
+    trainingTasks: Array.isArray(candidate.trainingTasks) && candidate.trainingTasks.length
+      ? mergeDefaultTrainingTasks(candidate.trainingTasks)
+      : DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
+    trainingCompletions: Array.isArray(candidate.trainingCompletions) ? candidate.trainingCompletions : [],
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
@@ -208,6 +236,8 @@ function normalizeState(candidate) {
   state.assessments = state.assessments.map((item) => normalizeAssessment(item, state.activeClassId));
   state.assessmentResults = state.assessmentResults.map((item) => normalizeAssessmentResult(item, state.activeClassId));
   state.sprachweltTasks = state.sprachweltTasks.map((item) => ({ ...item, id: item.id || makeId(), aktiv: item.aktiv !== false }));
+  state.trainingTasks = state.trainingTasks.map((item) => normalizeTrainingTask(item));
+  state.trainingCompletions = state.trainingCompletions.map((item) => normalizeTrainingCompletion(item, state.activeClassId));
 
   const usedTokens = new Set();
   state.animals = state.animals.map((animal) => ({
@@ -220,6 +250,45 @@ function normalizeState(candidate) {
   }
   state.setupComplete = Boolean(state.setupComplete && state.activeClassId);
   return state;
+}
+
+function mergeDefaultTrainingTasks(tasks) {
+  const byCode = new Map(tasks.map((task) => [task.code || task.id, task]));
+  DEFAULT_TRAINING_TASKS.forEach((task) => {
+    if (!byCode.has(task.code || task.id)) byCode.set(task.code || task.id, task);
+  });
+  return [...byCode.values()];
+}
+
+function normalizeTrainingTask(item) {
+  return {
+    ...item,
+    id: item.id || `training-${item.code || makeId()}`,
+    area: item.area || item.trainingArea || "OGS/Zuhause",
+    subject: item.subject || item.fach || (String(item.code || "").startsWith("M-") ? "Mathe" : "Deutsch"),
+    code: item.code || item.taskCode || item.id || makeId(),
+    title: item.title || item.titel || item.code || "Trainingsaufgabe",
+    text: item.text || item.taskText || item.auftrag || "",
+    symbol: item.symbol || "⭐",
+    active: item.active !== false
+  };
+}
+
+function normalizeTrainingCompletion(item, fallbackClassId) {
+  return {
+    ...item,
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    animalId: item.animalId || item.tierID || "",
+    tierNameSnapshot: item.tierNameSnapshot || "",
+    tierEmojiSnapshot: item.tierEmojiSnapshot || "",
+    taskCode: item.taskCode || item.code || "",
+    trainingArea: item.trainingArea || item.area || "OGS/Zuhause",
+    subject: item.subject || item.fach || "",
+    taskText: item.taskText || item.text || "",
+    completedAt: item.completedAt || item.datumUhrzeit || nowIso(),
+    status: item.status || "bearbeitet"
+  };
 }
 
 function normalizeAssessment(item, fallbackClassId) {

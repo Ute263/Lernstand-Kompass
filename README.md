@@ -59,6 +59,10 @@ Im Lehrkraftbereich gibt es den Tab `Tests & Lernzielkontrollen` für Tests, Ler
 
 Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` erzeugt. Es wird kein CDN zur Laufzeit verwendet. Falls die `.xlsx`-Erzeugung in einem Browser nicht klappt, stehen einfache CSV-Exporte als Fallback bereit.
 
+## Trainingszeit
+
+Im Kinderbereich gibt es zusätzlich `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. In `OGS / Zuhause` können Kinder Entdeckeraufgaben einmalig anklicken. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. Im Lehrkraftbereich zeigt der Tab `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym.
+
 ## Fortschritt
 
 Im Lehrkraftbereich gibt es den Tab `Fortschritt`. Dort werden Arbeitsstände chronologisch und neutral ausgewertet: letzte Aktivität, Seitenfortschritt, Gruppenschnitt, Soll-Seiten und offene Hilfe-/Kontrollwünsche. Soll-Seiten und Fortschritts-Einstellungen werden unter `Tiere & Materialien` verwaltet.

@@ -35,6 +35,13 @@ let progressFilters = {
   sort: "animal",
   comparison: "both"
 };
+let trainingFilters = {
+  animalId: "",
+  subject: "",
+  area: "",
+  status: "bearbeitet",
+  date: ""
+};
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -309,6 +316,9 @@ function renderChildScreen() {
   if (screen === "childPage") return renderPageInput();
   if (screen === "childStatus") return renderStatusSelection();
   if (screen === "childConfirm") return renderConfirmation();
+  if (screen === "childTraining") return renderTrainingStart();
+  if (screen === "childTrainingArea") return renderTrainingArea();
+  if (screen === "childTrainingConfirm") return renderTrainingConfirmation();
   return "";
 }
 
@@ -377,6 +387,7 @@ function renderSubjectSelection() {
       <div class="subject-grid">
         <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
         <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
+        <button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>
       </div>
     </section>
   `;
@@ -386,6 +397,105 @@ function selectSubject(subject) {
   childDraft.fach = subject;
   screen = "childMaterial";
   render();
+}
+
+function openTrainingStart() {
+  childDraft.trainingArea = "";
+  screen = "childTraining";
+  render();
+}
+
+function renderTrainingStart() {
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childSubject")}
+      <h2 class="child-title">Trainingszeit</h2>
+      <div class="subject-grid training-area-grid">
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingArea('Schule')">
+          <span class="subject-icon">🏫</span>Schule
+        </button>
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingArea('OGS/Zuhause')">
+          <span class="subject-icon">🏡</span>OGS / Zuhause
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function selectTrainingArea(area) {
+  childDraft.trainingArea = area;
+  screen = "childTrainingArea";
+  render();
+}
+
+function renderTrainingArea() {
+  const area = childDraft.trainingArea || "OGS/Zuhause";
+  const animal = selectedAnimal();
+  const tasks = trainingTasksForArea(area);
+  if (area === "Schule") {
+    return `
+      <section class="step-wrap">
+        ${renderBackButton("childTraining")}
+        <h2 class="child-title">Trainingszeit Schule</h2>
+        <div class="empty">Hier kommen später Trainingsaufgaben für die Schule hinzu.</div>
+      </section>
+    `;
+  }
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childTraining")}
+      <h2 class="child-title">OGS / Zuhause</h2>
+      <div class="training-task-grid">
+        ${tasks.map((task) => {
+          const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
+          return `
+            <button class="training-task-card ${completed ? "completed" : ""}" type="button" ${completed ? "disabled" : `onclick="completeTrainingTask('${escapeAttribute(task.code)}')"`}>
+              <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
+              <strong>${escapeHtml(task.code)}</strong>
+              <span>${escapeHtml(task.text)}</span>
+              <em>${completed ? "schon erledigt" : "anklicken und erledigen"}</em>
+            </button>
+          `;
+        }).join("")}
+      </div>
+      ${tasks.length ? "" : `<div class="empty">Keine Entdeckeraufgaben vorhanden.</div>`}
+    </section>
+  `;
+}
+
+async function completeTrainingTask(taskCode) {
+  const animal = selectedAnimal();
+  const task = (state.trainingTasks || []).find((item) => item.code === taskCode && item.area === (childDraft.trainingArea || "OGS/Zuhause"));
+  if (!animal || !task || isTrainingTaskCompleted(animal.id, task.code)) return;
+  const completion = {
+    id: makeId(),
+    classId: state.activeClassId,
+    animalId: animal.id,
+    tierNameSnapshot: animal.tierName,
+    tierEmojiSnapshot: animal.tierEmoji,
+    taskCode: task.code,
+    trainingArea: task.area,
+    subject: task.subject,
+    taskText: task.text,
+    completedAt: nowIso(),
+    status: "bearbeitet"
+  };
+  await persist({ ...state, trainingCompletions: [...(state.trainingCompletions || []), completion] });
+  screen = "childTrainingConfirm";
+  render();
+}
+
+function renderTrainingConfirmation() {
+  return `
+    <section class="confirm-box">
+      <div class="confirm-icon">✅</div>
+      <h2 class="confirm-title">Trainingsaufgabe gespeichert.</h2>
+      <div class="confirm-actions">
+        <button class="primary" type="button" onclick="setChildScreen('childTrainingArea')">Weitere Aufgabe ansehen</button>
+        <button class="secondary" type="button" onclick="goHome()">Zur Startseite</button>
+      </div>
+    </section>
+  `;
 }
 
 function renderMaterialSelection() {
@@ -803,6 +913,7 @@ function renderTeacher() {
     ["overview", "Übersicht"],
     ["progress", "Fortschritt"],
     ["assessments", "Tests & Lernzielkontrollen"],
+    ["training", "Trainingszeit"],
     ["today", "Heute"],
     ["help", "Hilfe/Kontrolle"],
     ["history", "Verlauf"],
@@ -844,6 +955,7 @@ function renderTeacherTab() {
   if (teacherTab === "overview") return renderOverview();
   if (teacherTab === "progress") return renderProgress();
   if (teacherTab === "assessments") return renderAssessments();
+  if (teacherTab === "training") return renderTrainingOverview();
   if (teacherTab === "today") return renderToday();
   if (teacherTab === "help") return renderHelp();
   if (teacherTab === "history") return renderHistory();
@@ -1045,6 +1157,86 @@ function renderAssessments() {
       `).join("") : `<div class="empty">Noch keine Lernzielkontrolle oder kein Test angelegt.</div>`}
     </section>
   `;
+}
+
+function renderTrainingOverview() {
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const tasks = (state.trainingTasks || []).filter((task) => task.active !== false && task.area !== "Schule");
+  const rows = buildTrainingRowsForClass(state.activeClassId)
+    .filter((row) => !trainingFilters.animalId || row.animalId === trainingFilters.animalId)
+    .filter((row) => !trainingFilters.subject || row.subject === trainingFilters.subject)
+    .filter((row) => !trainingFilters.area || row.trainingArea === trainingFilters.area)
+    .filter((row) => !trainingFilters.status || row.status === trainingFilters.status)
+    .filter((row) => !trainingFilters.date || (row.completedAt && formatFileDate(new Date(row.completedAt)) === trainingFilters.date))
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === "bearbeitet" ? -1 : 1;
+      if (a.completedAt && b.completedAt) return new Date(b.completedAt) - new Date(a.completedAt);
+      return a.tierName.localeCompare(b.tierName, "de") || a.taskCode.localeCompare(b.taskCode, "de");
+    });
+  return `
+    <section class="panel">
+      <h2>Trainingszeit – Übersicht</h2>
+      <p class="message">Hier sieht die Lehrkraft, welche Entdeckeraufgaben bereits bearbeitet wurden. Es werden nur Tier-Pseudonyme angezeigt.</p>
+      <form class="filters" onsubmit="event.preventDefault();">
+        <label class="field">Tier
+          <select class="select-input" onchange="setTrainingFilter('animalId', this.value)">
+            <option value="">alle Tiere</option>
+            ${animals.map((animal) => `<option value="${animal.id}" ${trainingFilters.animalId === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Fach
+          <select class="select-input" onchange="setTrainingFilter('subject', this.value)">
+            <option value="">alle Fächer</option>
+            ${["Deutsch", "Mathe"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Bereich
+          <select class="select-input" onchange="setTrainingFilter('area', this.value)">
+            <option value="">alle Bereiche</option>
+            ${["Schule", "OGS/Zuhause"].map((area) => `<option value="${area}" ${trainingFilters.area === area ? "selected" : ""}>${area}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Status
+          <select class="select-input" onchange="setTrainingFilter('status', this.value)">
+            ${["bearbeitet", "offen", ""].map((status) => `<option value="${status}" ${trainingFilters.status === status ? "selected" : ""}>${status || "alle"}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Datum
+          <input class="text-input" type="date" value="${escapeAttribute(trainingFilters.date)}" onchange="setTrainingFilter('date', this.value)">
+        </label>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Entdeckeraufgaben</h2>
+      <p class="message">${rows.filter((row) => row.status === "bearbeitet").length} bearbeitet · ${rows.filter((row) => row.status === "offen").length} offen · ${tasks.length} Aufgaben</p>
+      <div class="table-scroll">
+        <table class="training-overview-table">
+          <thead>
+            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr class="${row.status === "offen" ? "muted-row" : ""}">
+                <td><strong>${escapeHtml(row.tierEmoji)} ${escapeHtml(row.tierName)}</strong></td>
+                <td>${escapeHtml(row.trainingArea)}</td>
+                <td>${escapeHtml(row.taskCode)}</td>
+                <td>${escapeHtml(row.subject)}</td>
+                <td>${escapeHtml(row.taskText)}</td>
+                <td>${row.completedAt ? formatGermanDate(row.completedAt) : "–"}</td>
+                <td>${row.completedAt ? formatTime(row.completedAt) : "–"}</td>
+                <td>${row.status === "bearbeitet" ? `<span class="badge done">bearbeitet</span>` : `<span class="badge stale">offen</span>`}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="8">Keine passenden Trainingsaufgaben gefunden.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function setTrainingFilter(field, value) {
+  trainingFilters = { ...trainingFilters, [field]: value };
+  render();
 }
 
 function renderAssessmentForm() {
@@ -1430,7 +1622,8 @@ async function deleteClassItem(classId) {
     entries: state.entries.filter((item) => item.classId !== classId),
     goals: state.goals.filter((item) => item.classId !== classId),
     assessments: (state.assessments || []).filter((item) => item.classId !== classId),
-    assessmentResults: (state.assessmentResults || []).filter((item) => item.classId !== classId)
+    assessmentResults: (state.assessmentResults || []).filter((item) => item.classId !== classId),
+    trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId !== classId)
   });
 }
 
@@ -1909,9 +2102,12 @@ function renderMergeReport() {
         <div>neu ergänzte Arbeitsstand-Einträge</div><strong>${lastMergeReport.addedEntries}</strong>
         <div>neu ergänzte Lernzielkontrollen</div><strong>${lastMergeReport.addedAssessments || 0}</strong>
         <div>neu ergänzte Testergebnisse</div><strong>${lastMergeReport.addedAssessmentResults || 0}</strong>
+        <div>neu ergänzte Trainingsaufgaben</div><strong>${lastMergeReport.addedTrainingTasks || 0}</strong>
+        <div>neu ergänzte Trainings-Bearbeitungen</div><strong>${lastMergeReport.addedTrainingCompletions || 0}</strong>
         <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
         <div>übersprungene doppelte Lernzielkontrollen</div><strong>${lastMergeReport.skippedDuplicateAssessments || 0}</strong>
         <div>übersprungene doppelte Testergebnisse</div><strong>${lastMergeReport.skippedDuplicateAssessmentResults || 0}</strong>
+        <div>übersprungene doppelte Trainings-Bearbeitungen</div><strong>${lastMergeReport.skippedDuplicateTrainingCompletions || 0}</strong>
         <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
         <div>Zeitpunkt</div><strong>${formatDateTime(lastMergeReport.mergedAt)}</strong>
       </div>
@@ -2136,6 +2332,7 @@ function renderPrintPdf() {
         <button class="primary" type="button" onclick="renderPrintView('week')">Wochenübersicht drucken</button>
         <button class="secondary" type="button" onclick="renderPrintView('helpControl')">Hilfe & Kontrolle drucken</button>
         <button class="secondary" type="button" onclick="renderPrintView('progress')">Fortschritt drucken</button>
+        <button class="secondary" type="button" onclick="renderPrintView('training')">Trainingszeit drucken</button>
         <button class="primary" type="button" onclick="renderPrintView('report')">Gesamtbericht drucken</button>
       </div>
       <p class="message">Die Druckansicht liest nur die lokal gespeicherten Daten und verändert keine Arbeitsstände.</p>
@@ -2168,6 +2365,7 @@ function renderPrintScreen() {
     week: "Arbeitsheft-Kompass – Wochenübersicht",
     helpControl: "Offene Hilfe und Kontrolle",
     progress: "Fortschritt und Arbeitstempo",
+    training: "Trainingszeit",
     report: "Arbeitsheft-Kompass – Gesamtbericht",
     assessmentSummary: "Tests & Lernzielkontrollen – Gesamtübersicht"
   };
@@ -2175,7 +2373,7 @@ function renderPrintScreen() {
   const assessmentId = type.startsWith("assessment:") ? type.split(":")[1] : "";
   const assessment = assessmentId ? (state.assessments || []).find((item) => item.id === assessmentId) : null;
   return `
-    <style>${printViewCss(type.startsWith("assessment") || type === "assessmentSummary")}</style>
+    <style>${printViewCss(type.startsWith("assessment") || type === "assessmentSummary" || type === "training")}</style>
     <div class="print-toolbar" aria-label="Druckwerkzeuge">
       <strong>${escapeHtml(assessment ? assessment.titel : titles[type] || "Druckansicht")}</strong>
       <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
@@ -2187,6 +2385,7 @@ function renderPrintScreen() {
       ${type === "week" ? renderPrintWeek(context, className, generatedAt) : ""}
       ${type === "helpControl" ? renderPrintHelpControl(context, className, generatedAt) : ""}
       ${type === "progress" ? renderPrintProgress(context, className, generatedAt) : ""}
+      ${type === "training" ? renderPrintTraining(context, className, generatedAt) : ""}
       ${type === "report" ? renderPrintReport(context, className, generatedAt) : ""}
       ${assessment ? renderPrintAssessment(assessment, className, generatedAt) : ""}
       ${type === "assessmentSummary" ? renderPrintAssessmentSummary(className, generatedAt) : ""}
@@ -2226,6 +2425,7 @@ function buildPrintContext(classItem, generatedAt) {
     period: "week"
   }), "animal");
   const overviewRows = buildBeautifulOverviewRows(animals, entries);
+  const trainingRows = buildTrainingRowsForClass(classId).filter((row) => row.status === "bearbeitet");
   return {
     classId,
     animals,
@@ -2235,7 +2435,8 @@ function buildPrintContext(classItem, generatedAt) {
     openEntries,
     staleAnimals,
     progressRows,
-    overviewRows
+    overviewRows,
+    trainingRows
   };
 }
 
@@ -2284,6 +2485,36 @@ function renderPrintProgress(context, className, generatedAt) {
     ${printHero("Fortschritt und Arbeitstempo", `Klasse: ${className} · Zeitraum: diese Woche · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
     <section class="print-section">
       ${renderPrintProgressTable(context.progressRows)}
+    </section>
+  `;
+}
+
+function renderPrintTraining(context, className, generatedAt) {
+  const rows = context.trainingRows.sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
+  return `
+    ${printHero("Trainingszeit", `Klasse: ${className} · erstellt am ${formatGermanDate(generatedAt)} um ${formatTime(generatedAt)} Uhr`)}
+    <section class="print-section">
+      ${rows.length ? `
+        <table class="planner-table training-print-table">
+          <thead>
+            <tr><th>Tier</th><th>Bereich</th><th>Aufgaben-Code</th><th>Fach</th><th>Aufgabentext</th><th>Datum</th><th>Uhrzeit</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td class="print-animal">${escapeHtml(row.tierEmoji)} ${escapeHtml(row.tierName)}</td>
+                <td>${escapeHtml(row.trainingArea)}</td>
+                <td>${escapeHtml(row.taskCode)}</td>
+                <td>${escapeHtml(row.subject)}</td>
+                <td>${escapeHtml(row.taskText)}</td>
+                <td>${row.completedAt ? formatGermanDate(row.completedAt) : "–"}</td>
+                <td>${row.completedAt ? formatTime(row.completedAt) : "–"}</td>
+                <td>${printStatusPill("bearbeitet")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : printEmpty("Noch keine Trainingsaufgaben bearbeitet.")}
     </section>
   `;
 }
@@ -2539,7 +2770,7 @@ function printEmpty(text) {
 
 function printStatusPill(status) {
   const safeStatus = status && status !== "–" ? status : "fertig";
-  const className = safeStatus === "brauche Hilfe" ? "help" : safeStatus === "bitte kontrollieren" ? "check" : "done";
+  const className = safeStatus === "brauche Hilfe" ? "help" : safeStatus === "bitte kontrollieren" ? "check" : safeStatus === "offen" ? "stale" : "done";
   return `<span class="print-pill ${className}">${escapeHtml(status || "–")}</span>`;
 }
 
@@ -3000,6 +3231,8 @@ function renderStorageStatus() {
         <div>Anzahl Arbeitsstände</div><strong>${state.entries.length}</strong>
         <div>Anzahl Lernzielkontrollen</div><strong>${(state.assessments || []).length}</strong>
         <div>Anzahl gespeicherter Testergebnisse</div><strong>${(state.assessmentResults || []).length}</strong>
+        <div>Anzahl Trainingsaufgaben</div><strong>${(state.trainingTasks || []).length}</strong>
+        <div>Anzahl bearbeiteter Trainingsaufgaben</div><strong>${(state.trainingCompletions || []).length}</strong>
         <div>letzte Änderung Tests & Lernzielkontrollen</div><strong>${latestAssessmentChange ? formatDateTime(latestAssessmentChange) : "noch keine"}</strong>
         <div>assessments vorhanden</div><strong>${(state.assessments || []).length ? "ja" : "nein"}</strong>
         <div>assessmentResults vorhanden</div><strong>${(state.assessmentResults || []).length ? "ja" : "nein"}</strong>
@@ -3098,6 +3331,9 @@ function buildBeautifulExcelReport(mode) {
   const assessments = (state.assessments || []).filter((item) => classIds.includes(item.classId));
   const assessmentIds = new Set(assessments.map((item) => item.id));
   const assessmentResults = (state.assessmentResults || []).filter((item) => classIds.includes(item.classId) && assessmentIds.has(item.assessmentId));
+  const trainingRows = classIds.flatMap((classId) => buildTrainingRowsForClass(classId))
+    .filter((row) => row.status === "bearbeitet")
+    .sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   return {
     filename,
     scopeLabel,
@@ -3116,7 +3352,8 @@ function buildBeautifulExcelReport(mode) {
     printRows,
     assessments,
     assessmentResults,
-    stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now, assessments, assessmentResults })
+    trainingRows,
+    stats: buildDashboardStats({ entries: reportEntries, baseEntries, animals, materials, classIds, now, assessments, assessmentResults, trainingRows })
   };
 }
 
@@ -3128,7 +3365,7 @@ function decorateEntries(entries) {
   }));
 }
 
-function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now, assessments = [], assessmentResults = [] }) {
+function buildDashboardStats({ entries, baseEntries, animals, materials, classIds, now, assessments = [], assessmentResults = [], trainingRows = [] }) {
   const today = now.toDateString();
   const metricEntries = entries;
   const latest = [...metricEntries].sort(sortNewest)[0] || null;
@@ -3160,7 +3397,8 @@ function buildDashboardStats({ entries, baseEntries, animals, materials, classId
     lookCount: progressRows.filter((row) => row.hints.some((hint) => hint === "Unterstützung prüfen" || hint === "braucht Blick") || row.groupLabel === "braucht Blick" || row.groupLabel === "deutlicher Abstand").length,
     exportedEntryCount: entries.length,
     assessmentCount: assessments.length,
-    assessmentResultCount: assessmentResults.length
+    assessmentResultCount: assessmentResults.length,
+    trainingCompletedCount: trainingRows.length
   };
 }
 
@@ -3453,6 +3691,43 @@ function latestAssessmentUpdatedAt() {
     ...(state.assessmentResults || []).map((item) => item.updatedAt || item.createdAt)
   ].filter(Boolean).sort((a, b) => new Date(b) - new Date(a));
   return dates[0] || "";
+}
+
+function trainingTasksForArea(area) {
+  return (state.trainingTasks || [])
+    .filter((task) => task.area === area && task.active !== false)
+    .sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de"));
+}
+
+function isTrainingTaskCompleted(animalId, taskCode) {
+  return (state.trainingCompletions || []).some((item) => (
+    item.classId === state.activeClassId
+    && item.animalId === animalId
+    && item.taskCode === taskCode
+    && item.status === "bearbeitet"
+  ));
+}
+
+function buildTrainingRowsForClass(classId) {
+  const animals = state.animals.filter((animal) => animal.classId === classId && animal.aktiv);
+  const tasks = (state.trainingTasks || []).filter((task) => task.active !== false);
+  const completions = state.trainingCompletions || [];
+  return animals.flatMap((animal) => tasks.map((task) => {
+    const completion = completions.find((item) => item.classId === classId && item.animalId === animal.id && item.taskCode === task.code);
+    return {
+      classId,
+      animalId: animal.id,
+      tierName: animal.tierName,
+      tierEmoji: animal.tierEmoji,
+      trainingArea: task.area,
+      taskCode: task.code,
+      subject: task.subject,
+      taskTitle: task.title,
+      taskText: task.text,
+      completedAt: completion?.completedAt || "",
+      status: completion?.status || "offen"
+    };
+  }));
 }
 
 function activeClass() {

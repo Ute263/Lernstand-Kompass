@@ -305,6 +305,64 @@ button:disabled {
   font-weight: 900;
 }
 
+.training-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.training-task-card {
+  display: grid;
+  gap: 10px;
+  min-height: 190px;
+  align-content: start;
+  padding: 18px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 12px 28px rgba(40, 74, 105, 0.1);
+  text-align: left;
+}
+
+.training-task-card strong {
+  font-size: 1.45rem;
+  color: var(--brand-dark);
+}
+
+.training-task-card em {
+  color: var(--green);
+  font-style: normal;
+  font-weight: 850;
+}
+
+.training-task-card.completed {
+  opacity: 0.48;
+  filter: grayscale(0.35);
+  box-shadow: none;
+}
+
+.training-task-card.completed em {
+  color: var(--muted);
+}
+
+.training-task-symbol {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.training-subject-button,
+.training-area-button {
+  background: #fffaf0;
+}
+
+.training-overview-table {
+  min-width: 1100px;
+}
+
+.muted-row {
+  opacity: 0.72;
+}
+
 .page-form,
 .status-list,
 .confirm-box,
