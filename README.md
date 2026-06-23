@@ -65,6 +65,14 @@ Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` er
 
 In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. `OGS / Zuhause` ist in `Deutsch-Entdecker`, `Mathe-Entdecker` und `Forscher` gegliedert. Hinterlegt sind D-01 bis D-15, M-01 bis M-09 und F-01 bis F-20 mit kindgerechter Anleitung für das Lerntagebuch. Erst der Button `Aufgabe starten` speichert die Aufgabe als bearbeitet. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. In der `Lernstand-Übersicht` zeigt `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym. Die Lehrkraft kann versehentliche Auswahlen zurücksetzen; die Änderung wird historisch gespeichert.
 
+## Deutsch-Notizen
+
+Im Kinderbereich führt `Deutsch` bei freien Zusatz-/Notizmaterialien nicht mehr zu Aufgaben-Kärtchen. Stattdessen erscheint ein schlichtes Schreibfeld `Meine Notizen`, in dem Kinder Wörter, Sätze, Notizen oder Ideen festhalten können.
+
+## Lehrkraftnavigation
+
+Die `Lernstand-Übersicht` ist in wenige Hauptbereiche gegliedert: `Kinder und Lernstände`, `Trainingszeit und Aufgaben`, `Lernzielkontrollen`, `Materialien und Druck`, `Geräte und Synchronisation` und `Einstellungen`. Die bisherigen Detailansichten bleiben als Unterpunkte in diesen Bereichen erreichbar.
+
 ## Lernpost
 
 Im Kinderbereich gibt es einen unaufdringlichen Button `Lernpost`. Damit wird eine kleine Datei für AirDrop oder `In Dateien sichern` erstellt. Sie enthält nur kindgerechte Lernereignisse wie Seitenstände und bearbeitete Trainingsaufgaben. Vornamen, Noten, Lernzielkontrollen und Lehrkraftdaten werden nicht in die Lernpost geschrieben. Auf dem Lehrkraftgerät kann die Datei über `Lernpost zusammenführen` ergänzt werden; vorhandene Daten bleiben erhalten.

@@ -34,7 +34,7 @@ const DEFAULT_MATERIALS = [
   ["Deutsch", "Arbeitsheft Rot"],
   ["Deutsch", "Schreibheft"],
   ["Deutsch", "Lesebuch"],
-  ["Deutsch", "Zusatzaufgabe"],
+  ["Deutsch", "Meine Notizen"],
   ["Mathe", "Arbeitsheft"],
   ["Mathe", "Buch"],
   ["Mathe", "Rechenheft"],
@@ -69,7 +69,7 @@ const DEFAULT_SPRACHWELT_TASKS = [
 ];
 
 const DEFAULT_DEUTSCH_ENTDECKER_TASKS = [
-  trainingTask("D-01", "Deutsch", "Deutsch-Entdecker", "Wörter im Raum finden", "Suche 12 Wörter im Raum und schreibe sie in dein Lerntagebuch.", ["Schau dich langsam im Raum um.", "Suche Dinge, die du benennen kannst.", "Schreibe 12 Wörter sauber in dein Lerntagebuch.", "Kontrolliere, ob du wirklich 12 Wörter gefunden hast."], ["Achte auf Gegenstände, Möbel, Materialien und Dinge an der Wand."]),
+  trainingTask("D-01", "Deutsch", "Deutsch-Entdecker", "Wörter im Raum finden", "Suche 12 Wörter im Raum und schreibe sie auf.", ["Schau dich langsam im Raum um.", "Suche Dinge, die du benennen kannst.", "Schreibe 12 Wörter sauber in dein Lerntagebuch.", "Kontrolliere, ob du wirklich 12 Wörter gefunden hast."], ["Achte auf Gegenstände, Möbel, Materialien und Dinge an der Wand."]),
   trainingTask("D-02", "Deutsch", "Deutsch-Entdecker", "Silbenbögen zeichnen", "Wähle 8 Wörter und zeichne Silbenbögen dazu.", ["Wähle 8 Wörter aus deinem Raum.", "Sprich jedes Wort langsam in Silben.", "Schreibe die Wörter in dein Lerntagebuch.", "Zeichne unter jedes Wort passende Silbenbögen."], ["Klatsche leise mit, wenn dir das Zerlegen schwerfällt."]),
   trainingTask("D-03", "Deutsch", "Deutsch-Entdecker", "Nomen und Artikel", "Suche 10 Nomen im Raum und schreibe den Artikel dazu.", ["Suche Dinge, die du anfassen oder sehen kannst.", "Schreibe jedes Nomen groß in dein Lerntagebuch.", "Setze der, die oder das davor.", "Kontrolliere, ob alle Nomen großgeschrieben sind."], ["Probiere den Artikel laut aus: der Tisch, die Tür, das Buch."]),
   trainingTask("D-04", "Deutsch", "Deutsch-Entdecker", "Sätze zum Raum", "Schreibe 5 Sätze über Dinge, die du gerade siehst.", ["Wähle 5 Dinge im Raum aus.", "Schreibe zu jedem Ding einen ganzen Satz.", "Achte auf den großen Satzanfang.", "Setze am Ende jedes Satzes einen Punkt."], ["Ein Satz sagt immer etwas vollständig aus."]),
@@ -99,7 +99,7 @@ const DEFAULT_MATHE_ENTDECKER_TASKS = [
 ];
 
 const DEFAULT_FORSCHER_TASKS = [
-  researcherTask("F-01", "Dinge genau betrachten", "Was kann ich entdecken, wenn ich ganz genau hinschaue?", "Wähle einen Gegenstand im Raum. Zeichne ihn genau. Schreibe 5 Dinge in dein Lerntagebuch, die du bemerkst.", ["Suche dir einen Gegenstand im Raum aus.", "Betrachte ihn ganz genau.", "Zeichne ihn in dein Lerntagebuch.", "Schreibe 5 Dinge auf, die dir auffallen.", "Kontrolliere, ob du alles gut erkennen kannst."], ["Achte auf Form, Farbe, Größe und besondere Merkmale."]),
+  researcherTask("F-01", "Dinge genau betrachten", "Was kann ich entdecken, wenn ich ganz genau hinschaue?", "Wähle einen Gegenstand im Raum. Zeichne ihn genau. Schreibe 5 Dinge auf, die du bemerkst.", ["Suche dir einen Gegenstand im Raum aus.", "Betrachte ihn ganz genau.", "Zeichne ihn in dein Lerntagebuch.", "Schreibe 5 Dinge auf, die dir auffallen.", "Kontrolliere, ob du alles gut erkennen kannst."], ["Achte auf Form, Farbe, Größe und besondere Merkmale."]),
   researcherTask("F-02", "Materialforscher", "Woraus bestehen Dinge?", "Suche 8 Gegenstände. Ordne sie nach Material: Holz, Plastik, Metall, Papier, Stoff, Glas.", ["Suche 8 Gegenstände im Raum.", "Schreibe die Materialien als Überschriften in dein Lerntagebuch.", "Ordne jeden Gegenstand einem Material zu.", "Ergänze, wenn ein Gegenstand aus mehreren Materialien besteht."], ["Fühle vorsichtig und schau genau hin."]),
   researcherTask("F-03", "Schwimmt oder sinkt?", "Welche Dinge schwimmen?", "Vermute zuerst. Teste dann mit kleinen Gegenständen. Schreibe auf: schwimmt / sinkt.", ["Wähle kleine Gegenstände aus.", "Schreibe zuerst deine Vermutung in dein Lerntagebuch.", "Teste die Gegenstände vorsichtig im Wasser.", "Notiere dein Ergebnis: schwimmt oder sinkt."], ["Lege nasse Dinge danach wieder ordentlich ab."], ["Lerntagebuch", "Stift", "Schüssel mit Wasser", "kleine Gegenstände"]),
   researcherTask("F-04", "Magnetforscher", "Was ist magnetisch?", "Teste verschiedene Gegenstände mit einem Magneten. Erstelle eine Tabelle: magnetisch / nicht magnetisch.", ["Sammle verschiedene Gegenstände.", "Zeichne eine Tabelle in dein Lerntagebuch.", "Teste jeden Gegenstand mit einem Magneten.", "Trage ein, ob er magnetisch ist oder nicht."], ["Metall ist nicht immer magnetisch. Teste genau."], ["Lerntagebuch", "Stift", "Magnet", "verschiedene Gegenstände"]),

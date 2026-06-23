@@ -36,6 +36,59 @@ let progressFilters = {
   sort: "animal",
   comparison: "both"
 };
+
+const TEACHER_GROUPS = [
+  {
+    id: "learning",
+    label: "Kinder und Lernstände",
+    sections: [
+      ["overview", "Tierübersicht"],
+      ["progress", "Fortschritt"],
+      ["today", "Heute"],
+      ["help", "Hilfe/Kontrolle"],
+      ["history", "Verlauf"],
+      ["classes", "Klassen & Gruppen"],
+      ["animalMapping", "Tier-Zuordnung"]
+    ]
+  },
+  {
+    id: "trainingGroup",
+    label: "Trainingszeit und Aufgaben",
+    sections: [["training", "Trainingszeit"]]
+  },
+  {
+    id: "assessmentGroup",
+    label: "Lernzielkontrollen",
+    sections: [["assessments", "Lernzielkontrollen"]]
+  },
+  {
+    id: "materialsGroup",
+    label: "Materialien und Druck",
+    sections: [
+      ["resources", "Tiere & Materialien"],
+      ["materialPrint", "Material drucken"],
+      ["printPdf", "Druckvorschau"]
+    ]
+  },
+  {
+    id: "syncGroup",
+    label: "Geräte und Synchronisation",
+    sections: [
+      ["qrCards", "Tier-QR"],
+      ["excelExport", "Import / Export"],
+      ["backup", "Backup / Wiederherstellung"]
+    ]
+  },
+  {
+    id: "settingsGroup",
+    label: "Einstellungen",
+    sections: [
+      ["security", "PIN & Sicherheit"],
+      ["storageStatus", "Speicherstatus"],
+      ["privacy", "Datenschutz & Zweck"]
+    ]
+  }
+];
 let trainingFilters = {
   animalId: "",
   subject: "",
@@ -493,7 +546,7 @@ function renderTrainingArea() {
             <button class="training-task-card ${completed ? "completed" : ""}" type="button" ${completed ? "disabled" : `onclick="openTrainingTaskModal('${escapeAttribute(task.code)}')"`}>
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
               <strong>${escapeHtml(task.code)}</strong>
-              <span>${escapeHtml(task.title || task.text)}</span>
+              <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
               <small>${escapeHtml(task.subject)} · ${escapeHtml(task.subcategory || "")}</small>
               <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
             </button>
@@ -609,17 +662,22 @@ function renderMaterialSelection() {
       <h2 class="child-title">Was hast du bearbeitet?</h2>
       <div class="material-grid">
         ${materials.map((material) => `
-          <button class="material-button" type="button" onclick="selectMaterial('${material.id}')">${escapeHtml(material.materialName)}</button>
+          <button class="material-button" type="button" onclick="selectMaterial('${material.id}')">${escapeHtml(childMaterialLabel(material))}</button>
         `).join("")}
       </div>
     </section>
   `;
 }
 
+function childMaterialLabel(material) {
+  if (material.fach === "Deutsch" && isExtraMaterialName(material.materialName)) return "Meine Notizen";
+  return material.materialName;
+}
+
 function selectMaterial(materialId) {
   const material = state.materials.find((item) => item.id === materialId && item.classId === state.activeClassId);
   if (!material) return;
-  childDraft.materialName = material.materialName;
+  childDraft.materialName = childMaterialLabel(material);
   childDraft.seite = null;
   childDraft.zusatzText = "";
   childDraft.sprachweltTaskId = "";
@@ -628,7 +686,6 @@ function selectMaterial(materialId) {
 }
 
 function renderPageInput() {
-  if (isSprachweltExtra()) return renderSprachweltTaskSelection();
   if (isExtraMaterialName(childDraft.materialName)) return renderExtraTextInput();
   return `
     <section class="step-wrap">
@@ -647,32 +704,12 @@ function renderExtraTextInput() {
   return `
     <section class="step-wrap">
       ${renderBackButton("childMaterial")}
-      <h2 class="child-title">Was hast du gemacht?</h2>
+      <h2 class="child-title">Meine Notizen</h2>
       <form class="page-form" onsubmit="saveExtraText(event)">
-        <textarea class="page-input free-text-input" id="extraTextInput" rows="3" aria-label="Zusatzaufgabe" placeholder="Schreibe kurz deine Aufgabe auf." autocomplete="off"></textarea>
+        <textarea class="page-input free-text-input" id="extraTextInput" rows="4" aria-label="Meine Notizen" placeholder="Schreibe Wörter, Sätze, Notizen oder Ideen auf." autocomplete="off"></textarea>
         <button class="primary" type="submit">Weiter</button>
         <p class="message error" id="pageMessage"></p>
       </form>
-    </section>
-  `;
-}
-
-function renderSprachweltTaskSelection() {
-  const tasks = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS).filter((task) => task.aktiv !== false);
-  return `
-    <section class="step-wrap">
-      ${renderBackButton("childMaterial")}
-      <h2 class="child-title">Welche Sprachwelt-Aufgabe?</h2>
-      <div class="sprachwelt-task-grid">
-        ${tasks.map((task) => `
-          <button class="sprachwelt-task-card" type="button" onclick="selectSprachweltTask('${escapeAttribute(task.id)}')">
-            <span class="task-check">✏️</span>
-            <strong>${escapeHtml(task.id)} ${escapeHtml(task.titel)}</strong>
-            <span>${escapeHtml(task.auftrag)}</span>
-          </button>
-        `).join("")}
-      </div>
-      ${tasks.length ? "" : `<div class="empty">Keine Sprachwelt-Aufgaben aktiv.</div>`}
     </section>
   `;
 }
@@ -698,16 +735,6 @@ function saveExtraText(event) {
   }
   childDraft.seite = 0;
   childDraft.zusatzText = text;
-  screen = "childStatus";
-  render();
-}
-
-function selectSprachweltTask(taskId) {
-  const task = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS).find((item) => item.id === taskId);
-  if (!task) return;
-  childDraft.seite = 0;
-  childDraft.sprachweltTaskId = task.id;
-  childDraft.zusatzText = `${task.id} ${task.titel}`;
   screen = "childStatus";
   render();
 }
@@ -1061,32 +1088,13 @@ async function resetWholeAppFromLogin() {
 }
 
 function renderTeacher() {
-  const tabs = [
-    ["overview", "Übersicht Tiere"],
-    ["progress", "Fortschritt"],
-    ["assessments", "Lernzielkontrollen"],
-    ["training", "Trainingszeit"],
-    ["today", "Heute"],
-    ["help", "Hilfe/Kontrolle"],
-    ["history", "Verlauf"],
-    ["classes", "Klassen & Gruppen"],
-    ["resources", "Tiere & Materialien"],
-    ["materialPrint", "Material drucken"],
-    ["animalMapping", "Tier-Zuordnung"],
-    ["qrCards", "Tier-QR"],
-    ["security", "PIN & Sicherheit"],
-    ["storageStatus", "Speicherstatus"],
-    ["excelExport", "Exporte"],
-    ["printPdf", "Druckansicht / PDF"],
-    ["backup", "Backup / Wiederherstellung"],
-    ["privacy", "Datenschutz & Zweck"]
-  ];
+  const activeGroup = teacherGroupForTab(teacherTab);
 
   return `
     <section class="teacher-layout">
       <nav class="tabs" aria-label="${TEACHER_AREA_NAME}">
-        ${tabs.map(([id, label]) => `
-          <button class="tab-button ${teacherTab === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${label}</button>
+        ${TEACHER_GROUPS.map((group) => `
+          <button class="tab-button ${activeGroup.id === group.id ? "active" : ""}" type="button" onclick="setTeacherGroup('${group.id}')">${escapeHtml(group.label)}</button>
         `).join("")}
       </nav>
       <div>
@@ -1098,6 +1106,15 @@ function renderTeacher() {
   `;
 }
 
+function teacherGroupForTab(tab) {
+  return TEACHER_GROUPS.find((group) => group.sections.some(([id]) => id === tab)) || TEACHER_GROUPS[0];
+}
+
+function setTeacherGroup(groupId) {
+  const group = TEACHER_GROUPS.find((item) => item.id === groupId) || TEACHER_GROUPS[0];
+  setTeacherTab(group.sections[0][0]);
+}
+
 function setTeacherTab(tab) {
   stopQrScanner();
   teacherTab = tab;
@@ -1106,24 +1123,40 @@ function setTeacherTab(tab) {
 }
 
 function renderTeacherTab() {
-  if (teacherTab === "overview") return renderOverview();
-  if (teacherTab === "progress") return renderProgress();
-  if (teacherTab === "assessments") return renderAssessments();
-  if (teacherTab === "training") return renderTrainingOverview();
-  if (teacherTab === "today") return renderToday();
-  if (teacherTab === "help") return renderHelp();
-  if (teacherTab === "history") return renderHistory();
-  if (teacherTab === "classes") return renderClasses();
-  if (teacherTab === "resources") return renderResources();
-  if (teacherTab === "materialPrint") return renderMaterialPrint();
-  if (teacherTab === "animalMapping") return renderAnimalMapping();
-  if (teacherTab === "qrCards") return renderQrCards();
-  if (teacherTab === "security") return renderSecurity();
-  if (teacherTab === "storageStatus") return renderStorageStatus();
-  if (teacherTab === "excelExport") return renderExcelExport();
-  if (teacherTab === "printPdf") return renderPrintPdf();
-  if (teacherTab === "backup") return renderBackup();
-  if (teacherTab === "privacy") return renderPrivacy();
+  const group = teacherGroupForTab(teacherTab);
+  const activeSection = group.sections.some(([id]) => id === teacherTab) ? teacherTab : group.sections[0][0];
+  return `
+    <section class="panel teacher-group-panel">
+      <h2>${escapeHtml(group.label)}</h2>
+      <div class="section-tabs">
+        ${group.sections.map(([id, label]) => `
+          <button class="small-button ${activeSection === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${escapeHtml(label)}</button>
+        `).join("")}
+      </div>
+    </section>
+    ${renderTeacherSection(activeSection)}
+  `;
+}
+
+function renderTeacherSection(tab) {
+  if (tab === "overview") return renderOverview();
+  if (tab === "progress") return renderProgress();
+  if (tab === "assessments") return renderAssessments();
+  if (tab === "training") return renderTrainingOverview();
+  if (tab === "today") return renderToday();
+  if (tab === "help") return renderHelp();
+  if (tab === "history") return renderHistory();
+  if (tab === "classes") return renderClasses();
+  if (tab === "resources") return renderResources();
+  if (tab === "materialPrint") return renderMaterialPrint();
+  if (tab === "animalMapping") return renderAnimalMapping();
+  if (tab === "qrCards") return renderQrCards();
+  if (tab === "security") return renderSecurity();
+  if (tab === "storageStatus") return renderStorageStatus();
+  if (tab === "excelExport") return renderExcelExport();
+  if (tab === "printPdf") return renderPrintPdf();
+  if (tab === "backup") return renderBackup();
+  if (tab === "privacy") return renderPrivacy();
   return "";
 }
 
@@ -1868,7 +1901,6 @@ function renderResources() {
       <h2>Materialien verwalten</h2>
       ${SUBJECTS.map((subject) => renderMaterialGroup(subject)).join("")}
     </section>
-    ${renderSprachweltSettings()}
     ${renderGoalSettings()}
     ${renderProgressSettings()}
   `;
@@ -2108,25 +2140,6 @@ async function updateAnimalFirstName(animalId, value) {
   await persist({ ...state, animals });
 }
 
-function renderSprachweltSettings() {
-  const tasks = state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true }));
-  return `
-    <section class="panel">
-      <h2>Sprachwelt-Aufgaben</h2>
-      <p class="message">Diese Aufgaben erscheinen für Kinder bei Deutsch → Zusatzaufgabe. Kinder wählen eine Aufgabe aus und melden sie anschließend wie gewohnt als fertig, Hilfe oder Kontrolle.</p>
-      <div class="sprachwelt-admin-list">
-        ${tasks.map((task) => `
-          <div class="manage-row sprachwelt-admin-row">
-            <strong>${escapeHtml(task.id)} ${escapeHtml(task.titel)}</strong>
-            <span>${escapeHtml(task.auftrag)}</span>
-            <label class="toggle-label"><input type="checkbox" ${task.aktiv !== false ? "checked" : ""} onchange="updateSprachweltTask('${escapeAttribute(task.id)}', 'aktiv', this.checked)"> aktiv</label>
-          </div>
-        `).join("")}
-      </div>
-    </section>
-  `;
-}
-
 function renderGoalSettings() {
   const goals = goalsForActiveClass().sort((a, b) => a.fach.localeCompare(b.fach, "de") || a.material.localeCompare(b.material, "de"));
   return `
@@ -2264,14 +2277,6 @@ async function addMaterial(event, subject) {
 async function deleteMaterial(materialId) {
   if (!confirm("Dieses Material löschen? Bestehende Einträge bleiben im Verlauf erhalten.")) return;
   await persistAndRender({ ...state, materials: state.materials.filter((material) => material.id !== materialId) });
-}
-
-async function updateSprachweltTask(taskId, field, value) {
-  const tasks = (state.sprachweltTasks || DEFAULT_SPRACHWELT_TASKS.map((task) => ({ ...task, aktiv: true }))).map((task) => {
-    if (task.id !== taskId) return task;
-    return { ...task, [field]: field === "aktiv" ? Boolean(value) : String(value).trim() };
-  });
-  await persist({ ...state, sprachweltTasks: tasks });
 }
 
 async function addGoal(event) {
@@ -4788,11 +4793,8 @@ function entryAnimal(entry) {
 }
 
 function isExtraMaterialName(materialName) {
-  return String(materialName || "").toLowerCase().includes("zusatz");
-}
-
-function isSprachweltExtra() {
-  return childDraft.fach === "Deutsch" && isExtraMaterialName(childDraft.materialName);
+  const normalized = String(materialName || "").toLowerCase();
+  return normalized.includes("zusatz") || normalized.includes("notiz") || normalized.includes("frei");
 }
 
 function entryWorkLabel(entry) {
