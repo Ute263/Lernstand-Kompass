@@ -572,11 +572,7 @@ function renderTrainingTaskModal() {
       <section class="training-modal-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTrainingTaskModal()">×</button>
         <p class="task-code">${escapeHtml(task.code)}</p>
-        <h2 id="trainingModalTitle">${escapeHtml(task.code)}: ${escapeHtml(task.title)}</h2>
-        <div class="modal-task-section">
-          <strong>Aufgabe:</strong>
-          <p>${escapeHtml(task.text)}</p>
-        </div>
+        <h2 id="trainingModalTitle">${escapeHtml(task.text)}</h2>
         ${task.researchQuestion ? `
           <div class="modal-task-section">
             <strong>Forscherfrage:</strong>
@@ -706,7 +702,7 @@ function renderExtraTextInput() {
       ${renderBackButton("childMaterial")}
       <h2 class="child-title">Meine Notizen</h2>
       <form class="page-form" onsubmit="saveExtraText(event)">
-        <textarea class="page-input free-text-input" id="extraTextInput" rows="4" aria-label="Meine Notizen" placeholder="Schreibe Wörter, Sätze, Notizen oder Ideen auf." autocomplete="off"></textarea>
+        <textarea class="page-input free-text-input lined-note-input" id="extraTextInput" rows="6" aria-label="Meine Notizen" placeholder="Schreibe Wörter, Sätze, Notizen oder Ideen auf." autocomplete="off"></textarea>
         <button class="primary" type="submit">Weiter</button>
         <p class="message error" id="pageMessage"></p>
       </form>
@@ -2066,10 +2062,7 @@ function renderTrainingStickerPrint(tasks) {
 }
 
 function stickerText(task) {
-  return String(task.shortText || task.text || task.title || "")
-    .replace(/\s+in dein Lerntagebuch\.?$/i, "")
-    .replace(/\s+und schreibe sie in dein Lerntagebuch\.?$/i, " und schreibe sie auf.")
-    .trim();
+  return String(task.analogText || task.shortText || task.text || task.title || "").trim();
 }
 
 function stickerClassForTask(task) {
@@ -2079,6 +2072,7 @@ function stickerClassForTask(task) {
 }
 
 function stickerIconForTask(task) {
+  if (task.symbol) return task.symbol;
   const code = String(task.code || "");
   const title = `${task.title || ""} ${task.text || ""}`.toLowerCase();
   if (code.startsWith("D-10") || title.includes("buch") || title.includes("les")) return "📖";
@@ -4412,7 +4406,7 @@ function latestAssessmentUpdatedAt() {
 function trainingTasksForArea(area) {
   return (state.trainingTasks || [])
     .filter((task) => task.area === area && task.active !== false)
-    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de"));
+    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de", { numeric: true }));
 }
 
 function isTrainingTaskCompleted(animalId, taskCode) {

@@ -53,7 +53,7 @@ In der `Lernstand-Übersicht` gibt es den Bereich `Druckansicht / PDF`. Dort kö
 
 ## Material drucken
 
-Im geschützten Bereich `Material drucken` kann die Lehrkraft Material für das Lerntagebuch drucken. Es gibt eine kindgerechte Übersichtsliste mit Aufgaben-Code, kurzer Beschreibung und kleinem Abhakfeld sowie einen Stickerbogen im Etikettenformat `64,6 mm × 33,8 mm`. Die Sticker enthalten Aufgaben-Code, kurze Beschreibung, Bereich und ein kleines Symbol. Druckbar sind alle Aufgaben, einzelne Bereiche oder eine eigene Auswahl. Die Ausdrucke enthalten keine Tiernamen, keine Vornamen, keine Bewertungen und keine Punkte.
+Im geschützten Bereich `Material drucken` kann die Lehrkraft Material für das Lerntagebuch drucken. Es gibt eine kindgerechte Übersichtsliste mit Aufgaben-Code, kurzer Beschreibung und kleinem Abhakfeld sowie einen Stickerbogen im Etikettenformat `64,6 mm × 33,8 mm`. Die Sticker sind an die analoge Vorlage angelehnt: weiße Kärtchen, feiner grauer Rahmen, Code oben links, Text links und Symbol rechts. Druckbar sind alle Aufgaben, einzelne Bereiche oder eine eigene Auswahl. Die Ausdrucke enthalten keine Tiernamen, keine Vornamen, keine Bewertungen und keine Punkte.
 
 ## Lernzielkontrollen
 
@@ -63,7 +63,7 @@ Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` er
 
 ## Trainingszeit
 
-In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. `OGS / Zuhause` ist in `Deutsch-Entdecker`, `Mathe-Entdecker` und `Forscher` gegliedert. Hinterlegt sind D-01 bis D-15, M-01 bis M-09 und F-01 bis F-20 mit kindgerechter Anleitung für das Lerntagebuch. Erst der Button `Aufgabe starten` speichert die Aufgabe als bearbeitet. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. In der `Lernstand-Übersicht` zeigt `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym. Die Lehrkraft kann versehentliche Auswahlen zurücksetzen; die Änderung wird historisch gespeichert.
+In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. `OGS / Zuhause` ist in `Deutsch-Entdecker`, `Mathe-Entdecker` und `Forscher` gegliedert. Die zentrale Aufgabenliste enthält 45 aktive Aufgaben: D-01 bis D-15, M-01 bis M-15 und F-01 bis F-15. Dieselben Texte werden für digitale Karten, Modal, Druckübersicht und Stickerbogen genutzt. Erst der Button `Aufgabe starten` speichert die Aufgabe als bearbeitet. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. In der `Lernstand-Übersicht` zeigt `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym. Die Lehrkraft kann versehentliche Auswahlen zurücksetzen; die Änderung wird historisch gespeichert.
 
 ## Deutsch-Notizen
 
