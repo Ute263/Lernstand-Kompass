@@ -49,15 +49,15 @@ const WEEKLY_PLAN_FIELDS = [
   { key: "freeText", label: "Freie Aufgabe", subject: "" }
 ];
 
-const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "bearbeitet"];
+const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "fertig"];
 
 const DEFAULT_WORKBOOK_CATALOG = [
-  { subject: "Deutsch", workbook: "ABC der Tiere", page: 15, title: "Buchstabentraining", competence: "Lesen / Schreiben", note: "" },
-  { subject: "Deutsch", workbook: "ABC der Tiere", page: 16, title: "Buchstabentraining", competence: "Lesen / Schreiben", note: "" },
-  { subject: "Deutsch", workbook: "ABC der Tiere", page: 17, title: "Wörter lesen und schreiben", competence: "Lesen / Schreiben", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", page: 23, title: "Plusaufgaben", competence: "Addition", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", page: 24, title: "Minusaufgaben", competence: "Subtraktion", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", page: 25, title: "Zahlzerlegung", competence: "Zahlen und Operationen", note: "" }
+  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 15, title: "Eine Infotafel gestalten", competence: "Lesen / Schreiben", note: "" },
+  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 16, title: "Wörter und Sätze lesen", competence: "Lesen", note: "" },
+  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 17, title: "Wörter schreiben", competence: "Schreiben", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Basis", page: 19, pageEnd: 22, title: "Basisaufgaben", competence: "Addition", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Training", page: 23, title: "Plusaufgaben", competence: "Addition", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Extra", page: 24, title: "Weiterführende Plusaufgaben", competence: "Addition", note: "" }
 ];
 
 const DEFAULT_PROGRESS_SETTINGS = {
@@ -302,7 +302,11 @@ function createDefaultWorkbookCatalog(classId) {
     classId,
     subject: item.subject,
     workbook: item.workbook,
+    part: item.part || "",
+    area: item.area || "",
+    category: item.category || "",
     page: item.page,
+    pageEnd: item.pageEnd || "",
     title: item.title,
     competence: item.competence,
     note: item.note,
@@ -426,7 +430,11 @@ function normalizeWorkbookCatalogItem(item, fallbackClassId) {
     classId: item.classId || item.klasseId || fallbackClassId,
     subject: item.subject || item.fach || "Deutsch",
     workbook: item.workbook || item.lehrwerk || item.material || "",
+    part: item.part || item.teil || "",
+    area: item.area || item.bereich || "",
+    category: item.category || item.kategorie || item.typ || "",
     page: Number(item.page || item.seite || 0),
+    pageEnd: item.pageEnd || item.seiteBis || "",
     title: item.title || item.thema || item.inhalt || "",
     competence: item.competence || item.kompetenz || "",
     note: item.note || item.bemerkung || "",
@@ -457,6 +465,7 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
     note: item.note || item.bemerkung || "",
     assignmentMode: item.assignmentMode || item.zuordnung || "all",
     animalIds: Array.isArray(item.animalIds) ? item.animalIds : [],
+    overrides: item.overrides && typeof item.overrides === "object" ? item.overrides : {},
     autoCreateEntries: item.autoCreateEntries === true,
     days,
     active: item.active !== false && item.aktiv !== false,
@@ -467,7 +476,8 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {
   const timestamp = nowIso();
-  const status = WEEKLY_PLAN_STATUSES.includes(item.status) ? item.status : "offen";
+  const statusValue = item.status === "bearbeitet" ? "fertig" : item.status;
+  const status = WEEKLY_PLAN_STATUSES.includes(statusValue) ? statusValue : "offen";
   return {
     id: item.id || makeId(),
     classId: item.classId || item.klasseId || fallbackClassId,

@@ -71,7 +71,7 @@ In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS
 
 ## Wochenpläne
 
-Im Kinderbereich `Meine Lernreise` gibt es zusätzlich die Kachel `Meine Woche`. Der Wochenplan enthält nur Deutsch-Arbeitsheft/Lehrwerk, Mathe-Arbeitsheft/Lehrwerk und freie Aufgaben der Lehrkraft. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher werden dort nicht angezeigt. Im Lehrkraftbereich unter `Trainingszeit und Aufgaben` -> `Wochenpläne` kann die Lehrkraft Inhaltsverzeichnisse für `ABC der Tiere`, `MiniMax` oder eigene Lehrwerke pflegen, Wochenpläne für alle oder ausgewählte Tiere erstellen, kopieren und den Status `offen`, `begonnen` oder `bearbeitet` einsehen.
+Im Kinderbereich `Meine Lernreise` gibt es zusätzlich die Kachel `Meine Woche`. Der Wochenplan enthält nur Deutsch-Arbeitsheft/Lehrwerk, Mathe-Arbeitsheft/Lehrwerk und freie Aufgaben der Lehrkraft. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher werden dort nicht angezeigt. Im Lehrkraftbereich unter `Trainingszeit und Aufgaben` -> `Wochenpläne` gibt es die Unterbereiche `Aktuelle Woche`, `Wochenplan erstellen`, `Vorlagen` und `Arbeitsheft-Katalog`. Die Lehrkraft pflegt dort Inhaltsverzeichnisse für `ABC der Tiere`, `MiniMax` oder eigene Lehrwerke, wählt Seiten über ein Auswahlfenster aus, legt Standardpläne für alle Tiere an und kann individuelle Abweichungen pro Tier speichern. Sichtbar sind die Status `offen`, `begonnen` und `fertig`.
 
 ## Deutsch-Notizen
 

@@ -117,6 +117,10 @@ let trainingFilters = {
 };
 let pendingTrainingTaskCode = "";
 let weeklyPlanEditorId = "";
+let weeklyPlanSection = "current";
+let weeklyPickRequest = null;
+let weeklyOverrideAnimalId = "";
+let weeklyPlanDraft = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -695,7 +699,7 @@ function renderChildWeeklyPlan(plan, animal) {
       <h3>${escapeHtml(plan.title)}</h3>
       <p>${escapeHtml(weeklyPlanPeriodLabel(plan))}</p>
       ${WEEK_DAYS.map((day) => {
-        const items = weeklyPlanItemsForDay(plan, day);
+        const items = weeklyPlanItemsForDay(plan, day, animal.id);
         return `
           <section class="weekly-day-card">
             <h4>${escapeHtml(day)}</h4>
@@ -709,7 +713,7 @@ function renderChildWeeklyPlan(plan, animal) {
 
 function renderChildWeeklyPlanItem(plan, animal, day, item) {
   const status = weeklyPlanItemStatus(plan.id, animal.id, day, item.field);
-  const done = status === "bearbeitet";
+  const done = status === "fertig";
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
       <strong>${escapeHtml(item.label)}</strong>
@@ -718,7 +722,7 @@ function renderChildWeeklyPlanItem(plan, animal, day, item) {
       <em>${escapeHtml(status)}</em>
       <div class="weekly-status-actions">
         ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'begonnen')">beginnen</button>` : ""}
-        ${status !== "bearbeitet" ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'bearbeitet')">fertig</button>` : ""}
+        ${status !== "fertig" ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'fertig')">fertig</button>` : ""}
       </div>
     </div>
   `;
@@ -729,7 +733,7 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
   const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
   if (!animal || !plan || !WEEKLY_PLAN_STATUSES.includes(status)) return;
   const timestamp = nowIso();
-  const item = weeklyPlanItemsForDay(plan, day).find((entry) => entry.field === field);
+  const item = weeklyPlanItemsForDay(plan, day, animal.id).find((entry) => entry.field === field);
   const existing = (state.weeklyPlanStatuses || []).find((entry) => (
     entry.planId === planId && entry.animalId === animal.id && entry.day === day && entry.field === field
   ));
@@ -752,7 +756,7 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
     : [...(state.weeklyPlanStatuses || []), nextStatus];
   let entries = state.entries || [];
 
-  if (status === "bearbeitet" && plan.autoCreateEntries && item?.catalogItem) {
+  if (status === "fertig" && plan.autoCreateEntries && item?.catalogItem) {
     const alreadyCreated = entries.some((entry) => (
       entry.weeklyPlanId === plan.id
       && entry.weeklyPlanDay === day
@@ -1573,34 +1577,72 @@ function setTrainingFilter(field, value) {
 function renderWeeklyPlans() {
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
   const editorPlan = weeklyPlanEditorId ? plans.find((plan) => plan.id === weeklyPlanEditorId) : null;
+  const section = weeklyPlanSection || "current";
   return `
     <section class="panel">
       <h2>Wochenpläne</h2>
       <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher bleiben eigene Bereiche.</p>
+      <div class="section-tabs weekly-section-tabs">
+        ${[
+          ["current", "Aktuelle Woche"],
+          ["create", "Wochenplan erstellen"],
+          ["templates", "Vorlagen"],
+          ["catalog", "Arbeitsheft-Katalog"]
+        ].map(([id, label]) => `<button class="small-button ${section === id ? "active" : ""}" type="button" onclick="setWeeklyPlanSection('${id}')">${label}</button>`).join("")}
+      </div>
+    </section>
+    ${section === "current" ? renderWeeklyCurrent(plans) : ""}
+    ${section === "create" ? renderWeeklyPlanEditor(editorPlan) : ""}
+    ${section === "templates" ? renderWeeklyTemplates(plans) : ""}
+    ${section === "catalog" ? renderWorkbookCatalogManager() : ""}
+    ${renderWeeklyCatalogPicker()}
+  `;
+}
+
+function setWeeklyPlanSection(section) {
+  weeklyPlanSection = section;
+  if (section === "create" && !weeklyPlanEditorId) weeklyPlanEditorId = "";
+  render();
+}
+
+function renderWeeklyCurrent(plans) {
+  const currentPlans = plans.filter((plan) => weeklyPlanIsCurrent(plan));
+  return `
+    <section class="panel">
+      <h2>Aktuelle Woche</h2>
+      ${currentPlans.length ? currentPlans.map((plan) => renderWeeklyPlanSummaryCard(plan)).join("") : `<div class="empty">Für diese Woche ist noch kein Wochenplan aktiv.</div>`}
+    </section>
+    ${renderWeeklyPlanStatusOverview(currentPlans.length ? currentPlans : plans)}
+  `;
+}
+
+function renderWeeklyTemplates(plans) {
+  return `
+    <section class="panel">
+      <h2>Vorlagen</h2>
+      <p class="message">Kopiere eine vorhandene Woche und passe sie für die nächste Woche an.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="newWeeklyPlan()">Neuen Wochenplan erstellen</button>
       </div>
+      ${plans.length ? plans.map(renderWeeklyPlanSummaryCard).join("") : `<div class="empty">Noch kein Wochenplan angelegt.</div>`}
     </section>
-    ${renderWorkbookCatalogManager()}
-    ${renderWeeklyPlanEditor(editorPlan)}
-    <section class="panel">
-      <h2>Vorhandene Wochenpläne</h2>
-      ${plans.length ? plans.map((plan) => `
-        <article class="weekly-plan-card">
-          <div>
-            <h3>${escapeHtml(plan.title)}</h3>
-            <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "für alle Tiere" : `${plan.animalIds.length} ausgewählte Tiere`} · Seitenstand automatisch übernehmen: ${plan.autoCreateEntries ? "ja" : "nein"}</p>
-            ${plan.note ? `<p class="message">${escapeHtml(plan.note)}</p>` : ""}
-          </div>
-          <div class="backup-actions">
-            <button class="primary" type="button" onclick="editWeeklyPlan('${plan.id}')">Bearbeiten</button>
-            <button class="secondary" type="button" onclick="copyWeeklyPlan('${plan.id}')">Wochenplan kopieren</button>
-            <button class="danger" type="button" onclick="deleteWeeklyPlan('${plan.id}')">Löschen</button>
-          </div>
-        </article>
-      `).join("") : `<div class="empty">Noch kein Wochenplan angelegt.</div>`}
-    </section>
-    ${renderWeeklyPlanStatusOverview()}
+  `;
+}
+
+function renderWeeklyPlanSummaryCard(plan) {
+  return `
+    <article class="weekly-plan-card">
+      <div>
+        <h3>${escapeHtml(plan.title)}</h3>
+        <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "Standard für alle Tiere" : `${plan.animalIds.length} ausgewählte Tiere`} · Abweichungen: ${Object.keys(plan.overrides || {}).length}</p>
+        ${plan.note ? `<p class="message">${escapeHtml(plan.note)}</p>` : ""}
+      </div>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="editWeeklyPlan('${plan.id}')">Bearbeiten</button>
+        <button class="secondary" type="button" onclick="copyWeeklyPlan('${plan.id}')">Wochenplan kopieren</button>
+        <button class="danger" type="button" onclick="deleteWeeklyPlan('${plan.id}')">Löschen</button>
+      </div>
+    </article>
   `;
 }
 
@@ -1620,11 +1662,23 @@ function renderWorkbookCatalogManager() {
         <label class="field">Lehrwerk / Arbeitsheft
           <input class="text-input" id="catalogWorkbook" placeholder="ABC der Tiere">
         </label>
+        <label class="field">Teil
+          <input class="text-input" id="catalogPart" placeholder="Teil A / Teil 1">
+        </label>
+        <label class="field">Bereich / Thema
+          <input class="text-input" id="catalogArea" placeholder="Wir sind in Klasse 2">
+        </label>
+        <label class="field">Art
+          <input class="text-input" id="catalogCategory" placeholder="Basis / Training / Extra / Test">
+        </label>
         <label class="field">Seite
           <input class="text-input" id="catalogPage" inputmode="numeric" placeholder="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
         </label>
+        <label class="field">bis Seite optional
+          <input class="text-input" id="catalogPageEnd" inputmode="numeric" placeholder="22" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        </label>
         <label class="field">Thema / kurzer Inhalt
-          <input class="text-input" id="catalogTitle" placeholder="Buchstabentraining">
+          <input class="text-input" id="catalogTitle" placeholder="Eine Infotafel gestalten">
         </label>
         <label class="field">Kompetenz optional
           <input class="text-input" id="catalogCompetence" placeholder="Lesen / Schreiben">
@@ -1636,18 +1690,20 @@ function renderWorkbookCatalogManager() {
       </form>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Fach</th><th>Lehrwerk</th><th>Seite</th><th>Thema</th><th>Kompetenz</th><th>Aktion</th></tr></thead>
+          <thead><tr><th>Fach</th><th>Lehrwerk</th><th>Teil</th><th>Bereich</th><th>Art</th><th>Seite</th><th>Thema</th><th>Aktion</th></tr></thead>
           <tbody>
             ${items.map((item) => `
               <tr>
                 <td>${escapeHtml(item.subject)}</td>
                 <td>${escapeHtml(item.workbook)}</td>
-                <td>S. ${escapeHtml(item.page)}</td>
+                <td>${escapeHtml(item.part || "–")}</td>
+                <td>${escapeHtml(item.area || "–")}</td>
+                <td>${escapeHtml(item.category || "–")}</td>
+                <td>${escapeHtml(pageRangeLabel(item))}</td>
                 <td>${escapeHtml(item.title || "–")}</td>
-                <td>${escapeHtml(item.competence || "–")}</td>
                 <td><button class="small-button" type="button" onclick="deleteWorkbookCatalogItem('${item.id}')">löschen</button></td>
               </tr>
-            `).join("") || `<tr><td colspan="6">Noch keine Einträge vorhanden.</td></tr>`}
+            `).join("") || `<tr><td colspan="8">Noch keine Einträge vorhanden.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1656,20 +1712,23 @@ function renderWorkbookCatalogManager() {
 }
 
 function renderWeeklyPlanEditor(plan) {
-  const title = plan?.title || "Wochenplan";
-  const weekLabel = plan?.weekLabel || "";
-  const validFrom = plan?.validFrom || "";
-  const validTo = plan?.validTo || "";
-  const note = plan?.note || "";
-  const autoCreateEntries = plan?.autoCreateEntries === true;
-  const assignmentMode = plan?.assignmentMode || "all";
-  const selectedAnimals = new Set(plan?.animalIds || []);
+  const draft = weeklyPlanDraft || plan || {};
+  const title = draft.title || "Wochenplan";
+  const weekLabel = draft.weekLabel || "";
+  const validFrom = draft.validFrom || "";
+  const validTo = draft.validTo || "";
+  const note = draft.note || "";
+  const autoCreateEntries = draft.autoCreateEntries === true;
+  const assignmentMode = draft.assignmentMode || "all";
+  const selectedAnimals = new Set(draft.animalIds || []);
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const overrideAnimal = animals.find((animal) => animal.id === weeklyOverrideAnimalId) || animals[0] || null;
+  if (!weeklyOverrideAnimalId && overrideAnimal) weeklyOverrideAnimalId = overrideAnimal.id;
   return `
     <section class="panel">
       <h2>Wochenplan erstellen</h2>
       <form class="weekly-plan-form" onsubmit="saveWeeklyPlan(event)">
-        <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(plan?.id || "")}">
+        <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draft.id || plan?.id || "")}">
         <div class="weekly-plan-meta">
           <label class="field">Titel
             <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan 1">
@@ -1684,21 +1743,8 @@ function renderWeeklyPlanEditor(plan) {
             <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
           </label>
         </div>
-        <div class="weekly-grid-editor">
-          <div class="weekly-grid-head">Tag</div>
-          <div class="weekly-grid-head">Deutsch</div>
-          <div class="weekly-grid-head">Mathe</div>
-          <div class="weekly-grid-head">Freie Aufgabe</div>
-          ${WEEK_DAYS.map((day, index) => {
-            const dayData = plan?.days?.[day] || {};
-            return `
-              <strong>${escapeHtml(day)}</strong>
-              ${renderWorkbookSelect("Deutsch", dayData.deutschId || "", `weeklyDeutsch${index}`)}
-              ${renderWorkbookSelect("Mathe", dayData.matheId || "", `weeklyMathe${index}`)}
-              <input class="text-input" id="weeklyFree${index}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
-            `;
-          }).join("")}
-        </div>
+        <h3>Standard-Wochenplan für alle</h3>
+        ${renderWeeklyPlannerTable(draft.days || {}, "standard")}
         <label class="field">Bemerkung optional
           <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
         </label>
@@ -1716,6 +1762,17 @@ function renderWeeklyPlanEditor(plan) {
             `).join("")}
           </div>
         </div>
+        <div class="weekly-assignment">
+          <strong>Individuelle Abweichungen</strong>
+          <p class="message">Wähle ein Tier aus und trage nur dort etwas ein, wo es vom Standardplan abweichen soll.</p>
+          <label class="field">Tier für Abweichung
+            <select class="select-input" id="weeklyOverrideAnimal" onchange="setWeeklyOverrideAnimal(this.value)">
+              ${animals.map((animal) => `<option value="${animal.id}" ${overrideAnimal?.id === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
+            </select>
+          </label>
+          ${overrideAnimal ? renderWeeklyPlannerTable(draft.overrides?.[overrideAnimal.id]?.days || {}, "override", overrideAnimal.id) : `<p class="message">Noch kein Tier vorhanden.</p>`}
+          <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(overrideAnimal?.id || "")}')">Abweichung für dieses Tier leeren</button>
+        </div>
         <div class="backup-actions">
           <button class="primary" type="button" onclick="saveWeeklyPlan(event)">Wochenplan speichern</button>
           <button class="secondary" type="button" onclick="newWeeklyPlan()">Formular leeren</button>
@@ -1725,22 +1782,176 @@ function renderWeeklyPlanEditor(plan) {
   `;
 }
 
-function renderWorkbookSelect(subject, selectedId, id) {
-  const items = workbookCatalogForActiveClass().filter((item) => item.subject === subject && item.active !== false);
+function renderWeeklyPlannerTable(days, scope, animalId = "") {
+  const prefix = weeklyInputPrefix(scope, animalId);
   return `
-    <select class="select-input" id="${escapeAttribute(id)}">
-      <option value="">keine Aufgabe</option>
-      ${items.map((item) => `<option value="${item.id}" ${selectedId === item.id ? "selected" : ""}>${escapeHtml(workbookCatalogLabel(item))}</option>`).join("")}
-    </select>
+    <div class="weekly-grid-editor weekly-simple-grid">
+      <div class="weekly-grid-head">Tag</div>
+      <div class="weekly-grid-head">Deutsch</div>
+      <div class="weekly-grid-head">Mathe</div>
+      <div class="weekly-grid-head">Extra</div>
+      ${WEEK_DAYS.map((day, index) => {
+        const dayData = days?.[day] || {};
+        return `
+          <strong>${escapeHtml(day)}</strong>
+          ${renderWeeklyPickCell("Deutsch", day, index, dayData.deutschId || "", `${prefix}Deutsch${index}`, scope, animalId)}
+          ${renderWeeklyPickCell("Mathe", day, index, dayData.matheId || "", `${prefix}Mathe${index}`, scope, animalId)}
+          <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
+        `;
+      }).join("")}
+    </div>
   `;
 }
 
-function renderWeeklyPlanStatusOverview() {
+function renderWeeklyPickCell(subject, day, index, selectedId, inputId, scope, animalId = "") {
+  const item = workbookCatalogForActiveClass().find((entry) => entry.id === selectedId);
+  return `
+    <div class="weekly-pick-cell">
+      <input type="hidden" id="${escapeAttribute(inputId)}" value="${escapeAttribute(selectedId)}">
+      <div id="${escapeAttribute(inputId)}Label" class="weekly-pick-label ${item ? "" : "empty"}">${item ? escapeHtml(workbookCatalogShortLabel(item)) : "keine Auswahl"}</div>
+      ${item ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${item.id}')">Info</button>` : ""}
+      <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
+      ${item ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
+    </div>
+  `;
+}
+
+function renderWeeklyCatalogPicker() {
+  if (!weeklyPickRequest) return "";
+  const items = workbookCatalogForActiveClass()
+    .filter((item) => item.subject === weeklyPickRequest.subject && item.active !== false)
+    .sort((a, b) => a.workbook.localeCompare(b.workbook, "de") || String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
+  return `
+    <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPickerTitle">
+      <section class="training-modal-card weekly-picker-card">
+        <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
+        <h2 id="weeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} auswählen</h2>
+        <p class="message">${escapeHtml(weeklyPickRequest.day)} · Das vollständige Inhaltsverzeichnis bleibt hier im Auswahlfenster.</p>
+        <div class="weekly-picker-list">
+          ${items.map((item) => `
+            <button class="weekly-picker-item" type="button" onclick="selectWeeklyCatalogItem('${item.id}')">
+              <strong>${escapeHtml(workbookCatalogShortLabel(item))}</strong>
+              <span>${escapeHtml(workbookCatalogFullLabel(item))}</span>
+            </button>
+          `).join("") || `<div class="empty">Noch keine Katalogeinträge für ${escapeHtml(weeklyPickRequest.subject)} vorhanden.</div>`}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function openWeeklyCatalogPicker(subject, day, scope, animalId, dayIndex) {
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  weeklyPickRequest = { subject, day, scope, animalId, dayIndex };
+  render();
+}
+
+function closeWeeklyCatalogPicker() {
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  weeklyPickRequest = null;
+  render();
+}
+
+function selectWeeklyCatalogItem(catalogId) {
+  if (!weeklyPickRequest) return;
+  const field = weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe";
+  weeklyPlanDraft = weeklyPlanDraft || collectWeeklyPlanDraftFromDom();
+  setWeeklyDraftValue(weeklyPlanDraft, weeklyPickRequest.scope, weeklyPickRequest.animalId, weeklyPickRequest.day, field, catalogId);
+  weeklyPickRequest = null;
+  render();
+}
+
+function clearWeeklyPick(inputId) {
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  const match = inputId.match(/^(weekly(?:Override_([^_]+)_)?)(Deutsch|Mathe)(\d)$/);
+  if (match) {
+    const animalId = match[2] || "";
+    const field = match[3];
+    const day = WEEK_DAYS[Number(match[4])];
+    setWeeklyDraftValue(weeklyPlanDraft, animalId ? "override" : "standard", animalId, day, field, "");
+  }
+  render();
+}
+
+function showWorkbookCatalogInfo(itemId) {
+  const item = workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
+  if (item) alert(workbookCatalogFullLabel(item));
+}
+
+function setWeeklyOverrideAnimal(animalId) {
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  weeklyOverrideAnimalId = animalId;
+  render();
+}
+
+function clearWeeklyOverride(animalId) {
+  if (!animalId) return;
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  if (weeklyPlanDraft.overrides) delete weeklyPlanDraft.overrides[animalId];
+  render();
+}
+
+function collectWeeklyPlanDraftFromDom() {
+  const existing = (state.weeklyPlans || []).find((plan) => plan.id === (document.querySelector("#weeklyPlanId")?.value || "")) || {};
+  const draft = {
+    ...existing,
+    id: document.querySelector("#weeklyPlanId")?.value || existing.id || "",
+    title: document.querySelector("#weeklyTitle")?.value.trim() || "Wochenplan",
+    weekLabel: document.querySelector("#weeklyLabel")?.value.trim() || "",
+    validFrom: document.querySelector("#weeklyFrom")?.value || "",
+    validTo: document.querySelector("#weeklyTo")?.value || "",
+    note: document.querySelector("#weeklyNote")?.value.trim() || "",
+    assignmentMode: document.querySelector("input[name='weeklyAssignmentMode']:checked")?.value || existing.assignmentMode || "all",
+    animalIds: [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")].map((item) => item.value),
+    autoCreateEntries: document.querySelector("#weeklyAutoEntries")?.checked === true,
+    days: readWeeklyDaysFromDom("standard"),
+    overrides: { ...(existing.overrides || weeklyPlanDraft?.overrides || {}) }
+  };
+  if (weeklyOverrideAnimalId) {
+    const overrideDays = readWeeklyDaysFromDom("override", weeklyOverrideAnimalId);
+    if (weeklyDaysHaveContent(overrideDays)) {
+      draft.overrides[weeklyOverrideAnimalId] = { days: overrideDays };
+    }
+  }
+  return draft;
+}
+
+function readWeeklyDaysFromDom(scope, animalId = "") {
+  const prefix = weeklyInputPrefix(scope, animalId);
+  const days = {};
+  WEEK_DAYS.forEach((day, index) => {
+    days[day] = {
+      deutschId: document.getElementById(`${prefix}Deutsch${index}`)?.value || "",
+      matheId: document.getElementById(`${prefix}Mathe${index}`)?.value || "",
+      freeText: document.getElementById(`${prefix}Free${index}`)?.value.trim() || ""
+    };
+  });
+  return days;
+}
+
+function weeklyDaysHaveContent(days) {
+  return Object.values(days || {}).some((day) => day.deutschId || day.matheId || day.freeText);
+}
+
+function setWeeklyDraftValue(draft, scope, animalId, day, field, value) {
+  const key = field === "Deutsch" ? "deutschId" : "matheId";
+  if (scope === "override" && animalId) {
+    draft.overrides = draft.overrides || {};
+    draft.overrides[animalId] = draft.overrides[animalId] || { days: {} };
+    draft.overrides[animalId].days[day] = draft.overrides[animalId].days[day] || { deutschId: "", matheId: "", freeText: "" };
+    draft.overrides[animalId].days[day][key] = value;
+  } else {
+    draft.days = draft.days || {};
+    draft.days[day] = draft.days[day] || { deutschId: "", matheId: "", freeText: "" };
+    draft.days[day][key] = value;
+  }
+}
+
+function renderWeeklyPlanStatusOverview(plans = weeklyPlansForActiveClass()) {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
-  const plans = weeklyPlansForActiveClass();
   const rows = plans.flatMap((plan) => animals
     .filter((animal) => weeklyPlanAppliesToAnimal(plan, animal.id))
-    .flatMap((animal) => WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day).map((item) => ({
+    .flatMap((animal) => WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day, animal.id).map((item) => ({
       plan,
       animal,
       day,
@@ -1750,13 +1961,13 @@ function renderWeeklyPlanStatusOverview() {
   return `
     <section class="panel">
       <h2>Wochenplan-Status</h2>
-      <p class="message">Hier sieht die Lehrkraft, welches Tier welche Wochenplan-Aufgabe begonnen oder bearbeitet hat.</p>
+      <p class="message">Hier sieht die Lehrkraft, welches Tier welche Wochenplan-Aufgabe begonnen oder fertig bearbeitet hat.</p>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Wochenplan</th><th>Tier</th><th>Tag</th><th>Bereich</th><th>Aufgabe</th><th>Status</th></tr></thead>
           <tbody>
             ${rows.map((row) => `
-              <tr class="${row.status === "bearbeitet" ? "" : "muted-row"}">
+              <tr class="${row.status === "fertig" ? "" : "muted-row"}">
                 <td>${escapeHtml(row.plan.title)}</td>
                 <td><strong>${teacherAnimalLabel(row.animal)}</strong></td>
                 <td>${escapeHtml(row.day)}</td>
@@ -1776,7 +1987,11 @@ async function addWorkbookCatalogItem(event) {
   event.preventDefault();
   const subject = document.querySelector("#catalogSubject")?.value || "Deutsch";
   const workbook = document.querySelector("#catalogWorkbook")?.value.trim() || "";
+  const part = document.querySelector("#catalogPart")?.value.trim() || "";
+  const area = document.querySelector("#catalogArea")?.value.trim() || "";
+  const category = document.querySelector("#catalogCategory")?.value.trim() || "";
   const page = Number(document.querySelector("#catalogPage")?.value || 0);
+  const pageEnd = Number(document.querySelector("#catalogPageEnd")?.value || 0);
   const title = document.querySelector("#catalogTitle")?.value.trim() || "";
   const competence = document.querySelector("#catalogCompetence")?.value.trim() || "";
   const note = document.querySelector("#catalogNote")?.value.trim() || "";
@@ -1793,7 +2008,11 @@ async function addWorkbookCatalogItem(event) {
       classId: state.activeClassId,
       subject,
       workbook,
+      part,
+      area,
+      category,
       page,
+      pageEnd: pageEnd > page ? pageEnd : "",
       title,
       competence,
       note,
@@ -1811,11 +2030,17 @@ async function deleteWorkbookCatalogItem(itemId) {
 
 function newWeeklyPlan() {
   weeklyPlanEditorId = "";
+  weeklyPlanDraft = null;
+  weeklyPickRequest = null;
+  weeklyPlanSection = "create";
   render();
 }
 
 function editWeeklyPlan(planId) {
   weeklyPlanEditorId = planId;
+  weeklyPlanDraft = null;
+  weeklyPickRequest = null;
+  weeklyPlanSection = "create";
   render();
 }
 
@@ -1830,10 +2055,15 @@ async function copyWeeklyPlan(planId) {
     weekLabel: "",
     validFrom: "",
     validTo: "",
+    days: JSON.parse(JSON.stringify(plan.days || {})),
+    overrides: JSON.parse(JSON.stringify(plan.overrides || {})),
     createdAt: timestamp,
     updatedAt: timestamp
   };
   weeklyPlanEditorId = copy.id;
+  weeklyPlanDraft = null;
+  weeklyPickRequest = null;
+  weeklyPlanSection = "create";
   await persistAndRender({ ...state, weeklyPlans: [...(state.weeklyPlans || []), copy] });
 }
 
@@ -1847,43 +2077,32 @@ async function deleteWeeklyPlan(planId) {
 }
 
 async function saveWeeklyPlan(event) {
-  event.preventDefault();
-  const planId = document.querySelector("#weeklyPlanId")?.value || "";
-  const title = document.querySelector("#weeklyTitle")?.value.trim() || "Wochenplan";
-  const weekLabel = document.querySelector("#weeklyLabel")?.value.trim() || "";
-  const validFrom = document.querySelector("#weeklyFrom")?.value || "";
-  const validTo = document.querySelector("#weeklyTo")?.value || "";
-  const note = document.querySelector("#weeklyNote")?.value.trim() || "";
-  const assignmentMode = document.querySelector("input[name='weeklyAssignmentMode']:checked")?.value || "all";
-  const animalIds = [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")].map((item) => item.value);
+  event?.preventDefault();
+  const draft = collectWeeklyPlanDraftFromDom();
+  const planId = draft.id || "";
   const timestamp = nowIso();
-  const days = {};
-  WEEK_DAYS.forEach((day, index) => {
-    days[day] = {
-      deutschId: document.querySelector(`#weeklyDeutsch${index}`)?.value || "",
-      matheId: document.querySelector(`#weeklyMathe${index}`)?.value || "",
-      freeText: document.querySelector(`#weeklyFree${index}`)?.value.trim() || ""
-    };
-  });
   const existing = (state.weeklyPlans || []).find((plan) => plan.id === planId);
   const nextPlan = {
     ...(existing || {}),
     id: existing?.id || makeId(),
     classId: state.activeClassId,
-    title,
-    weekLabel,
-    validFrom,
-    validTo,
-    note,
-    assignmentMode,
-    animalIds,
-    autoCreateEntries: document.querySelector("#weeklyAutoEntries")?.checked === true,
-    days,
+    title: draft.title || "Wochenplan",
+    weekLabel: draft.weekLabel || "",
+    validFrom: draft.validFrom || "",
+    validTo: draft.validTo || "",
+    note: draft.note || "",
+    assignmentMode: draft.assignmentMode || "all",
+    animalIds: draft.animalIds || [],
+    autoCreateEntries: draft.autoCreateEntries === true,
+    days: draft.days || {},
+    overrides: draft.overrides || {},
     active: true,
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp
   };
   weeklyPlanEditorId = nextPlan.id;
+  weeklyPlanDraft = null;
+  weeklyPickRequest = null;
   const weeklyPlans = existing
     ? (state.weeklyPlans || []).map((plan) => plan.id === existing.id ? nextPlan : plan)
     : [...(state.weeklyPlans || []), nextPlan];
@@ -5028,10 +5247,37 @@ function workbookCatalogForClass(classId) {
   return (state.workbookCatalog || []).filter((item) => item.classId === classId);
 }
 
-function workbookCatalogLabel(item) {
+function weeklyInputPrefix(scope, animalId = "") {
+  return scope === "override" && animalId ? `weeklyOverride_${animalId}_` : "weekly";
+}
+
+function pageRangeLabel(item) {
+  if (!item || !Number(item.page)) return "";
+  const start = Number(item.page);
+  const end = Number(item.pageEnd);
+  return end && end > start ? `S. ${start}-${end}` : `S. ${start}`;
+}
+
+function workbookCatalogShortLabel(item) {
   if (!item) return "";
-  const page = Number(item.page) > 0 ? `S. ${item.page}` : "";
-  return [item.workbook, page, item.title].filter(Boolean).join(" – ");
+  const pageLabel = pageRangeLabel(item);
+  if (item.subject === "Mathe") {
+    return [item.workbook, item.category, pageLabel].filter(Boolean).join(" ");
+  }
+  return [item.workbook, pageLabel].filter(Boolean).join(" ");
+}
+
+function workbookCatalogFullLabel(item) {
+  if (!item) return "";
+  const pageLabel = pageRangeLabel(item);
+  if (item.subject === "Mathe") {
+    return [item.workbook, item.part, item.area || item.title, item.category, pageLabel, item.competence].filter(Boolean).join(" – ");
+  }
+  return [item.workbook, item.part, item.area, pageLabel, item.title || item.competence].filter(Boolean).join(" – ");
+}
+
+function workbookCatalogLabel(item) {
+  return workbookCatalogFullLabel(item);
 }
 
 function weeklyPlansForActiveClass() {
@@ -5063,8 +5309,18 @@ function weeklyPlanPeriodLabel(plan) {
   return parts.join(" · ") || "ohne Zeitraum";
 }
 
-function weeklyPlanItemsForDay(plan, day) {
-  const dayData = plan.days?.[day] || {};
+function effectiveWeeklyDayData(plan, day, animalId = "") {
+  const base = plan.days?.[day] || {};
+  const override = animalId ? plan.overrides?.[animalId]?.days?.[day] || {} : {};
+  return {
+    deutschId: override.deutschId || base.deutschId || "",
+    matheId: override.matheId || base.matheId || "",
+    freeText: override.freeText || base.freeText || ""
+  };
+}
+
+function weeklyPlanItemsForDay(plan, day, animalId = "") {
+  const dayData = effectiveWeeklyDayData(plan, day, animalId);
   const deutsch = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.deutschId);
   const mathe = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.matheId);
   return [
@@ -5073,16 +5329,16 @@ function weeklyPlanItemsForDay(plan, day) {
       label: "Deutsch",
       workbookCatalogId: deutsch.id,
       catalogItem: deutsch,
-      text: `${deutsch.workbook} – Seite ${deutsch.page}`,
-      detail: deutsch.title || deutsch.competence || ""
+      text: workbookCatalogShortLabel(deutsch),
+      detail: workbookCatalogFullLabel(deutsch)
     } : null,
     mathe ? {
       field: "Mathe",
       label: "Mathe",
       workbookCatalogId: mathe.id,
       catalogItem: mathe,
-      text: `${mathe.workbook} – Seite ${mathe.page}`,
-      detail: mathe.title || mathe.competence || ""
+      text: workbookCatalogShortLabel(mathe),
+      detail: workbookCatalogFullLabel(mathe)
     } : null,
     dayData.freeText ? {
       field: "Freie Aufgabe",
@@ -5102,7 +5358,7 @@ function weeklyPlanItemStatus(planId, animalId, day, field) {
 }
 
 function weeklyStatusBadge(status) {
-  const className = status === "bearbeitet" ? "done" : status === "begonnen" ? "check" : "stale";
+  const className = status === "fertig" ? "done" : status === "begonnen" ? "check" : "stale";
   return `<span class="badge ${className}">${escapeHtml(status)}</span>`;
 }
 
