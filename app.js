@@ -23,6 +23,7 @@ let assessmentEditorId = "";
 let assessmentFormOpen = false;
 let pendingBackup = null;
 let lastMergeReport = null;
+let factoryResetMessage = "";
 let syncAssistantVisible = false;
 let syncAssistantSnoozedUntil = 0;
 let syncGuideStep = 0;
@@ -89,6 +90,20 @@ const TEACHER_GROUPS = [
     ]
   }
 ];
+
+const STICKER_SHEETS = [
+  {
+    title: "Stickerbogen 1 – Deutsch und Mathe 1",
+    description: "D-01 bis D-15 und M-01 bis M-09",
+    href: "materials/stickerbogen-1-deutsch-mathe-1.png"
+  },
+  {
+    title: "Stickerbogen 2 – Mathe 2 und Forscher",
+    description: "M-10 bis M-15 und F-01 bis F-15",
+    href: "materials/stickerbogen-2-mathe-forscher.png"
+  }
+];
+
 let trainingFilters = {
   animalId: "",
   subject: "",
@@ -1115,6 +1130,7 @@ function setTeacherTab(tab) {
   stopQrScanner();
   teacherTab = tab;
   globalMessage = "";
+  factoryResetMessage = "";
   render();
 }
 
@@ -1907,44 +1923,88 @@ function renderMaterialPrint() {
   const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
   return `
     <section class="panel">
-      <h2>Material drucken</h2>
-      <p class="privacy-text">Drucke Material für das Lerntagebuch. Die Ausdrucke enthalten nur Aufgaben-Code, kurze Beschreibung, Bereich und optional ein Symbol. Sie enthalten keine Vornamen, keine Tier-Zuordnung, keine Bewertungen und keine Punkte.</p>
+      <h2>Stickerbögen</h2>
+      <p class="privacy-text">Die fertigen Stickerbögen sind als feste Vorlagen hinterlegt. Sie enthalten keine Vornamen, keine Tier-Zuordnung, keine Bewertungen und keine Punkte.</p>
+      <p class="message"><strong>Druckhinweis:</strong> Bitte mit 100 % / tatsächliche Größe drucken. Nicht an Seite anpassen.</p>
+      <div class="file-card-grid">
+        ${STICKER_SHEETS.map((sheet) => `
+          <article class="file-card">
+            <h3>${escapeHtml(sheet.title)}</h3>
+            <p>${escapeHtml(sheet.description)}</p>
+            <div class="backup-actions">
+              <a class="primary file-button" href="${escapeAttribute(sheet.href)}" target="_blank" rel="noopener">öffnen</a>
+              <a class="secondary file-button" href="${escapeAttribute(sheet.href)}" download>herunterladen</a>
+            </div>
+          </article>
+        `).join("")}
+      </div>
       <div class="backup-actions">
-        <button class="primary" type="button" onclick="printTrainingMaterial('all', 'overview')">Aufgabenüberblick drucken</button>
-        <button class="secondary" type="button" onclick="printTrainingMaterial('all', 'stickers')">Stickerbogen drucken</button>
+        <button class="secondary" type="button" onclick="openAllStickerSheets()">Alle Stickerbögen öffnen</button>
       </div>
     </section>
     <section class="panel">
-      <h2>Druckauswahl</h2>
-      <div class="material-print-mode">
-        <label><input type="radio" name="materialPrintMode" value="overview" checked> Übersichtsliste</label>
-        <label><input type="radio" name="materialPrintMode" value="stickers"> Stickerbogen</label>
-        <label><input type="radio" name="materialPrintMode" value="both"> beides</label>
+      <h2>Bearbeitbare Vorlagen</h2>
+      <p class="message">Noch keine bearbeitbare Word-Vorlage hinterlegt. Die verbindlichen Druckvorlagen sind die festen Stickerbögen oben.</p>
+    </section>
+    <section class="panel">
+      <h2>Aufgabenübersicht</h2>
+      <p class="privacy-text">Digitale Liste der 45 aktiven Aufgaben. Diese Texte sind die Grundlage für Kinderbereich, Aufgabenfenster, Druckübersicht und Stickerbögen.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="printTrainingMaterial('all', 'overview')">Aufgabenüberblick drucken</button>
       </div>
-      <div class="sticker-select-tools">
-        <button class="small-button" type="button" onclick="setStickerSelection('all')">alle auswählen</button>
-        <button class="small-button" type="button" onclick="setStickerSelection('none')">Auswahl löschen</button>
-        ${groups.map((group) => `<button class="small-button" type="button" onclick="setStickerSelection('${escapeAttribute(group)}')">${escapeHtml(group)}</button>`).join("")}
-      </div>
-      <div class="backup-actions material-print-actions">
-        <button class="primary" type="button" onclick="printTrainingMaterial('all')">Alle Aufgaben drucken</button>
-        ${groups.map((group) => `<button class="secondary" type="button" onclick="printTrainingMaterial('${escapeAttribute(group)}')">Nur ${escapeHtml(group)}</button>`).join("")}
-        <button class="secondary" type="button" onclick="printSelectedTrainingMaterial()">Ausgewählte Aufgaben drucken</button>
-      </div>
-      <div class="sticker-task-select-grid">
-        ${tasks.map((task) => `
-          <label class="sticker-task-select">
-            <input type="checkbox" class="sticker-task-checkbox" value="${escapeAttribute(task.code)}">
-            <span class="sticker-select-icon">${escapeHtml(stickerIconForTask(task))}</span>
-            <strong>${escapeHtml(task.code)}</strong>
-            <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
-            <em>${escapeHtml(task.subcategory || "")}</em>
-          </label>
-        `).join("")}
-      </div>
+      ${groups.map((group) => {
+        const groupTasks = tasks.filter((task) => task.subcategory === group);
+        return `
+          <div class="material-task-overview">
+            <h3>${escapeHtml(group)}</h3>
+            ${groupTasks.map((task) => `
+              <div class="material-task-line">
+                <strong>${escapeHtml(task.code)}</strong>
+                <span>${escapeHtml(stickerText(task))}</span>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }).join("")}
+    </section>
+    <section class="panel">
+      <details class="fallback-export">
+        <summary>Erweiterte Druckoptionen</summary>
+        <p class="message">Diese dynamische Druckfunktion ist nur eine Notlösung. Für Etiketten bitte die festen Stickerbögen verwenden, weil Browser-Ränder Etikettenpositionen verändern können.</p>
+        <div class="material-print-mode">
+          <label><input type="radio" name="materialPrintMode" value="overview" checked> Übersichtsliste</label>
+          <label><input type="radio" name="materialPrintMode" value="stickers"> dynamischer Stickerbogen</label>
+          <label><input type="radio" name="materialPrintMode" value="both"> beides</label>
+        </div>
+        <div class="sticker-select-tools">
+          <button class="small-button" type="button" onclick="setStickerSelection('all')">alle auswählen</button>
+          <button class="small-button" type="button" onclick="setStickerSelection('none')">Auswahl löschen</button>
+          ${groups.map((group) => `<button class="small-button" type="button" onclick="setStickerSelection('${escapeAttribute(group)}')">${escapeHtml(group)}</button>`).join("")}
+        </div>
+        <div class="backup-actions material-print-actions">
+          <button class="primary" type="button" onclick="printTrainingMaterial('all')">Alle Aufgaben dynamisch drucken</button>
+          ${groups.map((group) => `<button class="secondary" type="button" onclick="printTrainingMaterial('${escapeAttribute(group)}')">Nur ${escapeHtml(group)}</button>`).join("")}
+          <button class="secondary" type="button" onclick="printSelectedTrainingMaterial()">Ausgewählte Aufgaben dynamisch drucken</button>
+        </div>
+        <div class="sticker-task-select-grid">
+          ${tasks.map((task) => `
+            <label class="sticker-task-select">
+              <input type="checkbox" class="sticker-task-checkbox" value="${escapeAttribute(task.code)}">
+              <span class="sticker-select-icon">${escapeHtml(stickerIconForTask(task))}</span>
+              <strong>${escapeHtml(task.code)}</strong>
+              <span>${escapeHtml(stickerText(task))}</span>
+              <em>${escapeHtml(task.subcategory || "")}</em>
+            </label>
+          `).join("")}
+        </div>
+      </details>
       <div id="printArea" class="print-area" aria-hidden="true"></div>
     </section>
   `;
+}
+
+function openAllStickerSheets() {
+  STICKER_SHEETS.forEach((sheet) => window.open(sheet.href, "_blank", "noopener"));
 }
 
 function printableTrainingTasks() {
@@ -2570,7 +2630,73 @@ function renderBackup() {
         </label>
       </form>
     </section>
+    ${renderFactoryResetPanel()}
   `;
+}
+
+function renderFactoryResetPanel() {
+  return `
+    <section class="panel danger-panel">
+      <h2>App zurücksetzen</h2>
+      <p class="privacy-text"><strong>Achtung:</strong> Dadurch werden alle lokal gespeicherten Daten auf diesem Gerät gelöscht. Bitte erstelle vorher ein Backup. Diese Aktion kann nicht rückgängig gemacht werden.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="exportFullBackup()">Backup jetzt erstellen</button>
+      </div>
+      <div class="reset-form">
+        <label class="toggle-label">
+          <input id="factoryResetBackupDone" type="checkbox">
+          Ich habe vorher ein Backup erstellt oder möchte trotz Warnung zurücksetzen.
+        </label>
+        <label class="field">Lehrkraft-PIN
+          <input id="factoryResetPin" class="text-input" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN eingeben">
+        </label>
+        <label class="field">Bestätigungswort
+          <input id="factoryResetWord" class="text-input" autocomplete="off" placeholder="ZURÜCKSETZEN">
+        </label>
+        <p class="message">Möchtest du die App wirklich auf Werkseinstellung zurücksetzen? Gib zur Sicherheit die Lehrkraft-PIN und das Wort <strong>ZURÜCKSETZEN</strong> ein.</p>
+        <button class="danger" type="button" onclick="factoryResetApp()">Alle lokalen Daten zurücksetzen</button>
+        ${factoryResetMessage ? `<p class="message warning-message">${escapeHtml(factoryResetMessage)}</p>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+async function factoryResetApp() {
+  const backupConfirmed = document.querySelector("#factoryResetBackupDone")?.checked;
+  const pin = document.querySelector("#factoryResetPin")?.value || "";
+  const confirmationWord = (document.querySelector("#factoryResetWord")?.value || "").trim();
+
+  if (!backupConfirmed) {
+    factoryResetMessage = "Bitte bestätige zuerst, dass du ein Backup erstellt hast oder bewusst ohne Backup zurücksetzt.";
+    render();
+    return;
+  }
+  if ((await hashSecret(pin, "pin")) !== state.pinHash) {
+    factoryResetMessage = "Die Lehrkraft-PIN stimmt nicht.";
+    render();
+    return;
+  }
+  if (confirmationWord !== "ZURÜCKSETZEN") {
+    factoryResetMessage = "Bitte gib das Bestätigungswort ZURÜCKSETZEN ein.";
+    render();
+    return;
+  }
+  if (!confirm("Möchtest du die App wirklich auf Werkseinstellung zurücksetzen?")) return;
+  if (!confirm("Letzte Warnung: Alle lokalen Daten auf diesem Gerät werden gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.")) return;
+
+  await storage.clear();
+  state = emptyState();
+  screen = "setup";
+  teacherTab = "overview";
+  childDraft = {};
+  pendingBackup = null;
+  lastMergeReport = null;
+  factoryResetMessage = "";
+  globalMessage = "";
+  pendingRecoveryKey = "";
+  syncGuideStep = 0;
+  stopScanner();
+  render();
 }
 
 function renderPendingBackupChoice() {

@@ -39,7 +39,8 @@ body {
 
 button,
 input,
-select {
+select,
+a.file-button {
   font: inherit;
 }
 
@@ -557,6 +558,13 @@ button:disabled {
   font-weight: 850;
 }
 
+.file-button {
+  display: inline-grid;
+  place-items: center;
+  text-align: center;
+  text-decoration: none;
+}
+
 .primary {
   background: var(--brand);
   color: #fff;
@@ -836,6 +844,69 @@ th {
 
 .fallback-export .backup-actions {
   margin-top: 12px;
+}
+
+.file-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.file-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(40, 74, 105, 0.06);
+}
+
+.file-card h3,
+.file-card p {
+  margin: 0;
+}
+
+.material-task-overview {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.material-task-line {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #edf1f5;
+  line-height: 1.35;
+}
+
+.material-task-line:first-of-type {
+  border-top: 0;
+}
+
+.material-task-line strong {
+  color: var(--brand-dark);
+}
+
+.danger-panel {
+  border: 2px solid #ffd1d1;
+  background: #fff9f9;
+}
+
+.reset-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.warning-message {
+  color: var(--red);
+  font-weight: 900;
 }
 
 .assessment-card {

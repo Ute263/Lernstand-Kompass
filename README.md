@@ -53,7 +53,11 @@ In der `Lernstand-Übersicht` gibt es den Bereich `Druckansicht / PDF`. Dort kö
 
 ## Material drucken
 
-Im geschützten Bereich `Material drucken` kann die Lehrkraft Material für das Lerntagebuch drucken. Es gibt eine kindgerechte Übersichtsliste mit Aufgaben-Code, kurzer Beschreibung und kleinem Abhakfeld sowie einen Stickerbogen im Etikettenformat `64,6 mm × 33,8 mm`. Die Sticker sind an die analoge Vorlage angelehnt: weiße Kärtchen, feiner grauer Rahmen, Code oben links, Text links und Symbol rechts. Druckbar sind alle Aufgaben, einzelne Bereiche oder eine eigene Auswahl. Die Ausdrucke enthalten keine Tiernamen, keine Vornamen, keine Bewertungen und keine Punkte.
+Im geschützten Bereich `Material drucken` sind die fertigen Stickerbögen als feste Dateien hinterlegt. `Stickerbogen 1` enthält D-01 bis D-15 und M-01 bis M-09, `Stickerbogen 2` enthält M-10 bis M-15 und F-01 bis F-15. Die Lehrkraft öffnet oder lädt diese Vorlagen direkt herunter und druckt sie mit `100 % / tatsächliche Größe`, nicht angepasst an die Seite. Zusätzlich gibt es eine digitale Aufgabenübersicht der 45 Aufgaben und eine dynamische Druckfunktion als nachrangige Notlösung. Die Ausdrucke enthalten keine Tiernamen, keine Vornamen, keine Bewertungen und keine Punkte.
+
+## Werkseinstellung
+
+Unter `Geräte und Synchronisation` -> `Backup / Wiederherstellung` gibt es im geschützten Lehrkraftbereich den Abschnitt `App zurücksetzen`. Vor dem Zurücksetzen werden Backup-Hinweis, Lehrkraft-PIN, eine Warnung und das Bestätigungswort `ZURÜCKSETZEN` verlangt. Erst danach werden die lokalen App-Daten auf diesem Gerät gelöscht und die Einrichtung startet neu.
 
 ## Lernzielkontrollen
 
