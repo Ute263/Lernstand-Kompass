@@ -49,7 +49,7 @@ const WEEKLY_PLAN_FIELDS = [
   { key: "freeText", label: "Freie Aufgabe", subject: "" }
 ];
 
-const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "fertig"];
+const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "bearbeitet", "von Lehrkraft bestätigt"];
 
 const DEFAULT_WORKBOOK_CATALOG = [
   ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
@@ -565,7 +565,8 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
     assignmentMode: item.assignmentMode || item.zuordnung || "all",
     animalIds: Array.isArray(item.animalIds) ? item.animalIds : [],
     overrides: item.overrides && typeof item.overrides === "object" ? item.overrides : {},
-    autoCreateEntries: item.autoCreateEntries === true,
+    progressMode: item.progressMode || (item.autoCreateEntries === true ? "auto" : "confirm"),
+    autoCreateEntries: item.autoCreateEntries === true || item.progressMode === "auto",
     days,
     active: item.active !== false && item.aktiv !== false,
     createdAt: item.createdAt || item.erstelltAm || timestamp,
@@ -581,7 +582,7 @@ function normalizeIdList(value) {
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {
   const timestamp = nowIso();
-  const statusValue = item.status === "bearbeitet" ? "fertig" : item.status;
+  const statusValue = item.status === "fertig" ? "bearbeitet" : item.status;
   const status = WEEKLY_PLAN_STATUSES.includes(statusValue) ? statusValue : "offen";
   return {
     id: item.id || makeId(),
@@ -592,6 +593,12 @@ function normalizeWeeklyPlanStatus(item, fallbackClassId) {
     field: item.field || item.bereich || "Deutsch",
     workbookCatalogId: item.workbookCatalogId || item.catalogId || "",
     freeText: item.freeText || "",
+    completedPages: normalizeIdList(item.completedPages || item.bearbeiteteSeiten),
+    openPages: normalizeIdList(item.openPages || item.offeneSeiten),
+    progressLinked: item.progressLinked === true,
+    progressEntryId: item.progressEntryId || "",
+    completedAt: item.completedAt || "",
+    confirmedAt: item.confirmedAt || "",
     status,
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
