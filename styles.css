@@ -251,8 +251,8 @@ button:disabled {
 }
 
 .subject-grid {
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  max-width: 1060px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  max-width: 980px;
   margin: 0 auto;
 }
 
@@ -349,6 +349,113 @@ button:disabled {
 .training-task-symbol {
   font-size: 2.4rem;
   line-height: 1;
+}
+
+.week-subject-button {
+  background: #f4fbff;
+}
+
+.child-week-wrap {
+  max-width: 1050px;
+}
+
+.weekly-child-plan,
+.weekly-day-card,
+.weekly-plan-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(40, 74, 105, 0.07);
+}
+
+.weekly-child-plan h3,
+.weekly-child-plan p,
+.weekly-day-card h4 {
+  margin: 0;
+}
+
+.weekly-day-card {
+  background: #fffdf8;
+}
+
+.weekly-child-item {
+  display: grid;
+  grid-template-columns: minmax(96px, 130px) 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5ebf2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.weekly-child-item small {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.weekly-child-item em {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: var(--brand-dark);
+  font-style: normal;
+  font-weight: 850;
+}
+
+.weekly-child-item.completed {
+  opacity: 0.55;
+  filter: grayscale(0.25);
+}
+
+.weekly-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weekly-catalog-form,
+.weekly-plan-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.weekly-grid-editor {
+  display: grid;
+  grid-template-columns: 130px minmax(170px, 1fr) minmax(170px, 1fr) minmax(200px, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  margin: 18px 0;
+  overflow-x: auto;
+}
+
+.weekly-grid-head {
+  color: var(--brand-dark);
+  font-weight: 900;
+}
+
+.weekly-assignment {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.animal-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
 }
 
 .private-name {
@@ -1400,6 +1507,18 @@ th {
 @media (max-width: 700px) {
   .subject-grid {
     grid-template-columns: 1fr;
+  }
+
+  .weekly-child-item {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-grid-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-grid-head {
+    display: none;
   }
 }
 

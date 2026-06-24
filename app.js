@@ -55,7 +55,10 @@ const TEACHER_GROUPS = [
   {
     id: "trainingGroup",
     label: "Trainingszeit und Aufgaben",
-    sections: [["training", "Trainingszeit"]]
+    sections: [
+      ["training", "Trainingszeit"],
+      ["weeklyPlans", "Wochenpläne"]
+    ]
   },
   {
     id: "assessmentGroup",
@@ -113,6 +116,7 @@ let trainingFilters = {
   date: ""
 };
 let pendingTrainingTaskCode = "";
+let weeklyPlanEditorId = "";
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -393,6 +397,7 @@ function renderChildScreen() {
   if (screen === "childTrainingSubcategory") return renderTrainingSubcategorySelection();
   if (screen === "childTrainingArea") return renderTrainingArea();
   if (screen === "childTrainingConfirm") return renderTrainingConfirmation();
+  if (screen === "childWeek") return renderChildWeek();
   return "";
 }
 
@@ -464,6 +469,7 @@ function renderSubjectSelection() {
         <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
         <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
         <button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>
+        <button class="subject-button week-subject-button" type="button" onclick="openChildWeek()"><span class="subject-icon">🗓️</span>Meine Woche</button>
       </div>
     </section>
   `;
@@ -480,6 +486,11 @@ function openTrainingStart() {
   childDraft.trainingSubcategory = "";
   pendingTrainingTaskCode = "";
   screen = "childTraining";
+  render();
+}
+
+function openChildWeek() {
+  screen = "childWeek";
   render();
 }
 
@@ -663,6 +674,114 @@ function renderTrainingConfirmation() {
       </div>
     </section>
   `;
+}
+
+function renderChildWeek() {
+  const animal = selectedAnimal();
+  const plans = animal ? weeklyPlansForAnimal(animal.id) : [];
+  return `
+    <section class="step-wrap child-week-wrap">
+      ${renderBackButton("childSubject")}
+      <h2 class="child-title">Meine Woche</h2>
+      <p class="message">Hier siehst du deinen Wochenplan mit Deutsch, Mathe und Extra-Aufgaben.</p>
+      ${plans.length ? plans.map((plan) => renderChildWeeklyPlan(plan, animal)).join("") : `<div class="empty">Für diese Woche ist noch kein Wochenplan eingetragen.</div>`}
+    </section>
+  `;
+}
+
+function renderChildWeeklyPlan(plan, animal) {
+  return `
+    <article class="weekly-child-plan">
+      <h3>${escapeHtml(plan.title)}</h3>
+      <p>${escapeHtml(weeklyPlanPeriodLabel(plan))}</p>
+      ${WEEK_DAYS.map((day) => {
+        const items = weeklyPlanItemsForDay(plan, day);
+        return `
+          <section class="weekly-day-card">
+            <h4>${escapeHtml(day)}</h4>
+            ${items.length ? items.map((item) => renderChildWeeklyPlanItem(plan, animal, day, item)).join("") : `<p class="message">Heute ist nichts eingetragen.</p>`}
+          </section>
+        `;
+      }).join("")}
+    </article>
+  `;
+}
+
+function renderChildWeeklyPlanItem(plan, animal, day, item) {
+  const status = weeklyPlanItemStatus(plan.id, animal.id, day, item.field);
+  const done = status === "bearbeitet";
+  return `
+    <div class="weekly-child-item ${done ? "completed" : ""}">
+      <strong>${escapeHtml(item.label)}</strong>
+      <span>${escapeHtml(item.text)}</span>
+      ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
+      <em>${escapeHtml(status)}</em>
+      <div class="weekly-status-actions">
+        ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'begonnen')">beginnen</button>` : ""}
+        ${status !== "bearbeitet" ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'bearbeitet')">fertig</button>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+async function updateChildWeeklyStatus(planId, day, field, status) {
+  const animal = selectedAnimal();
+  const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+  if (!animal || !plan || !WEEKLY_PLAN_STATUSES.includes(status)) return;
+  const timestamp = nowIso();
+  const item = weeklyPlanItemsForDay(plan, day).find((entry) => entry.field === field);
+  const existing = (state.weeklyPlanStatuses || []).find((entry) => (
+    entry.planId === planId && entry.animalId === animal.id && entry.day === day && entry.field === field
+  ));
+  const nextStatus = {
+    ...(existing || {}),
+    id: existing?.id || makeId(),
+    classId: state.activeClassId,
+    planId,
+    animalId: animal.id,
+    day,
+    field,
+    workbookCatalogId: item?.workbookCatalogId || "",
+    freeText: item?.freeText || "",
+    status,
+    createdAt: existing?.createdAt || timestamp,
+    updatedAt: timestamp
+  };
+  let weeklyPlanStatuses = existing
+    ? (state.weeklyPlanStatuses || []).map((entry) => entry.id === existing.id ? nextStatus : entry)
+    : [...(state.weeklyPlanStatuses || []), nextStatus];
+  let entries = state.entries || [];
+
+  if (status === "bearbeitet" && plan.autoCreateEntries && item?.catalogItem) {
+    const alreadyCreated = entries.some((entry) => (
+      entry.weeklyPlanId === plan.id
+      && entry.weeklyPlanDay === day
+      && entry.weeklyPlanField === field
+      && entry.tierID === animal.id
+    ));
+    if (!alreadyCreated) {
+      entries = [...entries, {
+        id: makeId(),
+        classId: state.activeClassId,
+        tierID: animal.id,
+        tierNameSnapshot: animal.tierName,
+        tierEmojiSnapshot: animal.tierEmoji,
+        fach: item.catalogItem.subject,
+        materialName: item.catalogItem.workbook,
+        seite: Number(item.catalogItem.page) || 0,
+        zusatzText: "",
+        status: "fertig",
+        erledigt: false,
+        datumUhrzeit: timestamp,
+        weeklyPlanId: plan.id,
+        weeklyPlanDay: day,
+        weeklyPlanField: field
+      }];
+    }
+  }
+
+  await persist({ ...state, weeklyPlanStatuses, entries });
+  render();
 }
 
 function renderMaterialSelection() {
@@ -1155,6 +1274,7 @@ function renderTeacherSection(tab) {
   if (tab === "progress") return renderProgress();
   if (tab === "assessments") return renderAssessments();
   if (tab === "training") return renderTrainingOverview();
+  if (tab === "weeklyPlans") return renderWeeklyPlans();
   if (tab === "today") return renderToday();
   if (tab === "help") return renderHelp();
   if (tab === "history") return renderHistory();
@@ -1448,6 +1568,326 @@ function renderTrainingOverview() {
 function setTrainingFilter(field, value) {
   trainingFilters = { ...trainingFilters, [field]: value };
   render();
+}
+
+function renderWeeklyPlans() {
+  const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
+  const editorPlan = weeklyPlanEditorId ? plans.find((plan) => plan.id === weeklyPlanEditorId) : null;
+  return `
+    <section class="panel">
+      <h2>Wochenpläne</h2>
+      <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher bleiben eigene Bereiche.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="newWeeklyPlan()">Neuen Wochenplan erstellen</button>
+      </div>
+    </section>
+    ${renderWorkbookCatalogManager()}
+    ${renderWeeklyPlanEditor(editorPlan)}
+    <section class="panel">
+      <h2>Vorhandene Wochenpläne</h2>
+      ${plans.length ? plans.map((plan) => `
+        <article class="weekly-plan-card">
+          <div>
+            <h3>${escapeHtml(plan.title)}</h3>
+            <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "für alle Tiere" : `${plan.animalIds.length} ausgewählte Tiere`} · Seitenstand automatisch übernehmen: ${plan.autoCreateEntries ? "ja" : "nein"}</p>
+            ${plan.note ? `<p class="message">${escapeHtml(plan.note)}</p>` : ""}
+          </div>
+          <div class="backup-actions">
+            <button class="primary" type="button" onclick="editWeeklyPlan('${plan.id}')">Bearbeiten</button>
+            <button class="secondary" type="button" onclick="copyWeeklyPlan('${plan.id}')">Wochenplan kopieren</button>
+            <button class="danger" type="button" onclick="deleteWeeklyPlan('${plan.id}')">Löschen</button>
+          </div>
+        </article>
+      `).join("") : `<div class="empty">Noch kein Wochenplan angelegt.</div>`}
+    </section>
+    ${renderWeeklyPlanStatusOverview()}
+  `;
+}
+
+function renderWorkbookCatalogManager() {
+  const items = workbookCatalogForActiveClass().sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.workbook.localeCompare(b.workbook, "de") || Number(a.page) - Number(b.page));
+  return `
+    <section class="panel">
+      <h2>Arbeitshefte / Lehrwerke verwalten</h2>
+      <p class="message">Hier werden nur Seitenzahl, Thema, Kompetenz und kurze Hinweise hinterlegt, keine Arbeitsheftseiten.</p>
+      <form class="weekly-catalog-form" onsubmit="addWorkbookCatalogItem(event)">
+        <label class="field">Fach
+          <select class="select-input" id="catalogSubject">
+            <option>Deutsch</option>
+            <option>Mathe</option>
+          </select>
+        </label>
+        <label class="field">Lehrwerk / Arbeitsheft
+          <input class="text-input" id="catalogWorkbook" placeholder="ABC der Tiere">
+        </label>
+        <label class="field">Seite
+          <input class="text-input" id="catalogPage" inputmode="numeric" placeholder="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        </label>
+        <label class="field">Thema / kurzer Inhalt
+          <input class="text-input" id="catalogTitle" placeholder="Buchstabentraining">
+        </label>
+        <label class="field">Kompetenz optional
+          <input class="text-input" id="catalogCompetence" placeholder="Lesen / Schreiben">
+        </label>
+        <label class="field">Bemerkung optional
+          <input class="text-input" id="catalogNote">
+        </label>
+        <button class="primary" type="submit">Eintrag hinzufügen</button>
+      </form>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Fach</th><th>Lehrwerk</th><th>Seite</th><th>Thema</th><th>Kompetenz</th><th>Aktion</th></tr></thead>
+          <tbody>
+            ${items.map((item) => `
+              <tr>
+                <td>${escapeHtml(item.subject)}</td>
+                <td>${escapeHtml(item.workbook)}</td>
+                <td>S. ${escapeHtml(item.page)}</td>
+                <td>${escapeHtml(item.title || "–")}</td>
+                <td>${escapeHtml(item.competence || "–")}</td>
+                <td><button class="small-button" type="button" onclick="deleteWorkbookCatalogItem('${item.id}')">löschen</button></td>
+              </tr>
+            `).join("") || `<tr><td colspan="6">Noch keine Einträge vorhanden.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderWeeklyPlanEditor(plan) {
+  const title = plan?.title || "Wochenplan";
+  const weekLabel = plan?.weekLabel || "";
+  const validFrom = plan?.validFrom || "";
+  const validTo = plan?.validTo || "";
+  const note = plan?.note || "";
+  const autoCreateEntries = plan?.autoCreateEntries === true;
+  const assignmentMode = plan?.assignmentMode || "all";
+  const selectedAnimals = new Set(plan?.animalIds || []);
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  return `
+    <section class="panel">
+      <h2>Wochenplan erstellen</h2>
+      <form class="weekly-plan-form" onsubmit="saveWeeklyPlan(event)">
+        <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(plan?.id || "")}">
+        <div class="weekly-plan-meta">
+          <label class="field">Titel
+            <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan 1">
+          </label>
+          <label class="field">Kalenderwoche / Zeitraum
+            <input class="text-input" id="weeklyLabel" value="${escapeAttribute(weekLabel)}" placeholder="KW 24">
+          </label>
+          <label class="field">Gültig von
+            <input class="text-input" type="date" id="weeklyFrom" value="${escapeAttribute(validFrom)}">
+          </label>
+          <label class="field">Gültig bis
+            <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
+          </label>
+        </div>
+        <div class="weekly-grid-editor">
+          <div class="weekly-grid-head">Tag</div>
+          <div class="weekly-grid-head">Deutsch</div>
+          <div class="weekly-grid-head">Mathe</div>
+          <div class="weekly-grid-head">Freie Aufgabe</div>
+          ${WEEK_DAYS.map((day, index) => {
+            const dayData = plan?.days?.[day] || {};
+            return `
+              <strong>${escapeHtml(day)}</strong>
+              ${renderWorkbookSelect("Deutsch", dayData.deutschId || "", `weeklyDeutsch${index}`)}
+              ${renderWorkbookSelect("Mathe", dayData.matheId || "", `weeklyMathe${index}`)}
+              <input class="text-input" id="weeklyFree${index}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
+            `;
+          }).join("")}
+        </div>
+        <label class="field">Bemerkung optional
+          <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
+        </label>
+        <label class="toggle-label">
+          <input id="weeklyAutoEntries" type="checkbox" ${autoCreateEntries ? "checked" : ""}>
+          Wochenplan-Aufgaben automatisch in Seitenstand übernehmen
+        </label>
+        <div class="weekly-assignment">
+          <strong>Zuordnung</strong>
+          <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="all" ${assignmentMode === "all" ? "checked" : ""}> für alle Tiere</label>
+          <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="selected" ${assignmentMode !== "all" ? "checked" : ""}> für einzelne Tiere / Gruppe</label>
+          <div class="animal-checkbox-grid">
+            ${animals.map((animal) => `
+              <label class="toggle-label"><input class="weeklyAnimalCheckbox" type="checkbox" value="${animal.id}" ${selectedAnimals.has(animal.id) ? "checked" : ""}> ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</label>
+            `).join("")}
+          </div>
+        </div>
+        <div class="backup-actions">
+          <button class="primary" type="button" onclick="saveWeeklyPlan(event)">Wochenplan speichern</button>
+          <button class="secondary" type="button" onclick="newWeeklyPlan()">Formular leeren</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function renderWorkbookSelect(subject, selectedId, id) {
+  const items = workbookCatalogForActiveClass().filter((item) => item.subject === subject && item.active !== false);
+  return `
+    <select class="select-input" id="${escapeAttribute(id)}">
+      <option value="">keine Aufgabe</option>
+      ${items.map((item) => `<option value="${item.id}" ${selectedId === item.id ? "selected" : ""}>${escapeHtml(workbookCatalogLabel(item))}</option>`).join("")}
+    </select>
+  `;
+}
+
+function renderWeeklyPlanStatusOverview() {
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const plans = weeklyPlansForActiveClass();
+  const rows = plans.flatMap((plan) => animals
+    .filter((animal) => weeklyPlanAppliesToAnimal(plan, animal.id))
+    .flatMap((animal) => WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day).map((item) => ({
+      plan,
+      animal,
+      day,
+      item,
+      status: weeklyPlanItemStatus(plan.id, animal.id, day, item.field)
+    })))));
+  return `
+    <section class="panel">
+      <h2>Wochenplan-Status</h2>
+      <p class="message">Hier sieht die Lehrkraft, welches Tier welche Wochenplan-Aufgabe begonnen oder bearbeitet hat.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Wochenplan</th><th>Tier</th><th>Tag</th><th>Bereich</th><th>Aufgabe</th><th>Status</th></tr></thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr class="${row.status === "bearbeitet" ? "" : "muted-row"}">
+                <td>${escapeHtml(row.plan.title)}</td>
+                <td><strong>${teacherAnimalLabel(row.animal)}</strong></td>
+                <td>${escapeHtml(row.day)}</td>
+                <td>${escapeHtml(row.item.label)}</td>
+                <td>${escapeHtml(row.item.text)}</td>
+                <td>${weeklyStatusBadge(row.status)}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="6">Noch keine Wochenplan-Aufgaben vorhanden.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+async function addWorkbookCatalogItem(event) {
+  event.preventDefault();
+  const subject = document.querySelector("#catalogSubject")?.value || "Deutsch";
+  const workbook = document.querySelector("#catalogWorkbook")?.value.trim() || "";
+  const page = Number(document.querySelector("#catalogPage")?.value || 0);
+  const title = document.querySelector("#catalogTitle")?.value.trim() || "";
+  const competence = document.querySelector("#catalogCompetence")?.value.trim() || "";
+  const note = document.querySelector("#catalogNote")?.value.trim() || "";
+  if (!workbook || !page) {
+    globalMessage = "Bitte gib Lehrwerk und Seite ein.";
+    render();
+    return;
+  }
+  const timestamp = nowIso();
+  await persistAndRender({
+    ...state,
+    workbookCatalog: [...(state.workbookCatalog || []), {
+      id: makeId(),
+      classId: state.activeClassId,
+      subject,
+      workbook,
+      page,
+      title,
+      competence,
+      note,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    }]
+  });
+}
+
+async function deleteWorkbookCatalogItem(itemId) {
+  if (!confirm("Diesen Lehrwerk-Eintrag wirklich löschen?")) return;
+  await persistAndRender({ ...state, workbookCatalog: (state.workbookCatalog || []).filter((item) => item.id !== itemId) });
+}
+
+function newWeeklyPlan() {
+  weeklyPlanEditorId = "";
+  render();
+}
+
+function editWeeklyPlan(planId) {
+  weeklyPlanEditorId = planId;
+  render();
+}
+
+async function copyWeeklyPlan(planId) {
+  const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+  if (!plan) return;
+  const timestamp = nowIso();
+  const copy = {
+    ...plan,
+    id: makeId(),
+    title: `${plan.title} Kopie`,
+    weekLabel: "",
+    validFrom: "",
+    validTo: "",
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  weeklyPlanEditorId = copy.id;
+  await persistAndRender({ ...state, weeklyPlans: [...(state.weeklyPlans || []), copy] });
+}
+
+async function deleteWeeklyPlan(planId) {
+  if (!confirm("Diesen Wochenplan wirklich löschen? Status-Einträge zu diesem Wochenplan werden ebenfalls entfernt.")) return;
+  await persistAndRender({
+    ...state,
+    weeklyPlans: (state.weeklyPlans || []).filter((plan) => plan.id !== planId),
+    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.planId !== planId)
+  });
+}
+
+async function saveWeeklyPlan(event) {
+  event.preventDefault();
+  const planId = document.querySelector("#weeklyPlanId")?.value || "";
+  const title = document.querySelector("#weeklyTitle")?.value.trim() || "Wochenplan";
+  const weekLabel = document.querySelector("#weeklyLabel")?.value.trim() || "";
+  const validFrom = document.querySelector("#weeklyFrom")?.value || "";
+  const validTo = document.querySelector("#weeklyTo")?.value || "";
+  const note = document.querySelector("#weeklyNote")?.value.trim() || "";
+  const assignmentMode = document.querySelector("input[name='weeklyAssignmentMode']:checked")?.value || "all";
+  const animalIds = [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")].map((item) => item.value);
+  const timestamp = nowIso();
+  const days = {};
+  WEEK_DAYS.forEach((day, index) => {
+    days[day] = {
+      deutschId: document.querySelector(`#weeklyDeutsch${index}`)?.value || "",
+      matheId: document.querySelector(`#weeklyMathe${index}`)?.value || "",
+      freeText: document.querySelector(`#weeklyFree${index}`)?.value.trim() || ""
+    };
+  });
+  const existing = (state.weeklyPlans || []).find((plan) => plan.id === planId);
+  const nextPlan = {
+    ...(existing || {}),
+    id: existing?.id || makeId(),
+    classId: state.activeClassId,
+    title,
+    weekLabel,
+    validFrom,
+    validTo,
+    note,
+    assignmentMode,
+    animalIds,
+    autoCreateEntries: document.querySelector("#weeklyAutoEntries")?.checked === true,
+    days,
+    active: true,
+    createdAt: existing?.createdAt || timestamp,
+    updatedAt: timestamp
+  };
+  weeklyPlanEditorId = nextPlan.id;
+  const weeklyPlans = existing
+    ? (state.weeklyPlans || []).map((plan) => plan.id === existing.id ? nextPlan : plan)
+    : [...(state.weeklyPlans || []), nextPlan];
+  await persistAndRender({ ...state, weeklyPlans });
 }
 
 async function resetTrainingCompletion(animalId, taskCode) {
@@ -1848,7 +2288,8 @@ async function addClassItem(event) {
     activeClassId: classItem.id,
     classes: [...state.classes, classItem],
     animals: [...state.animals, ...createDefaultAnimals(classItem.id)],
-    materials: [...state.materials, ...createDefaultMaterials(classItem.id)]
+    materials: [...state.materials, ...createDefaultMaterials(classItem.id)],
+    workbookCatalog: [...(state.workbookCatalog || []), ...createDefaultWorkbookCatalog(classItem.id)]
   });
 }
 
@@ -1885,7 +2326,10 @@ async function deleteClassItem(classId) {
     assessmentTasks: (state.assessmentTasks || []).filter((item) => item.classId !== classId),
     assessmentResults: (state.assessmentResults || []).filter((item) => item.classId !== classId),
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId !== classId),
-    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId !== classId)
+    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId !== classId),
+    workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId !== classId),
+    weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId !== classId),
+    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId !== classId)
   });
 }
 
@@ -2741,12 +3185,18 @@ function renderMergeReport() {
         <div>neu ergänzte Trainingsaufgaben</div><strong>${lastMergeReport.addedTrainingTasks || 0}</strong>
         <div>neu ergänzte Trainings-Bearbeitungen</div><strong>${lastMergeReport.addedTrainingCompletions || 0}</strong>
         <div>neu ergänzte Trainings-Änderungen</div><strong>${lastMergeReport.addedTrainingHistory || 0}</strong>
+        <div>neu ergänzte Lehrwerk-Einträge</div><strong>${lastMergeReport.addedWorkbookCatalog || 0}</strong>
+        <div>neu ergänzte Wochenpläne</div><strong>${lastMergeReport.addedWeeklyPlans || 0}</strong>
+        <div>neu ergänzte Wochenplan-Status</div><strong>${lastMergeReport.addedWeeklyPlanStatuses || 0}</strong>
         <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
         <div>übersprungene doppelte Lernzielkontrollen</div><strong>${lastMergeReport.skippedDuplicateAssessments || 0}</strong>
         <div>übersprungene doppelte LZK-Aufgaben</div><strong>${lastMergeReport.skippedDuplicateAssessmentTasks || 0}</strong>
         <div>übersprungene doppelte Testergebnisse</div><strong>${lastMergeReport.skippedDuplicateAssessmentResults || 0}</strong>
         <div>übersprungene doppelte Trainings-Bearbeitungen</div><strong>${lastMergeReport.skippedDuplicateTrainingCompletions || 0}</strong>
         <div>übersprungene doppelte Trainings-Änderungen</div><strong>${lastMergeReport.skippedDuplicateTrainingHistory || 0}</strong>
+        <div>übersprungene doppelte Lehrwerk-Einträge</div><strong>${lastMergeReport.skippedDuplicateWorkbookCatalog || 0}</strong>
+        <div>übersprungene doppelte Wochenpläne</div><strong>${lastMergeReport.skippedDuplicateWeeklyPlans || 0}</strong>
+        <div>übersprungene doppelte Wochenplan-Status</div><strong>${lastMergeReport.skippedDuplicateWeeklyPlanStatuses || 0}</strong>
         <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
         <div>Zeitpunkt</div><strong>${formatDateTime(lastMergeReport.mergedAt)}</strong>
       </div>
@@ -3935,6 +4385,9 @@ function renderStorageStatus() {
         <div>Anzahl Trainingsaufgaben</div><strong>${(state.trainingTasks || []).length}</strong>
         <div>Anzahl bearbeiteter Trainingsaufgaben</div><strong>${(state.trainingCompletions || []).filter((item) => item.status === "bearbeitet").length}</strong>
         <div>Anzahl Trainings-Änderungen</div><strong>${(state.trainingHistory || []).length}</strong>
+        <div>Anzahl Lehrwerk-Einträge</div><strong>${(state.workbookCatalog || []).length}</strong>
+        <div>Anzahl Wochenpläne</div><strong>${(state.weeklyPlans || []).length}</strong>
+        <div>Anzahl Wochenplan-Status</div><strong>${(state.weeklyPlanStatuses || []).length}</strong>
         <div>letzte Änderung Tests & Lernzielkontrollen</div><strong>${latestAssessmentChange ? formatDateTime(latestAssessmentChange) : "noch keine"}</strong>
         <div>assessments vorhanden</div><strong>${(state.assessments || []).length ? "ja" : "nein"}</strong>
         <div>assessmentTasks vorhanden</div><strong>${(state.assessmentTasks || []).length ? "ja" : "nein"}</strong>
@@ -4565,6 +5018,92 @@ function buildTrainingRowsForClass(classId) {
       status: completion?.status || "offen"
     };
   }));
+}
+
+function workbookCatalogForActiveClass() {
+  return workbookCatalogForClass(state.activeClassId);
+}
+
+function workbookCatalogForClass(classId) {
+  return (state.workbookCatalog || []).filter((item) => item.classId === classId);
+}
+
+function workbookCatalogLabel(item) {
+  if (!item) return "";
+  const page = Number(item.page) > 0 ? `S. ${item.page}` : "";
+  return [item.workbook, page, item.title].filter(Boolean).join(" – ");
+}
+
+function weeklyPlansForActiveClass() {
+  return (state.weeklyPlans || []).filter((plan) => plan.classId === state.activeClassId && plan.active !== false);
+}
+
+function weeklyPlansForAnimal(animalId) {
+  return weeklyPlansForActiveClass()
+    .filter((plan) => weeklyPlanAppliesToAnimal(plan, animalId))
+    .filter((plan) => weeklyPlanIsCurrent(plan))
+    .sort((a, b) => String(a.validFrom || a.createdAt || "").localeCompare(String(b.validFrom || b.createdAt || "")));
+}
+
+function weeklyPlanAppliesToAnimal(plan, animalId) {
+  return plan.assignmentMode === "all" || !plan.animalIds?.length || plan.animalIds.includes(animalId);
+}
+
+function weeklyPlanIsCurrent(plan) {
+  const today = formatFileDate(new Date());
+  if (plan.validFrom && today < plan.validFrom) return false;
+  if (plan.validTo && today > plan.validTo) return false;
+  return true;
+}
+
+function weeklyPlanPeriodLabel(plan) {
+  const parts = [];
+  if (plan.weekLabel) parts.push(plan.weekLabel);
+  if (plan.validFrom || plan.validTo) parts.push(`${plan.validFrom ? formatGermanDate(plan.validFrom) : "offen"} bis ${plan.validTo ? formatGermanDate(plan.validTo) : "offen"}`);
+  return parts.join(" · ") || "ohne Zeitraum";
+}
+
+function weeklyPlanItemsForDay(plan, day) {
+  const dayData = plan.days?.[day] || {};
+  const deutsch = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.deutschId);
+  const mathe = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.matheId);
+  return [
+    deutsch ? {
+      field: "Deutsch",
+      label: "Deutsch",
+      workbookCatalogId: deutsch.id,
+      catalogItem: deutsch,
+      text: `${deutsch.workbook} – Seite ${deutsch.page}`,
+      detail: deutsch.title || deutsch.competence || ""
+    } : null,
+    mathe ? {
+      field: "Mathe",
+      label: "Mathe",
+      workbookCatalogId: mathe.id,
+      catalogItem: mathe,
+      text: `${mathe.workbook} – Seite ${mathe.page}`,
+      detail: mathe.title || mathe.competence || ""
+    } : null,
+    dayData.freeText ? {
+      field: "Freie Aufgabe",
+      label: "Extra",
+      freeText: dayData.freeText,
+      text: dayData.freeText,
+      detail: ""
+    } : null
+  ].filter(Boolean);
+}
+
+function weeklyPlanItemStatus(planId, animalId, day, field) {
+  const latest = (state.weeklyPlanStatuses || [])
+    .filter((item) => item.planId === planId && item.animalId === animalId && item.day === day && item.field === field)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+  return latest?.status || "offen";
+}
+
+function weeklyStatusBadge(status) {
+  const className = status === "bearbeitet" ? "done" : status === "begonnen" ? "check" : "stale";
+  return `<span class="badge ${className}">${escapeHtml(status)}</span>`;
 }
 
 function activeClass() {

@@ -69,6 +69,10 @@ Die Datei wird lokal im Browser mit der mitgelieferten Datei `exceljs.min.js` er
 
 In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS / Zuhause`. `OGS / Zuhause` ist in `Deutsch-Entdecker`, `Mathe-Entdecker` und `Forscher` gegliedert. Die zentrale Aufgabenliste enthält 45 aktive Aufgaben: D-01 bis D-15, M-01 bis M-15 und F-01 bis F-15. Dieselben Texte werden für digitale Karten, Modal, Druckübersicht und Stickerbogen genutzt. Erst der Button `Aufgabe starten` speichert die Aufgabe als bearbeitet. Bearbeitete Aufgaben bleiben sichtbar, werden aber abgeschwächt dargestellt und nicht erneut auswählbar. In der `Lernstand-Übersicht` zeigt `Trainingszeit` eine filterbare Übersicht der bearbeiteten und offenen Aufgaben je Tier-Pseudonym. Die Lehrkraft kann versehentliche Auswahlen zurücksetzen; die Änderung wird historisch gespeichert.
 
+## Wochenpläne
+
+Im Kinderbereich `Meine Lernreise` gibt es zusätzlich die Kachel `Meine Woche`. Der Wochenplan enthält nur Deutsch-Arbeitsheft/Lehrwerk, Mathe-Arbeitsheft/Lehrwerk und freie Aufgaben der Lehrkraft. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher werden dort nicht angezeigt. Im Lehrkraftbereich unter `Trainingszeit und Aufgaben` -> `Wochenpläne` kann die Lehrkraft Inhaltsverzeichnisse für `ABC der Tiere`, `MiniMax` oder eigene Lehrwerke pflegen, Wochenpläne für alle oder ausgewählte Tiere erstellen, kopieren und den Status `offen`, `begonnen` oder `bearbeitet` einsehen.
+
 ## Deutsch-Notizen
 
 Im Kinderbereich führt `Deutsch` bei freien Zusatz-/Notizmaterialien nicht mehr zu Aufgaben-Kärtchen. Stattdessen erscheint ein schlichtes Schreibfeld `Meine Notizen`, in dem Kinder Wörter, Sätze, Notizen oder Ideen festhalten können.

@@ -39,7 +39,10 @@ function makeActiveClassBackup(state, classId) {
     sprachweltTasks: state.sprachweltTasks || [],
     trainingTasks: state.trainingTasks || [],
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
-    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId === classId)
+    trainingHistory: (state.trainingHistory || []).filter((item) => item.classId === classId),
+    workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId === classId),
+    weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId === classId),
+    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId)
   };
 }
 
@@ -60,6 +63,9 @@ function makeLernpostPackage(state, classId) {
     trainingTasks: state.trainingTasks || [],
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
     trainingHistory: [],
+    workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId === classId),
+    weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId === classId),
+    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId),
     childSafe: true
   };
 }
@@ -852,6 +858,32 @@ function importActiveClassAsNew(state, backup) {
     classId: newClassId,
     animalId: oldToNewAnimal.get(item.animalId) || item.animalId
   }));
+  const oldToNewWorkbookCatalog = new Map();
+  const workbookCatalog = (backup.workbookCatalog || []).map((item) => {
+    const newId = makeId();
+    oldToNewWorkbookCatalog.set(item.id, newId);
+    return { ...item, id: newId, classId: newClassId };
+  });
+  const oldToNewWeeklyPlan = new Map();
+  const weeklyPlans = (backup.weeklyPlans || []).map((item) => {
+    const newId = makeId();
+    oldToNewWeeklyPlan.set(item.id, newId);
+    return {
+      ...item,
+      id: newId,
+      classId: newClassId,
+      animalIds: (item.animalIds || []).map((animalId) => oldToNewAnimal.get(animalId) || animalId),
+      days: remapWeeklyPlanDays(item.days, oldToNewWorkbookCatalog)
+    };
+  });
+  const weeklyPlanStatuses = (backup.weeklyPlanStatuses || []).map((item) => ({
+    ...item,
+    id: makeId(),
+    classId: newClassId,
+    planId: oldToNewWeeklyPlan.get(item.planId) || item.planId,
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId,
+    workbookCatalogId: oldToNewWorkbookCatalog.get(item.workbookCatalogId) || item.workbookCatalogId
+  }));
   const entries = (backup.entries || []).map((entry) => ({
     ...entry,
     id: makeId(),
@@ -872,6 +904,9 @@ function importActiveClassAsNew(state, backup) {
     trainingTasks: backup.trainingTasks?.length ? mergeTrainingTasks(state.trainingTasks || [], backup.trainingTasks) : state.trainingTasks,
     trainingCompletions: [...(state.trainingCompletions || []), ...trainingCompletions],
     trainingHistory: [...(state.trainingHistory || []), ...trainingHistory],
+    workbookCatalog: [...(state.workbookCatalog || []), ...workbookCatalog],
+    weeklyPlans: [...(state.weeklyPlans || []), ...weeklyPlans],
+    weeklyPlanStatuses: [...(state.weeklyPlanStatuses || []), ...weeklyPlanStatuses],
     entries: [...state.entries, ...entries]
   });
 }
@@ -901,6 +936,9 @@ function stateFromBackup(backup) {
       trainingTasks: backup.trainingTasks || [],
       trainingCompletions: backup.trainingCompletions || [],
       trainingHistory: backup.trainingHistory || [],
+      workbookCatalog: backup.workbookCatalog || [],
+      weeklyPlans: backup.weeklyPlans || [],
+      weeklyPlanStatuses: backup.weeklyPlanStatuses || [],
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
@@ -919,6 +957,9 @@ function stateFromBackup(backup) {
       trainingTasks: backup.trainingTasks || [],
       trainingCompletions: backup.trainingCompletions || [],
       trainingHistory: backup.trainingHistory || [],
+      workbookCatalog: backup.workbookCatalog || [],
+      weeklyPlans: backup.weeklyPlans || [],
+      weeklyPlanStatuses: backup.weeklyPlanStatuses || [],
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
@@ -941,11 +982,17 @@ function mergeBackupData(currentState, importedBackup) {
     addedTrainingTasks: 0,
     addedTrainingCompletions: 0,
     addedTrainingHistory: 0,
+    addedWorkbookCatalog: 0,
+    addedWeeklyPlans: 0,
+    addedWeeklyPlanStatuses: 0,
     skippedDuplicateTrainingCompletions: 0,
     skippedDuplicateAssessments: 0,
     skippedDuplicateAssessmentTasks: 0,
     skippedDuplicateAssessmentResults: 0,
     skippedDuplicateTrainingHistory: 0,
+    skippedDuplicateWorkbookCatalog: 0,
+    skippedDuplicateWeeklyPlans: 0,
+    skippedDuplicateWeeklyPlanStatuses: 0,
     skippedDuplicateEntries: 0,
     conflicts: [],
     mergedAt: nowIso()
@@ -962,6 +1009,9 @@ function mergeBackupData(currentState, importedBackup) {
   const trainingTaskCodes = new Set((current.trainingTasks || []).map((item) => item.code));
   const trainingCompletionKeys = new Set((current.trainingCompletions || []).map(trainingCompletionKey));
   const trainingHistoryIds = new Set((current.trainingHistory || []).map((item) => item.id));
+  const workbookCatalogIds = new Set((current.workbookCatalog || []).map((item) => item.id));
+  const weeklyPlanIds = new Set((current.weeklyPlans || []).map((item) => item.id));
+  const weeklyPlanStatusIds = new Set((current.weeklyPlanStatuses || []).map((item) => item.id));
   const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
   const qrTokens = new Map(current.animals.filter((animal) => animal.qrToken).map((animal) => [animal.qrToken, animal.id]));
 
@@ -977,7 +1027,10 @@ function mergeBackupData(currentState, importedBackup) {
     assessmentResults: [...(current.assessmentResults || [])],
     trainingTasks: [...(current.trainingTasks || [])],
     trainingCompletions: [...(current.trainingCompletions || [])],
-    trainingHistory: [...(current.trainingHistory || [])]
+    trainingHistory: [...(current.trainingHistory || [])],
+    workbookCatalog: [...(current.workbookCatalog || [])],
+    weeklyPlans: [...(current.weeklyPlans || [])],
+    weeklyPlanStatuses: [...(current.weeklyPlanStatuses || [])]
   };
 
   imported.classes.forEach((item) => {
@@ -1102,12 +1155,54 @@ function mergeBackupData(currentState, importedBackup) {
     report.addedTrainingHistory += 1;
   });
 
+  (imported.workbookCatalog || []).forEach((item) => {
+    if (workbookCatalogIds.has(item.id)) {
+      report.skippedDuplicateWorkbookCatalog += 1;
+      return;
+    }
+    next.workbookCatalog.push(item);
+    workbookCatalogIds.add(item.id);
+    report.addedWorkbookCatalog += 1;
+  });
+
+  (imported.weeklyPlans || []).forEach((item) => {
+    if (weeklyPlanIds.has(item.id)) {
+      report.skippedDuplicateWeeklyPlans += 1;
+      return;
+    }
+    next.weeklyPlans.push(item);
+    weeklyPlanIds.add(item.id);
+    report.addedWeeklyPlans += 1;
+  });
+
+  (imported.weeklyPlanStatuses || []).forEach((item) => {
+    if (weeklyPlanStatusIds.has(item.id)) {
+      report.skippedDuplicateWeeklyPlanStatuses += 1;
+      return;
+    }
+    next.weeklyPlanStatuses.push(item);
+    weeklyPlanStatusIds.add(item.id);
+    report.addedWeeklyPlanStatuses += 1;
+  });
+
   return { state: normalizeState(next), report };
 }
 
 function remapTaskPoints(taskPoints, idMap) {
   if (!taskPoints || typeof taskPoints !== "object") return {};
   return Object.fromEntries(Object.entries(taskPoints).map(([taskId, value]) => [idMap.get(taskId) || taskId, value]));
+}
+
+function remapWeeklyPlanDays(days, idMap) {
+  if (!days || typeof days !== "object") return days || {};
+  return Object.fromEntries(Object.entries(days).map(([day, value]) => [
+    day,
+    {
+      ...value,
+      deutschId: idMap.get(value?.deutschId) || value?.deutschId || "",
+      matheId: idMap.get(value?.matheId) || value?.matheId || ""
+    }
+  ]));
 }
 
 function mergeTrainingTasks(currentTasks, importedTasks) {

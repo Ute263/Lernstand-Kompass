@@ -41,6 +41,25 @@ const DEFAULT_MATERIALS = [
   ["Mathe", "Zusatzaufgabe"]
 ];
 
+const WEEK_DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+
+const WEEKLY_PLAN_FIELDS = [
+  { key: "deutsch", label: "Deutsch", subject: "Deutsch" },
+  { key: "mathe", label: "Mathe", subject: "Mathe" },
+  { key: "freeText", label: "Freie Aufgabe", subject: "" }
+];
+
+const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "bearbeitet"];
+
+const DEFAULT_WORKBOOK_CATALOG = [
+  { subject: "Deutsch", workbook: "ABC der Tiere", page: 15, title: "Buchstabentraining", competence: "Lesen / Schreiben", note: "" },
+  { subject: "Deutsch", workbook: "ABC der Tiere", page: 16, title: "Buchstabentraining", competence: "Lesen / Schreiben", note: "" },
+  { subject: "Deutsch", workbook: "ABC der Tiere", page: 17, title: "Wörter lesen und schreiben", competence: "Lesen / Schreiben", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", page: 23, title: "Plusaufgaben", competence: "Addition", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", page: 24, title: "Minusaufgaben", competence: "Subtraktion", note: "" },
+  { subject: "Mathe", workbook: "MiniMax", page: 25, title: "Zahlzerlegung", competence: "Zahlen und Operationen", note: "" }
+];
+
 const DEFAULT_PROGRESS_SETTINGS = {
   staleDays: 5,
   groupLookThreshold: 4,
@@ -227,6 +246,9 @@ function emptyState() {
     trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: [],
     trainingHistory: [],
+    workbookCatalog: [],
+    weeklyPlans: [],
+    weeklyPlanStatuses: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     teacherShowFirstNames: false,
     qrScannerEnabled: true,
@@ -274,6 +296,22 @@ function createDefaultMaterials(classId) {
   }));
 }
 
+function createDefaultWorkbookCatalog(classId) {
+  return DEFAULT_WORKBOOK_CATALOG.map((item) => ({
+    id: makeId(),
+    classId,
+    subject: item.subject,
+    workbook: item.workbook,
+    page: item.page,
+    title: item.title,
+    competence: item.competence,
+    note: item.note,
+    active: true,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  }));
+}
+
 function createInitialState({ pinHash, recoveryKeyHash, className, description }) {
   const firstClass = createClassItem(className, description);
   return {
@@ -294,6 +332,9 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     trainingTasks: DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: [],
     trainingHistory: [],
+    workbookCatalog: createDefaultWorkbookCatalog(firstClass.id),
+    weeklyPlans: [],
+    weeklyPlanStatuses: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     teacherShowFirstNames: false,
     qrScannerEnabled: true,
@@ -328,6 +369,9 @@ function normalizeState(candidate) {
       : DEFAULT_TRAINING_TASKS.map((task) => ({ ...task })),
     trainingCompletions: Array.isArray(candidate.trainingCompletions) ? candidate.trainingCompletions : [],
     trainingHistory: Array.isArray(candidate.trainingHistory) ? candidate.trainingHistory : [],
+    workbookCatalog: Array.isArray(candidate.workbookCatalog) ? candidate.workbookCatalog : [],
+    weeklyPlans: Array.isArray(candidate.weeklyPlans) ? candidate.weeklyPlans : [],
+    weeklyPlanStatuses: Array.isArray(candidate.weeklyPlanStatuses) ? candidate.weeklyPlanStatuses : [],
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
@@ -351,6 +395,16 @@ function normalizeState(candidate) {
   state.trainingTasks = state.trainingTasks.map((item) => normalizeTrainingTask(item));
   state.trainingCompletions = state.trainingCompletions.map((item) => normalizeTrainingCompletion(item, state.activeClassId));
   state.trainingHistory = state.trainingHistory.map((item) => normalizeTrainingHistory(item, state.activeClassId));
+  state.workbookCatalog = state.workbookCatalog.map((item) => normalizeWorkbookCatalogItem(item, state.activeClassId));
+  const catalogClassIds = new Set(state.workbookCatalog.map((item) => item.classId));
+  state.classes.forEach((classItem) => {
+    if (!catalogClassIds.has(classItem.id)) {
+      state.workbookCatalog.push(...createDefaultWorkbookCatalog(classItem.id));
+      catalogClassIds.add(classItem.id);
+    }
+  });
+  state.weeklyPlans = state.weeklyPlans.map((item) => normalizeWeeklyPlan(item, state.activeClassId));
+  state.weeklyPlanStatuses = state.weeklyPlanStatuses.map((item) => normalizeWeeklyPlanStatus(item, state.activeClassId));
 
   const usedTokens = new Set();
   state.animals = state.animals.map((animal) => ({
@@ -363,6 +417,70 @@ function normalizeState(candidate) {
   }
   state.setupComplete = Boolean(state.setupComplete && state.activeClassId);
   return state;
+}
+
+function normalizeWorkbookCatalogItem(item, fallbackClassId) {
+  const timestamp = nowIso();
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    subject: item.subject || item.fach || "Deutsch",
+    workbook: item.workbook || item.lehrwerk || item.material || "",
+    page: Number(item.page || item.seite || 0),
+    title: item.title || item.thema || item.inhalt || "",
+    competence: item.competence || item.kompetenz || "",
+    note: item.note || item.bemerkung || "",
+    active: item.active !== false && item.aktiv !== false,
+    createdAt: item.createdAt || item.erstelltAm || timestamp,
+    updatedAt: item.updatedAt || item.geaendertAm || timestamp
+  };
+}
+
+function normalizeWeeklyPlan(item, fallbackClassId) {
+  const timestamp = nowIso();
+  const days = {};
+  WEEK_DAYS.forEach((day) => {
+    const source = item.days?.[day] || item.tage?.[day] || {};
+    days[day] = {
+      deutschId: source.deutschId || source.deutsch || "",
+      matheId: source.matheId || source.mathe || "",
+      freeText: source.freeText || source.frei || source.extra || ""
+    };
+  });
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    title: item.title || item.titel || "Wochenplan",
+    weekLabel: item.weekLabel || item.kalenderwoche || "",
+    validFrom: item.validFrom || item.gueltigVon || "",
+    validTo: item.validTo || item.gueltigBis || "",
+    note: item.note || item.bemerkung || "",
+    assignmentMode: item.assignmentMode || item.zuordnung || "all",
+    animalIds: Array.isArray(item.animalIds) ? item.animalIds : [],
+    autoCreateEntries: item.autoCreateEntries === true,
+    days,
+    active: item.active !== false && item.aktiv !== false,
+    createdAt: item.createdAt || item.erstelltAm || timestamp,
+    updatedAt: item.updatedAt || item.geaendertAm || timestamp
+  };
+}
+
+function normalizeWeeklyPlanStatus(item, fallbackClassId) {
+  const timestamp = nowIso();
+  const status = WEEKLY_PLAN_STATUSES.includes(item.status) ? item.status : "offen";
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    planId: item.planId || item.wochenplanId || "",
+    animalId: item.animalId || item.tierID || item.tierId || "",
+    day: item.day || item.tag || "Montag",
+    field: item.field || item.bereich || "Deutsch",
+    workbookCatalogId: item.workbookCatalogId || item.catalogId || "",
+    freeText: item.freeText || "",
+    status,
+    createdAt: item.createdAt || item.erstelltAm || timestamp,
+    updatedAt: item.updatedAt || item.geaendertAm || timestamp
+  };
 }
 
 function mergeDefaultTrainingTasks(tasks) {
