@@ -442,6 +442,75 @@ button:disabled {
   font-weight: 900;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.weekly-pick-cell {
+  display: grid;
+  gap: 7px;
+  align-self: stretch;
+}
+
+.weekly-pick-label {
+  display: grid;
+  gap: 4px;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf8;
+  font-weight: 850;
+}
+
+.weekly-pick-label.empty {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.weekly-picker-filters,
+.weekly-print-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.weekly-picker-list {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-picker-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+  text-align: left;
+}
+
+.weekly-picker-item span {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.weekly-print-animal-grid,
+.option-fieldset {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.option-fieldset legend {
+  color: var(--brand-dark);
+  font-weight: 900;
+}
+
 .weekly-assignment {
   display: grid;
   gap: 10px;

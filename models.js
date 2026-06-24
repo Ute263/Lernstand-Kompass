@@ -52,13 +52,92 @@ const WEEKLY_PLAN_FIELDS = [
 const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "fertig"];
 
 const DEFAULT_WORKBOOK_CATALOG = [
-  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 15, title: "Eine Infotafel gestalten", competence: "Lesen / Schreiben", note: "" },
-  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 16, title: "Wörter und Sätze lesen", competence: "Lesen", note: "" },
-  { subject: "Deutsch", workbook: "ABC der Tiere", part: "Teil A", area: "Wir sind in Klasse 2", category: "", page: 17, title: "Wörter schreiben", competence: "Schreiben", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Basis", page: 19, pageEnd: 22, title: "Basisaufgaben", competence: "Addition", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Training", page: 23, title: "Plusaufgaben", competence: "Addition", note: "" },
-  { subject: "Mathe", workbook: "MiniMax", part: "Teil 1", area: "Addition ohne Zehnerübergang", category: "Extra", page: 24, title: "Weiterführende Plusaufgaben", competence: "Addition", note: "" }
+  ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
+    ["4", "Wir sind in Klasse 2"], ["6", "Nomen"], ["10", "Silbenhaus A und Silbenhaus B"], ["11", "Bestimmter Artikel: der, die, das"], ["12", "Unbestimmter Artikel: ein, eine"], ["13", "Einzahl – Mehrzahl"], ["14", "Nomen-Probe"], ["15", "Eine Infotafel gestalten"], ["3-6", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil A", "Rund um das Abc", [
+    ["16", "Rund um das Abc"], ["18", "Abc"], ["20", "Selbstlaute – Mitlaute"], ["21", "Erste Silbe: offen oder geschlossen?"], ["22", "Nach dem Abc ordnen"], ["23", "Im Wörterbuch nachschlagen"], ["24", "Lang oder kurz? – Doppelter Mitlaut"], ["26", "Verben"], ["28", "Nomen oder Verb?"], ["30", "Lang oder kurz? – Sprechprobe"], ["31", "Lang oder kurz?"], ["32", "Aussagesatz"], ["33", "Richtig abschreiben – Würfeldiktat"], ["7-11", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil A", "Im Wald und auf dem Feld", [
+    ["34", "Im Wald und auf dem Feld"], ["36", "Verben auf -en: Wortstamm"], ["37", "Die er-Form"], ["39", "Die er-Form mit doppeltem Mitlaut"], ["40", "Verbformen"], ["41", "Verb-Probe"], ["42", "Umlaute A/ä und Au/äu – Wir leiten ab"], ["43", "Umlaute in der er-Form – Wir leiten ab"], ["44", "Aussagesatz"], ["45", "Schleichdiktat"], ["46", "Eine Bildergeschichte schreiben"], ["12-14", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil A", "Bei uns und anderswo", [
+    ["48", "Bei uns und anderswo"], ["50", "-en, -el, -er in der zweiten Silbe"], ["51", "nk oder ng – Höre den Unterschied"], ["52", "Wörter mit ck"], ["53", "Lang oder kurz?"], ["54", "Einen Wunschzettel schreiben"], ["55", "Zusammengesetzte Nomen"], ["56", "Zusammengesetzte Nomen: Verbindungs-s"], ["57", "Eine Backanleitung schreiben"], ["60", "Sprachen vergleichen: Begrüßungen"], ["61", "Szenisch spielen"], ["15-18", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil A", "Durch das Jahr", [
+    ["62", "Durch das Jahr"], ["64", "Die Monate"], ["66", "Fragesatz"], ["68", "b–p, d–t, g–k: Wir verlängern"], ["70", "Wochentage und andere Tage"], ["72", "Eine Wochenendgeschichte schreiben"], ["73", "Dosendiktat"], ["74", "Eine Bildergeschichte schreiben"], ["19-21", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil A", "Wir – Du – Ich", [
+    ["80", "Wir – Du – Ich: Kennst du mich?"], ["82", "Adjektive"], ["84", "Adjektive – Gefühle"], ["86", "Aussagesatz – Streit"], ["87", "Adjektive – Einen Streit klären"], ["88", "Aussagesatz – Bei uns zu Hause"], ["90", "r nach Selbstlaut"], ["91", "Lang oder kurz?"], ["92", "Wörter mit ß"], ["94", "Partnerdiktat"], ["22-27", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil B", "Märchenhafte Welten", [
+    ["4", "Märchenhafte Welten"], ["6", "Adjektive"], ["8", "Adjektiv-Probe"], ["9", "Sätze umstellen"], ["10", "Satztreppen"], ["11", "Großschreibung und Satzschlusszeichen"], ["12", "Nachsilbe -chen"], ["13", "Nachsilbe -chen – Umlaute"], ["14", "Wörter mit Ei/ei"], ["15", "äu oder eu?"], ["29-32", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil B", "Natur erleben und entdecken", [
+    ["16", "Natur erleben und entdecken"], ["18", "Ein Elfchen schreiben"], ["20", "Zusammengesetzte Nomen"], ["22", "Eine Bastelanleitung schreiben"], ["26", "Genau beschreiben"], ["27", "Sätze umstellen"], ["28", "Aufforderungssatz"], ["29", "Beobachtungen beschreiben"], ["30", "i oder ie?"], ["32", "Lang oder kurz?"], ["33", "Wörter mit ch"], ["34", "Stichwörter schreiben"], ["35", "Einen Vorgang beschreiben"], ["36", "Nomen"], ["37", "Einfache Sätze bilden"], ["38", "Wörter mit chs"], ["39", "Aufnahme-Diktat"], ["33-36", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil B", "Rund um Bücher und Medien", [
+    ["40", "Rund um Bücher und Medien"], ["42", "Medientagebuch"], ["43", "Wörter mit V/v"], ["44", "Vorsilben"], ["45", "Vorsilben ver- und vor-"], ["46", "Buchvorstellung"], ["48", "Einen Text überarbeiten: Satzanfänge"], ["49", "Einen Text überarbeiten: Wortfeld „sehen“"], ["50", "Computer und Tablet als Schreibhilfe"], ["51", "Wörter mit Besonderheiten"], ["52", "Wörter mit Sp, St und Sch"], ["54", "Lang oder kurz?"], ["55", "Eine Bildergeschichte schreiben"], ["37-40", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil B", "Tiere als Freunde", [
+    ["60", "Tiere als Freunde"], ["62", "Informationen sammeln, festhalten und ordnen"], ["64", "Ein Plakat gestalten"], ["65", "Einen Vortrag halten"], ["66", "Bei einem Vortrag zuhören"], ["67", "Einfache Aussagesätze"], ["68", "Wörter mit Pf/pf"], ["70", "Zusammengesetzte Nomen"], ["71", "Einen Text anhören"], ["72", "Wörter mit tz"], ["74", "Lang oder kurz?"], ["75", "Wortarten erkennen – Richtig schreiben"], ["76", "Eine Bildergeschichte schreiben"], ["81", "Eine spannende Tiergeschichte schreiben"], ["41-43", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...abcCatalog("Teil B", "Fantasie und Wirklichkeit", [
+    ["82", "Fantasie und Wirklichkeit"], ["84", "Eine Einladung schreiben"], ["85", "Einen Vorgang beschreiben"], ["86", "Einen Text überarbeiten: Wortfeld „gehen“"], ["87", "Einen Text überarbeiten: Wortfeld „sagen“"], ["88", "Wörter mit h vor l, m, n, r"], ["90", "Einen Text überarbeiten: ihm, ihnen, ihn"], ["91", "Wegbeschreibung"], ["92", "Zusammengesetzte Nomen"], ["44-48", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+  ]),
+  ...miniMaxCatalog("Teil 1", [
+    ["Wiederholung", "", "2-5", "", "", ""],
+    ["Zahlen bis 100", "", "6-7", "8", "9", "1"],
+    ["Orientierung im Zahlenraum bis 100", "Hunderterfeld, Geheimschrift, Hundertertafel", "10-13", "14", "15", ""],
+    ["Vom Zahlenstrahl zum Rechenstrich", "", "16-17", "18", "", "2"],
+    ["Addition ohne Zehnerübergang", "Ergänzen", "19-22", "23", "24", ""],
+    ["Subtraktion ohne Zehnerübergang", "Ergänzen", "25-28", "29", "30", ""],
+    ["Addition und Subtraktion üben", "Zahlenmauern", "31-32", "33", "", "3"],
+    ["Addition mit Zehnerübergang", "Zuerst bis zum Zehner", "34-38", "39", "40", "4"],
+    ["Subtraktion mit Zehnerübergang", "Zuerst zurück bis zum Zehner, Umkehraufgaben", "41-44", "45", "46", "5"],
+    ["Addition und Subtraktion üben", "", "47-48", "49", "50", "6"],
+    ["Sachrechnen", "", "51-52", "53", "", "7"],
+    ["Multiplikation", "Tauschaufgaben", "54-57", "", "", ""],
+    ["Multiplikation mit 2, 5 und 10", "Einmaleins mit 2, Einmaleins mit 10, Einmaleins mit 5, Einmaleins mit 2, 5 und 10", "58-61", "62", "63", "8"]
+  ]),
+  ...miniMaxCatalog("Teil 2", [
+    ["Königsaufgaben nutzen", "", "2-3", "4", "", ""],
+    ["Multiplikation", "Einmaleins mit 4, 8, 4 und 8, 3, 6, 9, 3/6/9, 7, 1 und 0", "5-13", "14", "15", "9"],
+    ["Multiplikation üben", "", "16-17", "18", "19", "10"],
+    ["Einmaleins-Tafel", "", "20-21", "22", "", ""],
+    ["Division", "Verteilen, Aufteilen", "23-24", "25", "26", "11"],
+    ["Multiplikation und Division üben", "Umkehraufgaben, Aufgabenfamilien, Kontrolle mit der Umkehraufgabe, Gleichungen und Ungleichungen", "27-31", "32", "33", "12"],
+    ["Sachrechnen", "", "34-36", "", "", ""],
+    ["Addition mit Zehnerübergang", "Zuerst die Zehner zusammen, dann die Einer; zuerst die Zehner dazu, dann die Einer; Zehnertrick", "37-42", "43", "44", "13"],
+    ["Subtraktion mit Zehnerübergang", "Zuerst die Zehner weg, dann die Einer; Zehnertrick; Ergänzen", "45-50", "51", "52", "14"],
+    ["Addition und Subtraktion üben", "Gerade und ungerade Zahlen, geschicktes Rechnen, Gleichungen und Ungleichungen", "53-57", "58", "59", "15"],
+    ["Sachrechnen", "", "60-61", "", "", ""],
+    ["Division mit Rest", "", "62-63", "", "", "16"]
+  ])
 ];
+
+function abcCatalog(part, area, rows) {
+  return rows.map(([pageSpec, title, category = ""]) => catalogItem("Deutsch", "ABC der Tiere", part, area, category, pageSpec, title, "Deutsch", ""));
+}
+
+function miniMaxCatalog(part, rows) {
+  return rows.flatMap(([theme, subtheme, basis, training, extra, test]) => [
+    basis ? catalogItem("Mathe", "MiniMax", part, theme, "Basis", basis, subtheme || theme, "Mathe", "") : null,
+    training ? catalogItem("Mathe", "MiniMax", part, theme, "Training", training, subtheme || theme, "Mathe", "") : null,
+    extra ? catalogItem("Mathe", "MiniMax", part, theme, "Extra", extra, subtheme || theme, "Mathe", "") : null,
+    test ? catalogItem("Mathe", "MiniMax", part, theme, "Test", test, subtheme || theme, "Mathe", `Test ${test}`) : null
+  ].filter(Boolean));
+}
+
+function catalogItem(subject, workbook, part, area, category, pageSpec, title, competence, note) {
+  const [page, pageEnd] = parsePageSpec(pageSpec);
+  return { subject, workbook, part, area, category, page, pageEnd, title, competence, note };
+}
+
+function parsePageSpec(value) {
+  const parts = String(value || "").replace("–", "-").split("-").map((part) => Number(part.trim()));
+  return [parts[0] || 0, parts[1] || ""];
+}
 
 const DEFAULT_PROGRESS_SETTINGS = {
   staleDays: 5,
@@ -400,12 +479,8 @@ function normalizeState(candidate) {
   state.trainingCompletions = state.trainingCompletions.map((item) => normalizeTrainingCompletion(item, state.activeClassId));
   state.trainingHistory = state.trainingHistory.map((item) => normalizeTrainingHistory(item, state.activeClassId));
   state.workbookCatalog = state.workbookCatalog.map((item) => normalizeWorkbookCatalogItem(item, state.activeClassId));
-  const catalogClassIds = new Set(state.workbookCatalog.map((item) => item.classId));
   state.classes.forEach((classItem) => {
-    if (!catalogClassIds.has(classItem.id)) {
-      state.workbookCatalog.push(...createDefaultWorkbookCatalog(classItem.id));
-      catalogClassIds.add(classItem.id);
-    }
+    state.workbookCatalog = mergeDefaultWorkbookCatalogForClass(state.workbookCatalog, classItem.id);
   });
   state.weeklyPlans = state.weeklyPlans.map((item) => normalizeWeeklyPlan(item, state.activeClassId));
   state.weeklyPlanStatuses = state.weeklyPlanStatuses.map((item) => normalizeWeeklyPlanStatus(item, state.activeClassId));
@@ -444,14 +519,38 @@ function normalizeWorkbookCatalogItem(item, fallbackClassId) {
   };
 }
 
+function workbookCatalogMergeKey(item) {
+  return [
+    item.classId,
+    item.subject,
+    item.workbook,
+    item.part || "",
+    item.area || "",
+    item.category || "",
+    Number(item.page || 0),
+    Number(item.pageEnd || 0),
+    item.title || ""
+  ].join("|").toLowerCase();
+}
+
+function mergeDefaultWorkbookCatalogForClass(catalog, classId) {
+  const existingKeys = new Set(catalog.filter((item) => item.classId === classId).map(workbookCatalogMergeKey));
+  const additions = createDefaultWorkbookCatalog(classId).filter((item) => !existingKeys.has(workbookCatalogMergeKey(item)));
+  return additions.length ? [...catalog, ...additions] : catalog;
+}
+
 function normalizeWeeklyPlan(item, fallbackClassId) {
   const timestamp = nowIso();
   const days = {};
   WEEK_DAYS.forEach((day) => {
     const source = item.days?.[day] || item.tage?.[day] || {};
+    const deutschIds = normalizeIdList(source.deutschIds || source.deutschId || source.deutsch);
+    const matheIds = normalizeIdList(source.matheIds || source.matheId || source.mathe);
     days[day] = {
-      deutschId: source.deutschId || source.deutsch || "",
-      matheId: source.matheId || source.mathe || "",
+      deutschId: deutschIds[0] || "",
+      deutschIds,
+      matheId: matheIds[0] || "",
+      matheIds,
       freeText: source.freeText || source.frei || source.extra || ""
     };
   });
@@ -472,6 +571,12 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
   };
+}
+
+function normalizeIdList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return value ? [String(value)] : [];
 }
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {

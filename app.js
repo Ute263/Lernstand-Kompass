@@ -121,6 +121,11 @@ let weeklyPlanSection = "current";
 let weeklyPickRequest = null;
 let weeklyOverrideAnimalId = "";
 let weeklyPlanDraft = null;
+let weeklyPrintDialogOpen = false;
+let weeklyPrintPlanId = "";
+let weeklyPrintDraft = null;
+let currentWeeklyPrintPlan = null;
+let currentWeeklyPrintOptions = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
 
@@ -1596,6 +1601,7 @@ function renderWeeklyPlans() {
     ${section === "templates" ? renderWeeklyTemplates(plans) : ""}
     ${section === "catalog" ? renderWorkbookCatalogManager() : ""}
     ${renderWeeklyCatalogPicker()}
+    ${renderWeeklyPrintDialog()}
   `;
 }
 
@@ -1639,6 +1645,7 @@ function renderWeeklyPlanSummaryCard(plan) {
       </div>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="editWeeklyPlan('${plan.id}')">Bearbeiten</button>
+        <button class="primary" type="button" onclick="openWeeklyPrintDialog('${plan.id}')">Wochenplan drucken</button>
         <button class="secondary" type="button" onclick="copyWeeklyPlan('${plan.id}')">Wochenplan kopieren</button>
         <button class="danger" type="button" onclick="deleteWeeklyPlan('${plan.id}')">Löschen</button>
       </div>
@@ -1775,6 +1782,7 @@ function renderWeeklyPlanEditor(plan) {
         </div>
         <div class="backup-actions">
           <button class="primary" type="button" onclick="saveWeeklyPlan(event)">Wochenplan speichern</button>
+          <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Wochenplan drucken</button>
           <button class="secondary" type="button" onclick="newWeeklyPlan()">Formular leeren</button>
         </div>
       </form>
@@ -1794,8 +1802,8 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
         const dayData = days?.[day] || {};
         return `
           <strong>${escapeHtml(day)}</strong>
-          ${renderWeeklyPickCell("Deutsch", day, index, dayData.deutschId || "", `${prefix}Deutsch${index}`, scope, animalId)}
-          ${renderWeeklyPickCell("Mathe", day, index, dayData.matheId || "", `${prefix}Mathe${index}`, scope, animalId)}
+          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId)}
+          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId)}
           <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
         `;
       }).join("")}
@@ -1803,15 +1811,18 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
   `;
 }
 
-function renderWeeklyPickCell(subject, day, index, selectedId, inputId, scope, animalId = "") {
-  const item = workbookCatalogForActiveClass().find((entry) => entry.id === selectedId);
+function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "") {
+  const ids = normalizeIdArray(selectedIds);
+  const items = ids.map((id) => workbookCatalogForActiveClass().find((entry) => entry.id === id)).filter(Boolean);
   return `
     <div class="weekly-pick-cell">
-      <input type="hidden" id="${escapeAttribute(inputId)}" value="${escapeAttribute(selectedId)}">
-      <div id="${escapeAttribute(inputId)}Label" class="weekly-pick-label ${item ? "" : "empty"}">${item ? escapeHtml(workbookCatalogShortLabel(item)) : "keine Auswahl"}</div>
-      ${item ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${item.id}')">Info</button>` : ""}
+      <input type="hidden" id="${escapeAttribute(inputId)}" value="${escapeAttribute(ids.join(","))}">
+      <div id="${escapeAttribute(inputId)}Label" class="weekly-pick-label ${items.length ? "" : "empty"}">
+        ${items.length ? items.map((item) => `<span>${escapeHtml(workbookCatalogShortLabel(item))}</span>`).join("") : "keine Auswahl"}
+      </div>
+      ${items.length ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${escapeAttribute(items[0].id)}')">Info</button>` : ""}
       <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
-      ${item ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
+      ${items.length ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
     </div>
   `;
 }
@@ -1827,9 +1838,20 @@ function renderWeeklyCatalogPicker() {
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
         <h2 id="weeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} auswählen</h2>
         <p class="message">${escapeHtml(weeklyPickRequest.day)} · Das vollständige Inhaltsverzeichnis bleibt hier im Auswahlfenster.</p>
+        <div class="weekly-picker-filters">
+          <input class="text-input" id="weeklyPickerSearch" placeholder="Suche nach Thema, Seite oder Bereich" oninput="filterWeeklyPicker()">
+          <select class="select-input" id="weeklyPickerPart" onchange="filterWeeklyPicker()">
+            <option value="">Alle Teile</option>
+            ${[...new Set(items.map((item) => item.part).filter(Boolean))].map((part) => `<option value="${escapeAttribute(part)}">${escapeHtml(part)}</option>`).join("")}
+          </select>
+          <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
+            <option value="">Alle Arten</option>
+            ${[...new Set(items.map((item) => item.category).filter(Boolean))].map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
+          </select>
+        </div>
         <div class="weekly-picker-list">
           ${items.map((item) => `
-            <button class="weekly-picker-item" type="button" onclick="selectWeeklyCatalogItem('${item.id}')">
+            <button class="weekly-picker-item" type="button" data-part="${escapeAttribute(item.part || "")}" data-category="${escapeAttribute(item.category || "")}" data-search="${escapeAttribute(workbookCatalogFullLabel(item).toLowerCase())}" onclick="selectWeeklyCatalogItem('${item.id}')">
               <strong>${escapeHtml(workbookCatalogShortLabel(item))}</strong>
               <span>${escapeHtml(workbookCatalogFullLabel(item))}</span>
             </button>
@@ -1878,6 +1900,131 @@ function showWorkbookCatalogInfo(itemId) {
   if (item) alert(workbookCatalogFullLabel(item));
 }
 
+function filterWeeklyPicker() {
+  const query = (document.querySelector("#weeklyPickerSearch")?.value || "").trim().toLowerCase();
+  const part = document.querySelector("#weeklyPickerPart")?.value || "";
+  const category = document.querySelector("#weeklyPickerCategory")?.value || "";
+  document.querySelectorAll(".weekly-picker-item").forEach((item) => {
+    const matchesQuery = !query || item.dataset.search?.includes(query);
+    const matchesPart = !part || item.dataset.part === part;
+    const matchesCategory = !category || item.dataset.category === category;
+    item.hidden = !(matchesQuery && matchesPart && matchesCategory);
+  });
+}
+
+function openWeeklyPrintDialog(planId) {
+  weeklyPrintPlanId = planId;
+  weeklyPrintDraft = null;
+  weeklyPrintDialogOpen = true;
+  render();
+}
+
+function openWeeklyPrintDialogFromEditor() {
+  weeklyPrintDraft = collectWeeklyPlanDraftFromDom();
+  weeklyPrintPlanId = weeklyPrintDraft.id || "";
+  weeklyPrintDialogOpen = true;
+  render();
+}
+
+function closeWeeklyPrintDialog() {
+  weeklyPrintDialogOpen = false;
+  weeklyPrintPlanId = "";
+  weeklyPrintDraft = null;
+  render();
+}
+
+function renderWeeklyPrintDialog() {
+  if (!weeklyPrintDialogOpen) return "";
+  const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  return `
+    <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPrintTitle">
+      <section class="training-modal-card weekly-print-card">
+        <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyPrintDialog()">×</button>
+        <h2 id="weeklyPrintTitle">Wochenplan drucken</h2>
+        <p class="message">Der Ausdruck enthält nur Wochenplan-Inhalte. Vornamen, Bewertungen, Noten und interne Bemerkungen werden standardmäßig nicht gedruckt.</p>
+        ${plan ? `
+          <div class="weekly-print-options">
+            <label class="field">Variante
+              <select class="select-input" id="weeklyPrintVariant">
+                <option value="short">Kurzfassung</option>
+                <option value="detail">Ausführliche Fassung</option>
+                <option value="compact">Kompakter Wochenplan</option>
+              </select>
+            </label>
+            <label class="field">Ziel
+              <select class="select-input" id="weeklyPrintTarget" onchange="toggleWeeklyPrintTarget()">
+                <option value="all">für alle gleich</option>
+                <option value="single">ein einzelnes Tier</option>
+                <option value="selected">ausgewählte Tiere</option>
+              </select>
+            </label>
+            <label class="field weekly-print-animal-select hidden" id="weeklyPrintSingleWrap">Tier
+              <select class="select-input" id="weeklyPrintSingleAnimal">
+                ${animals.map((animal) => `<option value="${animal.id}">${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
+              </select>
+            </label>
+            <div class="weekly-print-animal-grid hidden" id="weeklyPrintSelectedWrap">
+              ${animals.map((animal) => `<label class="toggle-label"><input class="weeklyPrintAnimalCheckbox" type="checkbox" value="${animal.id}"> ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</label>`).join("")}
+            </div>
+          </div>
+          <div class="weekly-print-options">
+            <fieldset class="option-fieldset">
+              <legend>Tage</legend>
+              ${WEEK_DAYS.map((day) => `<label class="toggle-label"><input class="weeklyPrintDayCheckbox" type="checkbox" value="${day}" checked> ${escapeHtml(day)}</label>`).join("")}
+            </fieldset>
+            <fieldset class="option-fieldset">
+              <legend>Darstellung</legend>
+              <label class="toggle-label"><input id="weeklyPrintTheme" type="checkbox" checked> mit Thema</label>
+              <label class="toggle-label"><input id="weeklyPrintExtra" type="checkbox" checked> mit Extra-Aufgabe</label>
+              <label class="toggle-label"><input id="weeklyPrintCheckboxes" type="checkbox" checked> mit Ankreuzfeldern</label>
+              <label class="toggle-label"><input id="weeklyPrintFirstNames" type="checkbox"> Vornamen anzeigen (nur interner Ausdruck)</label>
+            </fieldset>
+          </div>
+          <div class="backup-actions">
+            <button class="primary" type="button" onclick="startWeeklyPlanPrint()">Druckvorschau öffnen</button>
+            <button class="secondary" type="button" onclick="closeWeeklyPrintDialog()">Abbrechen</button>
+          </div>
+        ` : `<div class="empty">Bitte speichere oder öffne zuerst einen Wochenplan.</div>`}
+      </section>
+    </div>
+  `;
+}
+
+function toggleWeeklyPrintTarget() {
+  const target = document.querySelector("#weeklyPrintTarget")?.value || "all";
+  document.querySelector("#weeklyPrintSingleWrap")?.classList.toggle("hidden", target !== "single");
+  document.querySelector("#weeklyPrintSelectedWrap")?.classList.toggle("hidden", target !== "selected");
+}
+
+function startWeeklyPlanPrint() {
+  const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
+  if (!plan) return;
+  const target = document.querySelector("#weeklyPrintTarget")?.value || "all";
+  const selectedDays = [...document.querySelectorAll(".weeklyPrintDayCheckbox:checked")].map((input) => input.value);
+  const selectedAnimals = target === "single"
+    ? [document.querySelector("#weeklyPrintSingleAnimal")?.value].filter(Boolean)
+    : target === "selected"
+      ? [...document.querySelectorAll(".weeklyPrintAnimalCheckbox:checked")].map((input) => input.value)
+      : [];
+  currentWeeklyPrintPlan = plan;
+  currentWeeklyPrintOptions = {
+    variant: document.querySelector("#weeklyPrintVariant")?.value || "short",
+    target,
+    animalIds: selectedAnimals,
+    days: selectedDays.length ? selectedDays : [...WEEK_DAYS],
+    showTheme: document.querySelector("#weeklyPrintTheme")?.checked !== false,
+    showExtra: document.querySelector("#weeklyPrintExtra")?.checked !== false,
+    showCheckboxes: document.querySelector("#weeklyPrintCheckboxes")?.checked === true,
+    showFirstNames: document.querySelector("#weeklyPrintFirstNames")?.checked === true
+  };
+  weeklyPrintDialogOpen = false;
+  currentPrintType = "weeklyPlan";
+  printReturnTab = "weeklyPlans";
+  screen = "printView";
+  render();
+}
+
 function setWeeklyOverrideAnimal(animalId) {
   weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
   weeklyOverrideAnimalId = animalId;
@@ -1920,9 +2067,13 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
   const prefix = weeklyInputPrefix(scope, animalId);
   const days = {};
   WEEK_DAYS.forEach((day, index) => {
+    const deutschIds = normalizeIdArray(document.getElementById(`${prefix}Deutsch${index}`)?.value || "");
+    const matheIds = normalizeIdArray(document.getElementById(`${prefix}Mathe${index}`)?.value || "");
     days[day] = {
-      deutschId: document.getElementById(`${prefix}Deutsch${index}`)?.value || "",
-      matheId: document.getElementById(`${prefix}Mathe${index}`)?.value || "",
+      deutschId: deutschIds[0] || "",
+      deutschIds,
+      matheId: matheIds[0] || "",
+      matheIds,
       freeText: document.getElementById(`${prefix}Free${index}`)?.value.trim() || ""
     };
   });
@@ -1930,20 +2081,27 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
 }
 
 function weeklyDaysHaveContent(days) {
-  return Object.values(days || {}).some((day) => day.deutschId || day.matheId || day.freeText);
+  return Object.values(days || {}).some((day) => normalizeIdArray(day.deutschIds || day.deutschId).length || normalizeIdArray(day.matheIds || day.matheId).length || day.freeText);
 }
 
 function setWeeklyDraftValue(draft, scope, animalId, day, field, value) {
-  const key = field === "Deutsch" ? "deutschId" : "matheId";
+  const key = field === "Deutsch" ? "deutschIds" : "matheIds";
+  const legacyKey = field === "Deutsch" ? "deutschId" : "matheId";
+  const updateDay = (target) => {
+    const current = normalizeIdArray(target[key] || target[legacyKey]);
+    const next = value ? [...new Set([...current, value])] : [];
+    target[key] = next;
+    target[legacyKey] = next[0] || "";
+  };
   if (scope === "override" && animalId) {
     draft.overrides = draft.overrides || {};
     draft.overrides[animalId] = draft.overrides[animalId] || { days: {} };
     draft.overrides[animalId].days[day] = draft.overrides[animalId].days[day] || { deutschId: "", matheId: "", freeText: "" };
-    draft.overrides[animalId].days[day][key] = value;
+    updateDay(draft.overrides[animalId].days[day]);
   } else {
     draft.days = draft.days || {};
     draft.days[day] = draft.days[day] || { deutschId: "", matheId: "", freeText: "" };
-    draft.days[day][key] = value;
+    updateDay(draft.days[day]);
   }
 }
 
@@ -3685,13 +3843,14 @@ function renderPrintScreen() {
     progress: "Fortschritt und Arbeitstempo",
     training: "Trainingszeit",
     report: "Lernstand-Kompass – Gesamtbericht",
+    weeklyPlan: "Mein Wochenplan",
     assessmentSummary: "Tests & Lernzielkontrollen – Gesamtübersicht"
   };
   const type = currentPrintType || "today";
   const assessmentId = type.startsWith("assessment:") ? type.split(":")[1] : "";
   const assessment = assessmentId ? (state.assessments || []).find((item) => item.id === assessmentId) : null;
   return `
-    <style>${printViewCss(true)}</style>
+    <style>${printViewCss(type !== "weeklyPlan")}</style>
     <div class="print-toolbar" aria-label="Druckwerkzeuge">
       <strong>${escapeHtml(assessment ? assessment.titel : titles[type] || "Druckansicht")}</strong>
       <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
@@ -3705,6 +3864,7 @@ function renderPrintScreen() {
       ${type === "progress" ? renderPrintProgress(context, className, generatedAt) : ""}
       ${type === "training" ? renderPrintTraining(context, className, generatedAt) : ""}
       ${type === "report" ? renderPrintReport(context, className, generatedAt) : ""}
+      ${type === "weeklyPlan" ? renderPrintWeeklyPlan(className, generatedAt) : ""}
       ${assessment ? renderPrintAssessment(assessment, className, generatedAt) : ""}
       ${type === "assessmentSummary" ? renderPrintAssessmentSummary(className, generatedAt) : ""}
     </main>
@@ -3958,6 +4118,64 @@ function renderPrintAssessmentSummary(className, generatedAt) {
         </table>
       ` : printEmpty("Noch keine Tests oder Lernzielkontrollen angelegt.")}
     </section>
+  `;
+}
+
+function renderPrintWeeklyPlan(className) {
+  const plan = currentWeeklyPrintPlan;
+  const options = currentWeeklyPrintOptions || {};
+  if (!plan) return printEmpty("Es ist kein Wochenplan für den Druck ausgewählt.");
+  const animalIds = options.target === "all" ? [] : options.animalIds || [];
+  const animals = animalIds.map((id) => animalsForActiveClass().find((animal) => animal.id === id)).filter(Boolean);
+  const printTargets = options.target === "all" || !animals.length ? [{ animal: null }] : animals.map((animal) => ({ animal }));
+  return printTargets.map(({ animal }, index) => `
+    ${index > 0 ? `<div class="page-break"></div>` : ""}
+    <section class="weekly-print-page ${options.variant === "compact" ? "compact" : ""}">
+      ${printHero("Mein Wochenplan", [
+        `Klasse: ${className}`,
+        weeklyPlanPeriodLabel(plan),
+        animal ? `Mein Tier: ${animal.tierEmoji} ${animal.tierName}${options.showFirstNames && animal.firstName ? ` · ${animal.firstName}` : ""}` : ""
+      ].filter(Boolean).join(" · "))}
+      <div class="weekly-print-days">
+        ${(options.days || WEEK_DAYS).map((day) => renderWeeklyPrintDay(plan, day, animal, options)).join("")}
+      </div>
+      <p class="weekly-print-note">Dieser Ausdruck enthält keine Bewertungen, Noten oder internen Bemerkungen.</p>
+    </section>
+  `).join("");
+}
+
+function renderWeeklyPrintDay(plan, day, animal, options) {
+  const items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
+  const grouped = {
+    Deutsch: items.filter((item) => item.label === "Deutsch"),
+    Mathe: items.filter((item) => item.label === "Mathe"),
+    Extra: options.showExtra === false ? [] : items.filter((item) => item.label === "Extra")
+  };
+  return `
+    <article class="weekly-print-day">
+      <h2>${escapeHtml(day)}</h2>
+      ${renderWeeklyPrintSubject("📘", "Deutsch", grouped.Deutsch, options)}
+      ${renderWeeklyPrintSubject("🔢", "Mathe", grouped.Mathe, options)}
+      ${options.showExtra !== false ? renderWeeklyPrintSubject("⭐", "Extra", grouped.Extra, options) : ""}
+    </article>
+  `;
+}
+
+function renderWeeklyPrintSubject(icon, label, items, options) {
+  const checkbox = options.showCheckboxes ? `<span class="weekly-print-checkbox">☐</span>` : "";
+  return `
+    <div class="weekly-print-subject">
+      <h3>${icon} ${escapeHtml(label)}</h3>
+      ${items.length ? items.map((item) => `
+        <div class="weekly-print-task">
+          ${checkbox}
+          <div>
+            <strong>${escapeHtml(item.text)}</strong>
+            ${options.variant !== "short" && options.showTheme !== false && item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
+          </div>
+        </div>
+      `).join("") : `<p>–</p>`}
+    </div>
   `;
 }
 
@@ -4354,6 +4572,85 @@ function printViewCss(landscape = false) {
       break-before: page;
       page-break-before: always;
       height: 1px;
+    }
+    .weekly-print-page .print-hero {
+      margin-bottom: 14px;
+    }
+    .weekly-print-days {
+      display: grid;
+      gap: 10px;
+    }
+    .weekly-print-day {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf8;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .weekly-print-day h2 {
+      margin: 0 0 8px;
+      color: var(--aubergine);
+      font-size: 1.25rem;
+    }
+    .weekly-print-subject {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 8px;
+      padding: 8px 0;
+      border-top: 1px solid #eee5d8;
+    }
+    .weekly-print-subject h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--ink);
+    }
+    .weekly-print-subject p {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 800;
+    }
+    .weekly-print-task {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+      margin-bottom: 5px;
+    }
+    .weekly-print-task strong,
+    .weekly-print-task span {
+      display: block;
+    }
+    .weekly-print-task span {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 750;
+    }
+    .weekly-print-checkbox {
+      color: var(--aubergine);
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+    .weekly-print-note {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 750;
+      text-align: center;
+    }
+    .weekly-print-page.compact .print-hero {
+      padding: 12px 14px;
+    }
+    .weekly-print-page.compact .print-hero h1 {
+      font-size: 1.55rem;
+    }
+    .weekly-print-page.compact .weekly-print-day {
+      padding: 9px 10px;
+    }
+    .weekly-print-page.compact .weekly-print-subject {
+      grid-template-columns: 94px 1fr;
+      padding: 5px 0;
     }
     @page {
       size: A4 ${landscape ? "landscape" : "portrait"};
@@ -5251,6 +5548,12 @@ function weeklyInputPrefix(scope, animalId = "") {
   return scope === "override" && animalId ? `weeklyOverride_${animalId}_` : "weekly";
 }
 
+function normalizeIdArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return value ? [String(value)] : [];
+}
+
 function pageRangeLabel(item) {
   if (!item || !Number(item.page)) return "";
   const start = Number(item.page);
@@ -5312,34 +5615,39 @@ function weeklyPlanPeriodLabel(plan) {
 function effectiveWeeklyDayData(plan, day, animalId = "") {
   const base = plan.days?.[day] || {};
   const override = animalId ? plan.overrides?.[animalId]?.days?.[day] || {} : {};
+  const baseDeutschIds = normalizeIdArray(base.deutschIds || base.deutschId);
+  const baseMatheIds = normalizeIdArray(base.matheIds || base.matheId);
+  const overrideDeutschIds = normalizeIdArray(override.deutschIds || override.deutschId);
+  const overrideMatheIds = normalizeIdArray(override.matheIds || override.matheId);
   return {
-    deutschId: override.deutschId || base.deutschId || "",
-    matheId: override.matheId || base.matheId || "",
+    deutschIds: overrideDeutschIds.length ? overrideDeutschIds : baseDeutschIds,
+    matheIds: overrideMatheIds.length ? overrideMatheIds : baseMatheIds,
     freeText: override.freeText || base.freeText || ""
   };
 }
 
 function weeklyPlanItemsForDay(plan, day, animalId = "") {
   const dayData = effectiveWeeklyDayData(plan, day, animalId);
-  const deutsch = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.deutschId);
-  const mathe = workbookCatalogForClass(plan.classId).find((item) => item.id === dayData.matheId);
+  const catalog = workbookCatalogForClass(plan.classId);
+  const deutschItems = normalizeIdArray(dayData.deutschIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
+  const matheItems = normalizeIdArray(dayData.matheIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
   return [
-    deutsch ? {
-      field: "Deutsch",
+    ...deutschItems.map((deutsch) => ({
+      field: `Deutsch:${deutsch.id}`,
       label: "Deutsch",
       workbookCatalogId: deutsch.id,
       catalogItem: deutsch,
       text: workbookCatalogShortLabel(deutsch),
       detail: workbookCatalogFullLabel(deutsch)
-    } : null,
-    mathe ? {
-      field: "Mathe",
+    })),
+    ...matheItems.map((mathe) => ({
+      field: `Mathe:${mathe.id}`,
       label: "Mathe",
       workbookCatalogId: mathe.id,
       catalogItem: mathe,
       text: workbookCatalogShortLabel(mathe),
       detail: workbookCatalogFullLabel(mathe)
-    } : null,
+    })),
     dayData.freeText ? {
       field: "Freie Aufgabe",
       label: "Extra",
