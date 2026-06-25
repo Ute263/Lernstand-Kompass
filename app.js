@@ -107,6 +107,27 @@ const STICKER_SHEETS = [
   }
 ];
 
+const CLEAN_DISTRIBUTION_FILES = [
+  "index.html",
+  "styles.css",
+  "models.js",
+  "storage.js",
+  "exceljs.min.js",
+  "exceljs-LICENSE.txt",
+  "export.js",
+  "qrcode.js",
+  "app.js",
+  "pwa.js",
+  "manifest.json",
+  "service-worker.js",
+  ".nojekyll",
+  "README.md",
+  "materials/stickerbogen-1-deutsch-mathe-1.png",
+  "materials/stickerbogen-2-mathe-forscher.png",
+  "icons/icon-192.svg",
+  "icons/icon-512.svg"
+];
+
 let trainingFilters = {
   animalId: "",
   subject: "",
@@ -3646,6 +3667,14 @@ function renderBackup() {
       <p class="message">Letzte lokale Speicherung: ${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</p>
     </section>
     <section class="panel">
+      <h2>Saubere Weitergabeversion</h2>
+      <p class="privacy-text">Erstellt eine eigenständige ZIP der App für andere Lehrkräfte. Diese ZIP enthält nur App-Struktur, Aufgabenlisten, Arbeitsheft-Kataloge und Druckmaterialien. Lokale Klassen, Tiere, Vornamen, Fortschritte, Wochenpläne, Lernzielkontrollen und Bewertungen werden nicht hineingeschrieben.</p>
+      <p class="message"><strong>Wichtig:</strong> Persönliche Daten werden nur über ein separates Backup weitergegeben oder importiert. Die Weitergabeversion startet bei einer anderen Lehrkraft mit dem Einrichtungsassistenten.</p>
+      <div class="backup-actions">
+        <button class="primary" type="button" onclick="exportCleanDistributionVersion()">Saubere Weitergabeversion erstellen</button>
+      </div>
+    </section>
+    <section class="panel">
       <h2>Mehrere Geräte verwenden</h2>
       <p class="privacy-text">Du kannst mehrere iPads verwenden. Die Geräte synchronisieren sich nicht automatisch. Nutze regelmäßig den Backup-Export und die Funktion „Backup zusammenführen“. Beim Zusammenführen werden neue Einträge ergänzt. Vorhandene Einträge bleiben erhalten.</p>
       <p class="message"><strong>Wichtig:</strong> Die Geräte synchronisieren sich nicht von allein. Der Abgleich funktioniert über Backup-Dateien. Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
@@ -5159,6 +5188,151 @@ async function exportFullBackup() {
   }
   render();
 }
+
+async function exportCleanDistributionVersion() {
+  try {
+    const folderName = "lernstand-kompass-weitergabe";
+    const files = [];
+    for (const path of CLEAN_DISTRIBUTION_FILES) {
+      files.push({
+        name: `${folderName}/${path}`,
+        data: await fetchDistributionFile(path)
+      });
+    }
+    files.push({
+      name: `${folderName}/WEITERGABE-HINWEIS.txt`,
+      data: textToBytes(cleanDistributionReadme())
+    });
+    const zipBlob = createZipBlob(files);
+    const filename = `lernstand-kompass-weitergabe-${formatFileDate(new Date())}.zip`;
+    globalMessage = await saveFileWithPickerOrDownload(filename, "application/zip", zipBlob);
+  } catch (error) {
+    globalMessage = error.message || "Die saubere Weitergabeversion konnte nicht erstellt werden.";
+  }
+  render();
+}
+
+async function fetchDistributionFile(path) {
+  const response = await fetch(`${path}?weitergabe=${Date.now()}`, { cache: "reload" });
+  if (!response.ok) throw new Error(`Datei fehlt für die Weitergabeversion: ${path}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function cleanDistributionReadme() {
+  return [
+    "Lernstand-Kompass - saubere Weitergabeversion",
+    "",
+    "Diese ZIP enthaelt die App-Dateien, Aufgabenlisten, Arbeitsheft-Kataloge, PWA-Dateien und Druckmaterialien.",
+    "",
+    "Nicht enthalten sind:",
+    "- Klassen- oder Lerngruppendaten",
+    "- Tier-Zuordnungen und Vornamen",
+    "- Fortschritte, Wochenplaene und Lernzielkontrollen",
+    "- Punkte, Bewertungen, Noten und Bemerkungen",
+    "- lokale Backups oder Lernpost-Dateien",
+    "",
+    "Beim ersten Start erscheint der Einrichtungsassistent. Eine Lehrkraft kann die App leer starten und eigene Daten anlegen.",
+    "Persoenliche Daten duerfen nur ueber ein separat bewusst importiertes Backup ergaenzt werden."
+  ].join("\n");
+}
+
+function textToBytes(text) {
+  return new TextEncoder().encode(text);
+}
+
+function createZipBlob(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const now = new Date();
+  for (const file of files) {
+    const nameBytes = textToBytes(file.name);
+    const data = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data);
+    const crc = crc32(data);
+    const localHeader = zipLocalHeader(nameBytes, data.length, crc, now);
+    localParts.push(localHeader, data);
+    centralParts.push(zipCentralHeader(nameBytes, data.length, crc, offset, now));
+    offset += localHeader.length + data.length;
+  }
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = zipEndRecord(files.length, centralSize, offset);
+  return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
+}
+
+function zipLocalHeader(nameBytes, size, crc, date) {
+  const header = new Uint8Array(30 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0x0800, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, zipDosTime(date), true);
+  view.setUint16(12, zipDosDate(date), true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, nameBytes.length, true);
+  header.set(nameBytes, 30);
+  return header;
+}
+
+function zipCentralHeader(nameBytes, size, crc, offset, date) {
+  const header = new Uint8Array(46 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0x0800, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, zipDosTime(date), true);
+  view.setUint16(14, zipDosDate(date), true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, size, true);
+  view.setUint32(24, size, true);
+  view.setUint16(28, nameBytes.length, true);
+  view.setUint32(42, offset, true);
+  header.set(nameBytes, 46);
+  return header;
+}
+
+function zipEndRecord(fileCount, centralSize, centralOffset) {
+  const header = new Uint8Array(22);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, fileCount, true);
+  view.setUint16(10, fileCount, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, centralOffset, true);
+  return header;
+}
+
+function zipDosTime(date) {
+  return (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+}
+
+function zipDosDate(date) {
+  return ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+}
+
+function crc32(data) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i += 1) {
+    crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ data[i]) & 0xff];
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
 
 async function exportActiveClassCsv() {
   try {

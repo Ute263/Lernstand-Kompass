@@ -59,6 +59,10 @@ Im geschützten Bereich `Material drucken` sind die fertigen Stickerbögen als f
 
 Unter `Geräte, Backup & Einstellungen` -> `Backup / Wiederherstellung` gibt es im geschützten Lehrkraftbereich den Abschnitt `App zurücksetzen`. Vor dem Zurücksetzen werden Backup-Hinweis, Lehrkraft-PIN, eine Warnung und das Bestätigungswort `ZURÜCKSETZEN` verlangt. Erst danach werden die lokalen App-Daten auf diesem Gerät gelöscht und die Einrichtung startet neu.
 
+## Saubere Weitergabeversion
+
+Unter `Geräte, Backup & Einstellungen` -> `Backup / Wiederherstellung` gibt es die Funktion `Saubere Weitergabeversion erstellen`. Sie erzeugt eine ZIP mit App-Struktur, Aufgabenlisten, Arbeitsheft-Katalogen, PWA-Dateien und Druckmaterialien. Lokale Klassen, Tiere, Vornamen, Fortschritte, Wochenpläne, Lernzielkontrollen, Bewertungen und Backups werden nicht in diese ZIP geschrieben. Eine andere Lehrkraft startet damit leer im Einrichtungsassistenten und kann eigene Daten anlegen oder bewusst ein separates Backup importieren.
+
 ## Lernzielkontrollen
 
 In der `Lernstand-Übersicht` gibt es den Bereich `Lernzielkontrollen` für Tests, Diagnosen und kleine Überprüfungen mit Ergebnissen je Tier-Pseudonym. Lernzielkontrollen können Aufgaben mit Maximalpunkten enthalten. Die App berechnet Gesamtpunkte, Prozentwert, Bewertungsvorschlag und Notenvorschlag. In Kinderansicht, QR-Codes und anonymisierten Exporten erscheinen keine Vornamen oder Fotos.
