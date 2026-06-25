@@ -1461,7 +1461,7 @@ function renderAnimalWeeklyProgressEditor(classId, animal) {
 function renderDirectWorkbookProgressForm(animal, subject) {
   const items = workbookCatalogForActiveClass()
     .filter((item) => item.subject === subject && item.active !== false)
-    .sort((a, b) => String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
+    .sort((a, b) => a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true }) || Number(a.page) - Number(b.page));
   const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
   const subjectLabel = subject === "Deutsch" ? "Deutsch-Material" : "Mathe-Material";
   return `
@@ -1471,7 +1471,7 @@ function renderDirectWorkbookProgressForm(animal, subject) {
       <form class="inline-form direct-progress-form" id="${formId}" onsubmit="saveDirectWorkbookProgress(event, '${subject}', '${escapeAttribute(animal.id)}')">
         <label class="field">${escapeHtml(subjectLabel)} auswählen
           <select class="select-input" id="${formId}Catalog">
-            ${items.map((item) => `<option value="${item.id}">${escapeHtml(workbookCatalogFullLabel(item))}</option>`).join("")}
+            ${renderWorkbookCatalogSelectOptions(items)}
           </select>
         </label>
         <label class="field">Status
@@ -1492,6 +1492,18 @@ function renderDirectWorkbookProgressForm(animal, subject) {
       <button class="secondary" type="button" onclick="openWorkbookCatalogManager()">+ Material hinzufügen</button>
     </section>
   `;
+}
+
+function renderWorkbookCatalogSelectOptions(items) {
+  const workbooks = [...new Set(items.map((item) => item.workbook).filter(Boolean))];
+  return workbooks.map((workbook) => {
+    const groupItems = items.filter((item) => item.workbook === workbook);
+    return `
+      <optgroup label="${escapeAttribute(workbook)}">
+        ${groupItems.map((item) => `<option value="${item.id}">${escapeHtml(workbookCatalogFullLabel(item))}</option>`).join("")}
+      </optgroup>
+    `;
+  }).join("");
 }
 
 function renderAnimalProgressNote(animal) {
@@ -1772,7 +1784,7 @@ function renderWeeklyPlanSummaryCard(plan) {
 }
 
 function renderWorkbookCatalogManager() {
-  const items = workbookCatalogForActiveClass().sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.workbook.localeCompare(b.workbook, "de") || Number(a.page) - Number(b.page));
+  const items = workbookCatalogForActiveClass().sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true }) || Number(a.page) - Number(b.page));
   return `
     <section class="panel">
       <h2>Arbeitshefte / Lehrwerke verwalten</h2>
@@ -2005,7 +2017,8 @@ function renderWeeklyCatalogPicker() {
   if (!weeklyPickRequest) return "";
   const items = workbookCatalogForActiveClass()
     .filter((item) => item.subject === weeklyPickRequest.subject && item.active !== false)
-    .sort((a, b) => a.workbook.localeCompare(b.workbook, "de") || String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
+    .sort((a, b) => a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true }) || Number(a.page) - Number(b.page));
+  const workbooks = [...new Set(items.map((item) => item.workbook).filter(Boolean))];
   const categories = [...new Set(items.map((item) => item.category).filter(Boolean))];
   return `
     <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPickerTitle">
@@ -2014,21 +2027,36 @@ function renderWeeklyCatalogPicker() {
         <h2 id="weeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} auswählen</h2>
         <p class="message">${escapeHtml(weeklyPickRequest.day)} · Kompakte Auswahl aus den aktuell hinterlegten Materialien.</p>
         <div class="weekly-picker-filters">
-          <input class="text-input" id="weeklyPickerSearch" placeholder="Suche nach Thema, Seite oder Bereich" oninput="filterWeeklyPicker()">
-          <select class="select-input" id="weeklyPickerPart" onchange="filterWeeklyPicker()">
-            <option value="">Alle Teile</option>
-            ${[...new Set(items.map((item) => item.part).filter(Boolean))].map((part) => `<option value="${escapeAttribute(part)}">${escapeHtml(part)}</option>`).join("")}
-          </select>
-          ${categories.length > 1 ? `
-            <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
-              <option value="">Alle Arten</option>
-              ${categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
+          <label class="field compact-field">Suche
+            <input class="text-input" id="weeklyPickerSearch" placeholder="Thema, Seite oder Bereich" oninput="filterWeeklyPicker()">
+          </label>
+          <label class="field compact-field">Material
+            <select class="select-input" id="weeklyPickerWorkbook" onchange="filterWeeklyPicker()">
+              <option value="">Alle Materialien</option>
+              ${workbooks.map((workbook) => `<option value="${escapeAttribute(workbook)}">${escapeHtml(workbook)}</option>`).join("")}
             </select>
+          </label>
+          <label class="field compact-field">Teil
+            <select class="select-input" id="weeklyPickerPart" onchange="filterWeeklyPicker()">
+              <option value="">Alle Teile</option>
+              ${[...new Set(items.map((item) => item.part).filter(Boolean))].map((part) => `<option value="${escapeAttribute(part)}">${escapeHtml(part)}</option>`).join("")}
+            </select>
+          </label>
+          ${categories.length > 1 ? `
+            <label class="field compact-field">Art
+              <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
+                <option value="">Alle Arten</option>
+                ${categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
+              </select>
+            </label>
           ` : ""}
+          <button class="secondary" type="button" onclick="resetWeeklyPickerFilters()">Filter zurücksetzen</button>
         </div>
+        <p class="message" id="weeklyPickerResultCount">${items.length} Einträge sichtbar</p>
         <div class="weekly-picker-list">
           ${items.map((item) => `
-            <button class="weekly-picker-item" type="button" data-part="${escapeAttribute(item.part || "")}" data-category="${escapeAttribute(item.category || "")}" data-search="${escapeAttribute(workbookCatalogFullLabel(item).toLowerCase())}" onclick="selectWeeklyCatalogItem('${item.id}')">
+            <button class="weekly-picker-item ${escapeAttribute(workbookCssClass(item.workbook))}" type="button" data-workbook="${escapeAttribute(item.workbook || "")}" data-part="${escapeAttribute(item.part || "")}" data-category="${escapeAttribute(item.category || "")}" data-search="${escapeAttribute(workbookCatalogFullLabel(item).toLowerCase())}" onclick="selectWeeklyCatalogItem('${item.id}')">
+              <em>${escapeHtml(item.workbook || "Material")}</em>
               <strong>${escapeHtml(workbookCatalogShortLabel(item))}</strong>
               <span>${escapeHtml(workbookCatalogFullLabel(item))}</span>
             </button>
@@ -2085,15 +2113,60 @@ function openWorkbookCatalogManager() {
 }
 
 function filterWeeklyPicker() {
+  syncWeeklyPickerFilterOptions();
   const query = (document.querySelector("#weeklyPickerSearch")?.value || "").trim().toLowerCase();
+  const workbook = document.querySelector("#weeklyPickerWorkbook")?.value || "";
   const part = document.querySelector("#weeklyPickerPart")?.value || "";
   const category = document.querySelector("#weeklyPickerCategory")?.value || "";
+  let visibleCount = 0;
   document.querySelectorAll(".weekly-picker-item").forEach((item) => {
     const matchesQuery = !query || item.dataset.search?.includes(query);
+    const matchesWorkbook = !workbook || item.dataset.workbook === workbook;
     const matchesPart = !part || item.dataset.part === part;
     const matchesCategory = !category || item.dataset.category === category;
-    item.hidden = !(matchesQuery && matchesPart && matchesCategory);
+    const isVisible = matchesQuery && matchesWorkbook && matchesPart && matchesCategory;
+    item.hidden = !isVisible;
+    if (isVisible) visibleCount += 1;
   });
+  const countLabel = document.querySelector("#weeklyPickerResultCount");
+  if (countLabel) countLabel.textContent = `${visibleCount} ${visibleCount === 1 ? "Eintrag" : "Einträge"} sichtbar`;
+}
+
+function syncWeeklyPickerFilterOptions() {
+  const workbook = document.querySelector("#weeklyPickerWorkbook")?.value || "";
+  const part = document.querySelector("#weeklyPickerPart")?.value || "";
+  const category = document.querySelector("#weeklyPickerCategory")?.value || "";
+  const items = Array.from(document.querySelectorAll(".weekly-picker-item"));
+  const workbookItems = items.filter((item) => !workbook || item.dataset.workbook === workbook);
+  updateWeeklyPickerSelect("#weeklyPickerPart", "Alle Teile", [...new Set(workbookItems.map((item) => item.dataset.part).filter(Boolean))], part);
+
+  const partAfterSync = document.querySelector("#weeklyPickerPart")?.value || "";
+  const categoryItems = workbookItems.filter((item) => !partAfterSync || item.dataset.part === partAfterSync);
+  updateWeeklyPickerSelect("#weeklyPickerCategory", "Alle Arten", [...new Set(categoryItems.map((item) => item.dataset.category).filter(Boolean))], category);
+}
+
+function updateWeeklyPickerSelect(selector, emptyLabel, values, currentValue) {
+  const select = document.querySelector(selector);
+  if (!select) return;
+  const sortedValues = values.sort((a, b) => a.localeCompare(b, "de", { numeric: true }));
+  const nextValue = currentValue && sortedValues.includes(currentValue) ? currentValue : "";
+  select.innerHTML = [
+    `<option value="">${escapeHtml(emptyLabel)}</option>`,
+    ...sortedValues.map((value) => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`)
+  ].join("");
+  select.value = nextValue;
+}
+
+function resetWeeklyPickerFilters() {
+  const search = document.querySelector("#weeklyPickerSearch");
+  const workbook = document.querySelector("#weeklyPickerWorkbook");
+  const part = document.querySelector("#weeklyPickerPart");
+  const category = document.querySelector("#weeklyPickerCategory");
+  if (search) search.value = "";
+  if (workbook) workbook.value = "";
+  if (part) part.value = "";
+  if (category) category.value = "";
+  filterWeeklyPicker();
 }
 
 function openWeeklyPrintDialog(planId) {
@@ -6053,6 +6126,17 @@ function workbookCatalogFullLabel(item) {
     pageLabel,
     item.title || item.competence
   ].filter(Boolean).join(" – ");
+}
+
+function workbookCssClass(workbook) {
+  return String(workbook || "")
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function workbookCatalogLabel(item) {
