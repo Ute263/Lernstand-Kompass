@@ -1463,7 +1463,7 @@ function renderDirectWorkbookProgressForm(animal, subject) {
     .filter((item) => item.subject === subject && item.active !== false)
     .sort((a, b) => String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
   const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
-  const subjectLabel = subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const subjectLabel = subject === "Deutsch" ? "ABC der Tiere 2" : "MiniMax 2";
   return `
     <section class="panel">
       <h2>${escapeHtml(subject)} direkt erfassen</h2>
@@ -1489,6 +1489,7 @@ function renderDirectWorkbookProgressForm(animal, subject) {
         </label>
         <button class="primary" type="submit">Fortschritt speichern</button>
       </form>
+      <button class="secondary" type="button" onclick="openWorkbookCatalogManager()">+ Material hinzufügen</button>
     </section>
   `;
 }
@@ -1776,6 +1777,7 @@ function renderWorkbookCatalogManager() {
     <section class="panel">
       <h2>Arbeitshefte / Lehrwerke verwalten</h2>
       <p class="message">Hier werden nur Seitenzahl, Thema, Kompetenz und kurze Hinweise hinterlegt, keine Arbeitsheftseiten.</p>
+      ${renderWorkbookCatalogOverview(items)}
       <form class="weekly-catalog-form" onsubmit="addWorkbookCatalogItem(event)">
         <label class="field">Fach
           <select class="select-input" id="catalogSubject">
@@ -1793,7 +1795,7 @@ function renderWorkbookCatalogManager() {
           <input class="text-input" id="catalogArea" placeholder="Wir sind in Klasse 2">
         </label>
         <label class="field">Art
-          <input class="text-input" id="catalogCategory" placeholder="Basis / Training / Extra / Test">
+          <input class="text-input" id="catalogCategory" placeholder="optional, z. B. Arbeitsheft oder Thema">
         </label>
         <label class="field">Seite
           <input class="text-input" id="catalogPage" inputmode="numeric" placeholder="15" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
@@ -1832,6 +1834,59 @@ function renderWorkbookCatalogManager() {
         </table>
       </div>
     </section>
+  `;
+}
+
+function renderWorkbookCatalogOverview(items) {
+  const subjects = ["Deutsch", "Mathe"];
+  return `
+    <div class="catalog-overview-grid">
+      ${subjects.map((subject) => {
+        const subjectItems = items.filter((item) => item.subject === subject && item.active !== false);
+        const workbooks = [...new Set(subjectItems.map((item) => item.workbook).filter(Boolean))];
+        return `
+          <div class="catalog-overview">
+            <h3>${escapeHtml(subject)}</h3>
+            ${workbooks.map((workbook) => renderWorkbookAccordion(workbook, subjectItems.filter((item) => item.workbook === workbook))).join("") || `<p class="empty">Noch kein Material hinterlegt.</p>`}
+            <button class="secondary" type="button" onclick="focusWorkbookCatalogForm('${subject}')">+ Material hinzufügen</button>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderWorkbookAccordion(workbook, items) {
+  const parts = [...new Set(items.map((item) => item.part || "Ohne Teil"))];
+  return `
+    <details class="catalog-accordion" open>
+      <summary>${escapeHtml(workbook)}</summary>
+      ${parts.map((part) => {
+        const partItems = items.filter((item) => (item.part || "Ohne Teil") === part);
+        const areas = [...new Set(partItems.map((item) => item.area || item.title || "Ohne Bereich"))];
+        return `
+          <details class="catalog-accordion nested">
+            <summary>${escapeHtml(part)}</summary>
+            ${areas.map((area) => {
+              const areaItems = partItems.filter((item) => (item.area || item.title || "Ohne Bereich") === area);
+              return `
+                <details class="catalog-accordion nested">
+                  <summary>${escapeHtml(area)}</summary>
+                  <ul class="catalog-item-list">
+                    ${areaItems.map((item) => `
+                      <li>
+                        <strong>${escapeHtml(pageRangeLabel(item))}</strong>
+                        <span>${escapeHtml(item.title || item.competence || item.category || "Eintrag")}</span>
+                      </li>
+                    `).join("")}
+                  </ul>
+                </details>
+              `;
+            }).join("")}
+          </details>
+        `;
+      }).join("")}
+    </details>
   `;
 }
 
@@ -1951,22 +2006,25 @@ function renderWeeklyCatalogPicker() {
   const items = workbookCatalogForActiveClass()
     .filter((item) => item.subject === weeklyPickRequest.subject && item.active !== false)
     .sort((a, b) => a.workbook.localeCompare(b.workbook, "de") || String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
+  const categories = [...new Set(items.map((item) => item.category).filter(Boolean))];
   return `
     <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPickerTitle">
       <section class="training-modal-card weekly-picker-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
         <h2 id="weeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} auswählen</h2>
-        <p class="message">${escapeHtml(weeklyPickRequest.day)} · Das vollständige Inhaltsverzeichnis bleibt hier im Auswahlfenster.</p>
+        <p class="message">${escapeHtml(weeklyPickRequest.day)} · Kompakte Auswahl aus den aktuell hinterlegten Materialien.</p>
         <div class="weekly-picker-filters">
           <input class="text-input" id="weeklyPickerSearch" placeholder="Suche nach Thema, Seite oder Bereich" oninput="filterWeeklyPicker()">
           <select class="select-input" id="weeklyPickerPart" onchange="filterWeeklyPicker()">
             <option value="">Alle Teile</option>
             ${[...new Set(items.map((item) => item.part).filter(Boolean))].map((part) => `<option value="${escapeAttribute(part)}">${escapeHtml(part)}</option>`).join("")}
           </select>
-          <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
-            <option value="">Alle Arten</option>
-            ${[...new Set(items.map((item) => item.category).filter(Boolean))].map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
-          </select>
+          ${categories.length > 1 ? `
+            <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
+              <option value="">Alle Arten</option>
+              ${categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
+            </select>
+          ` : ""}
         </div>
         <div class="weekly-picker-list">
           ${items.map((item) => `
@@ -1974,7 +2032,7 @@ function renderWeeklyCatalogPicker() {
               <strong>${escapeHtml(workbookCatalogShortLabel(item))}</strong>
               <span>${escapeHtml(workbookCatalogFullLabel(item))}</span>
             </button>
-          `).join("") || `<div class="empty">Noch keine Katalogeinträge für ${escapeHtml(weeklyPickRequest.subject)} vorhanden.</div>`}
+          `).join("") || `<div class="empty">Noch keine Katalogeinträge für ${escapeHtml(weeklyPickRequest.subject)} vorhanden. Lege sie über + Material hinzufügen im Arbeitsheft-Katalog an.</div>`}
         </div>
       </section>
     </div>
@@ -2017,6 +2075,13 @@ function clearWeeklyPick(inputId) {
 function showWorkbookCatalogInfo(itemId) {
   const item = workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
   if (item) alert(workbookCatalogFullLabel(item));
+}
+
+function openWorkbookCatalogManager() {
+  teacherTab = "weeklyPlans";
+  weeklyPlanSection = "catalog";
+  weeklyPickRequest = null;
+  render();
 }
 
 function filterWeeklyPicker() {
@@ -2316,6 +2381,12 @@ async function addWorkbookCatalogItem(event) {
       updatedAt: timestamp
     }]
   });
+}
+
+function focusWorkbookCatalogForm(subject) {
+  const subjectSelect = document.querySelector("#catalogSubject");
+  if (subjectSelect) subjectSelect.value = subject;
+  document.querySelector("#catalogWorkbook")?.focus();
 }
 
 async function deleteWorkbookCatalogItem(itemId) {
@@ -2713,7 +2784,7 @@ function buildWeeklyProgressRows(classId) {
           subject: catalog.subject,
           workbookLabel: [catalog.workbook, String(catalog.part || "").replace("Teil ", "")].filter(Boolean).join(" "),
           pagesLabel: pageRangeLabel(catalog),
-          topic: catalog.area || catalog.title || "",
+          topic: catalog.title || catalog.area || "",
           source: plan.weekLabel || plan.title,
           status: normalizeSimpleWorkStatus(statusRecord?.status || "offen"),
           progressLinked: statusRecord?.progressLinked === true,
@@ -5950,6 +6021,7 @@ function normalizeIdArray(value) {
 
 function pageRangeLabel(item) {
   if (!item || !Number(item.page)) return "";
+  if (item.pageLabel) return `S. ${item.pageLabel}`;
   const start = Number(item.page);
   const end = Number(item.pageEnd);
   return end && end > start ? `S. ${start}-${end}` : `S. ${start}`;
@@ -5959,18 +6031,28 @@ function workbookCatalogShortLabel(item) {
   if (!item) return "";
   const pageLabel = pageRangeLabel(item);
   if (item.subject === "Mathe") {
-    return [item.workbook, item.category, pageLabel].filter(Boolean).join(" ");
+    return [item.workbook, item.part, pageLabel].filter(Boolean).join(" · ");
   }
-  return [item.workbook, pageLabel].filter(Boolean).join(" ");
+  return [item.workbook, item.part, pageLabel].filter(Boolean).join(" · ");
 }
 
 function workbookCatalogFullLabel(item) {
   if (!item) return "";
   const pageLabel = pageRangeLabel(item);
   if (item.subject === "Mathe") {
-    return [item.workbook, item.part, item.area || item.title, item.category, pageLabel, item.competence].filter(Boolean).join(" – ");
+    return [
+      [item.workbook, item.part].filter(Boolean).join(" · "),
+      item.area || item.title,
+      pageLabel,
+      item.competence
+    ].filter(Boolean).join(" – ");
   }
-  return [item.workbook, item.part, item.area, pageLabel, item.title || item.competence].filter(Boolean).join(" – ");
+  return [
+    [item.workbook, item.part].filter(Boolean).join(" · "),
+    item.area,
+    pageLabel,
+    item.title || item.competence
+  ].filter(Boolean).join(" – ");
 }
 
 function workbookCatalogLabel(item) {

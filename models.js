@@ -117,26 +117,36 @@ const DEFAULT_WORKBOOK_CATALOG = [
 ];
 
 function abcCatalog(part, area, rows) {
-  return rows.map(([pageSpec, title, category = ""]) => catalogItem("Deutsch", "ABC der Tiere", part, area, category, pageSpec, title, "Deutsch", ""));
+  return rows.map(([pageSpec, title, category = ""]) => catalogItem("Deutsch", "ABC der Tiere 2", part, area, category, pageSpec, title, "Deutsch", ""));
 }
 
 function miniMaxCatalog(part, rows) {
-  return rows.flatMap(([theme, subtheme, basis, training, extra, test]) => [
-    basis ? catalogItem("Mathe", "MiniMax", part, theme, "Basis", basis, subtheme || theme, "Mathe", "") : null,
-    training ? catalogItem("Mathe", "MiniMax", part, theme, "Training", training, subtheme || theme, "Mathe", "") : null,
-    extra ? catalogItem("Mathe", "MiniMax", part, theme, "Extra", extra, subtheme || theme, "Mathe", "") : null,
-    test ? catalogItem("Mathe", "MiniMax", part, theme, "Test", test, subtheme || theme, "Mathe", `Test ${test}`) : null
-  ].filter(Boolean));
+  return rows
+    .map(([theme, subtheme, basis, training, extra, test]) => {
+      const visibleRanges = [basis, training, extra].filter(Boolean);
+      const pageSpec = mergePageSpecs(visibleRanges);
+      return pageSpec ? catalogItem("Mathe", "MiniMax 2", part, theme, "Thema", pageSpec, theme, subtheme ? `Unterthemen: ${subtheme}` : "", test ? `Test ${test}` : "") : null;
+    })
+    .filter(Boolean);
 }
 
 function catalogItem(subject, workbook, part, area, category, pageSpec, title, competence, note) {
-  const [page, pageEnd] = parsePageSpec(pageSpec);
-  return { subject, workbook, part, area, category, page, pageEnd, title, competence, note };
+  const [page, pageEnd, pageLabel] = parsePageSpec(pageSpec);
+  return { subject, workbook, part, area, category, page, pageEnd, pageLabel, title, competence, note };
 }
 
 function parsePageSpec(value) {
-  const parts = String(value || "").replace("–", "-").split("-").map((part) => Number(part.trim()));
-  return [parts[0] || 0, parts[1] || ""];
+  const normalized = String(value || "").trim().replace(/–/g, "-");
+  const numbers = normalized.match(/\d+/g)?.map(Number) || [];
+  return [numbers[0] || 0, numbers.length > 1 ? numbers[numbers.length - 1] : "", normalized];
+}
+
+function mergePageSpecs(values) {
+  const numbers = values.flatMap((value) => String(value || "").match(/\d+/g)?.map(Number) || []);
+  if (!numbers.length) return "";
+  const first = Math.min(...numbers);
+  const last = Math.max(...numbers);
+  return first === last ? String(first) : `${first}-${last}`;
 }
 
 const DEFAULT_PROGRESS_SETTINGS = {
@@ -386,6 +396,7 @@ function createDefaultWorkbookCatalog(classId) {
     category: item.category || "",
     page: item.page,
     pageEnd: item.pageEnd || "",
+    pageLabel: item.pageLabel || "",
     title: item.title,
     competence: item.competence,
     note: item.note,
@@ -478,7 +489,10 @@ function normalizeState(candidate) {
   state.trainingTasks = state.trainingTasks.map((item) => normalizeTrainingTask(item));
   state.trainingCompletions = state.trainingCompletions.map((item) => normalizeTrainingCompletion(item, state.activeClassId));
   state.trainingHistory = state.trainingHistory.map((item) => normalizeTrainingHistory(item, state.activeClassId));
-  state.workbookCatalog = state.workbookCatalog.map((item) => normalizeWorkbookCatalogItem(item, state.activeClassId));
+  state.workbookCatalog = state.workbookCatalog
+    .map((item) => normalizeWorkbookCatalogItem(item, state.activeClassId))
+    .map(normalizeWorkbookMaterialName)
+    .filter((item) => !isRetiredDefaultWorkbookCatalogItem(item));
   state.classes.forEach((classItem) => {
     state.workbookCatalog = mergeDefaultWorkbookCatalogForClass(state.workbookCatalog, classItem.id);
   });
@@ -510,6 +524,7 @@ function normalizeWorkbookCatalogItem(item, fallbackClassId) {
     category: item.category || item.kategorie || item.typ || "",
     page: Number(item.page || item.seite || 0),
     pageEnd: item.pageEnd || item.seiteBis || "",
+    pageLabel: item.pageLabel || item.seitenLabel || "",
     title: item.title || item.thema || item.inhalt || "",
     competence: item.competence || item.kompetenz || "",
     note: item.note || item.bemerkung || "",
@@ -517,6 +532,19 @@ function normalizeWorkbookCatalogItem(item, fallbackClassId) {
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
   };
+}
+
+function normalizeWorkbookMaterialName(item) {
+  if (item.workbook === "ABC der Tiere") return { ...item, workbook: "ABC der Tiere 2" };
+  if (item.workbook === "MiniMax") return { ...item, workbook: "MiniMax 2" };
+  return item;
+}
+
+function isRetiredDefaultWorkbookCatalogItem(item) {
+  if (item.workbook === "ABC der Tiere 1" && item.category === "Schreiblehrgang") return true;
+  if (item.workbook === "MiniMax 1" && item.category === "Thema") return true;
+  if (item.workbook === "MiniMax 2" && ["Basis", "Training", "Extra", "Test"].includes(item.category)) return true;
+  return false;
 }
 
 function workbookCatalogMergeKey(item) {
@@ -529,6 +557,7 @@ function workbookCatalogMergeKey(item) {
     item.category || "",
     Number(item.page || 0),
     Number(item.pageEnd || 0),
+    item.pageLabel || "",
     item.title || ""
   ].join("|").toLowerCase();
 }
