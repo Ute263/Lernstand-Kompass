@@ -227,6 +227,7 @@ function render() {
   }
   if (screen.startsWith("child")) {
     app.innerHTML = `<main class="app-shell child">${renderTopbar(CHILD_AREA_NAME)}${renderChildScreen()}</main>`;
+    if (screen === "childSelfReport") updateChildReportMaterialOptions();
     return;
   }
   if (screen === "login") {
@@ -429,6 +430,9 @@ function renderChildScreen() {
   if (screen === "childTrainingArea") return renderTrainingArea();
   if (screen === "childTrainingConfirm") return renderTrainingConfirmation();
   if (screen === "childWeek") return renderChildWeek();
+  if (screen === "childWorkbookTasks") return renderChildWorkbookTasks();
+  if (screen === "childSelfReport") return renderChildSelfReport();
+  if (screen === "childSelfReportConfirm") return renderChildSelfReportConfirm();
   return "";
 }
 
@@ -488,6 +492,19 @@ function selectAnimal(animalId) {
 
 function renderSubjectSelection() {
   const animal = selectedAnimal();
+  const settings = childViewSettings();
+  const cards = [];
+  if (settings.showWeek) {
+    cards.push(`<button class="subject-button week-subject-button" type="button" onclick="openChildWeek()"><span class="subject-icon">🗓️</span>Meine Woche</button>`);
+  }
+  if (settings.showWorkbookTasks) {
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>ABC der Tiere</button>`);
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>MiniMax</button>`);
+  }
+  if (settings.allowSelfReports) {
+    cards.push(`<button class="subject-button" type="button" onclick="openChildSelfReport()"><span class="subject-icon">✅</span>Das habe ich geschafft</button>`);
+  }
+  cards.push(`<button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>`);
   const qrGreeting = childDraft.fromQr && animal
     ? `<p class="qr-greeting">Hallo, <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>!</p>`
     : "";
@@ -497,10 +514,7 @@ function renderSubjectSelection() {
       ${qrGreeting}
       <h2 class="child-title">${CHILD_AREA_NAME}</h2>
       <div class="subject-grid">
-        <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
-        <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
-        <button class="subject-button week-subject-button" type="button" onclick="openChildWeek()"><span class="subject-icon">🗓️</span>Meine Woche</button>
-        <button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>
+        ${cards.join("")}
       </div>
     </section>
   `;
@@ -522,6 +536,18 @@ function openTrainingStart() {
 
 function openChildWeek() {
   screen = "childWeek";
+  render();
+}
+
+function openChildWorkbookTasks(subject) {
+  childDraft.workbookSubject = subject;
+  screen = "childWorkbookTasks";
+  render();
+}
+
+function openChildSelfReport() {
+  childDraft.selfReport = {};
+  screen = "childSelfReport";
   render();
 }
 
@@ -755,6 +781,93 @@ function renderChildWeeklyPlanItem(plan, animal, day, item) {
   `;
 }
 
+function renderChildWorkbookTasks() {
+  const animal = selectedAnimal();
+  const subject = childDraft.workbookSubject || "Deutsch";
+  const rows = animal ? workbookAssignmentsForChild(animal.id, subject) : [];
+  const title = subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  return `
+    <section class="step-wrap child-week-wrap">
+      ${renderBackButton("childSubject")}
+      <h2 class="child-title">${escapeHtml(title)}</h2>
+      <p class="message">Hier siehst du nur die Aufgaben, die deine Lehrkraft für dich freigegeben hat.</p>
+      <div class="weekly-child-plan">
+        ${rows.map((row) => renderChildWorkbookAssignmentItem(row)).join("") || `<div class="empty">Für dich ist hier gerade nichts eingetragen.</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderChildWorkbookAssignmentItem(row) {
+  const done = row.status === "fertig";
+  const label = row.catalog.subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  return `
+    <div class="weekly-child-item ${done ? "completed" : ""}">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(pageRangeLabel(row.catalog))}</span>
+      <small>${escapeHtml(row.catalog.title || row.catalog.area || "")}</small>
+      <em>${escapeHtml(row.status)}</em>
+      <div class="weekly-status-actions">
+        ${row.status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWorkbookAssignmentStatus('${escapeAttribute(row.assignment.id)}','begonnen')">begonnen</button>` : ""}
+        ${!done ? `<button class="primary small-button" type="button" onclick="updateChildWorkbookAssignmentStatus('${escapeAttribute(row.assignment.id)}','fertig')">fertig</button>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderChildSelfReport() {
+  const settings = childViewSettings();
+  const allowed = allowedSelfReportMaterials();
+  return `
+    <section class="step-wrap">
+      ${renderBackButton("childSubject")}
+      <h2 class="child-title">Das habe ich geschafft</h2>
+      <p class="message">Was hast du geschafft? Deine Lehrkraft schaut sich den Eintrag an.</p>
+      <form class="page-form self-report-form" onsubmit="saveChildSelfReport(event)">
+        <label class="field">Fach
+          <select class="select-input" id="childReportSubject" onchange="updateChildReportMaterialOptions()">
+            <option value="Deutsch">Deutsch</option>
+            <option value="Mathe">Mathe</option>
+          </select>
+        </label>
+        <label class="field">Material
+          <select class="select-input" id="childReportMaterial">
+            ${allowed.map((item) => `<option value="${escapeAttribute(item.value)}" data-subject="${escapeAttribute(item.subject)}">${escapeHtml(item.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Welche Seite hast du geschafft?
+          <input class="text-input" id="childReportPages" placeholder="z. B. 24 oder 24-27" inputmode="text">
+        </label>
+        <label class="field">Status
+          <select class="select-input" id="childReportStatus">
+            <option value="fertig">fertig</option>
+            <option value="teilweise">teilweise</option>
+          </select>
+        </label>
+        <label class="field">Notiz optional
+          <input class="text-input" id="childReportNote" placeholder="z. B. Ich bin noch nicht ganz fertig.">
+        </label>
+        <button class="primary" type="submit">Speichern</button>
+        <p class="message error" id="childReportMessage">${settings.allowSelfReports ? "" : "Diese Funktion ist gerade nicht freigegeben."}</p>
+      </form>
+    </section>
+  `;
+}
+
+function renderChildSelfReportConfirm() {
+  return `
+    <section class="confirm-box">
+      <div class="confirm-icon">✅</div>
+      <h2 class="confirm-title">Danke!</h2>
+      <p class="message">Deine Lehrkraft schaut sich den Eintrag an.</p>
+      <div class="confirm-actions">
+        <button class="primary" type="button" onclick="openChildSelfReport()">Noch etwas eintragen</button>
+        <button class="secondary" type="button" onclick="setChildScreen('childSubject')">Zur Lernreise</button>
+      </div>
+    </section>
+  `;
+}
+
 async function updateChildWeeklyStatus(planId, day, field, status) {
   const animal = selectedAnimal();
   const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
@@ -795,6 +908,101 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
   }
 
   await persist(nextState);
+  render();
+}
+
+async function updateChildWorkbookAssignmentStatus(assignmentId, status) {
+  const animal = selectedAnimal();
+  const assignment = (state.workbookAssignments || []).find((item) => item.id === assignmentId);
+  if (!animal || !assignment) return;
+  const catalog = workbookCatalogForActiveClass().find((item) => item.id === assignment.workbookCatalogId);
+  const timestamp = nowIso();
+  const existing = (state.workbookAssignmentStatuses || []).find((item) => item.assignmentId === assignmentId && item.animalId === animal.id);
+  const nextStatus = {
+    ...(existing || {}),
+    id: existing?.id || makeId(),
+    classId: state.activeClassId,
+    assignmentId,
+    animalId: animal.id,
+    workbookCatalogId: assignment.workbookCatalogId,
+    status: normalizeSimpleWorkStatus(status),
+    markedByChild: true,
+    progressLinked: existing?.progressLinked === true,
+    progressEntryId: existing?.progressEntryId || "",
+    createdAt: existing?.createdAt || timestamp,
+    updatedAt: timestamp
+  };
+  let nextState = {
+    ...state,
+    workbookAssignmentStatuses: existing
+      ? (state.workbookAssignmentStatuses || []).map((item) => item.id === existing.id ? nextStatus : item)
+      : [...(state.workbookAssignmentStatuses || []), nextStatus]
+  };
+  if (catalog && nextStatus.status === "fertig" && assignment.autoConfirm === true) {
+    nextState = upsertWorkbookProgressEntry(nextState, {
+      classId: state.activeClassId,
+      animal,
+      catalog,
+      status: nextStatus.status,
+      source: "Zuweisung"
+    });
+  }
+  await persist(nextState);
+  render();
+}
+
+function updateChildReportMaterialOptions() {
+  const subject = document.querySelector("#childReportSubject")?.value || "Deutsch";
+  const select = document.querySelector("#childReportMaterial");
+  if (!select) return;
+  Array.from(select.options).forEach((option) => {
+    option.hidden = option.dataset.subject !== subject;
+  });
+  const firstVisible = Array.from(select.options).find((option) => !option.hidden);
+  if (firstVisible && select.selectedOptions[0]?.hidden) select.value = firstVisible.value;
+}
+
+async function saveChildSelfReport(event) {
+  event.preventDefault();
+  const settings = childViewSettings();
+  const animal = selectedAnimal();
+  if (!settings.allowSelfReports || !animal) return;
+  const subject = document.querySelector("#childReportSubject")?.value || "Deutsch";
+  const materialFamily = document.querySelector("#childReportMaterial")?.value || "";
+  const pageText = normalizePageText(document.querySelector("#childReportPages")?.value || "");
+  const status = normalizeSimpleWorkStatus(document.querySelector("#childReportStatus")?.value || "fertig");
+  const note = document.querySelector("#childReportNote")?.value.trim() || "";
+  const message = document.querySelector("#childReportMessage");
+  if (!pageText) {
+    if (message) message.textContent = "Bitte trage eine Seite oder einen Seitenbereich ein.";
+    return;
+  }
+  if (!childMaterialFamilyAllowed(materialFamily)) {
+    if (message) message.textContent = "Dieses Material ist gerade nicht freigegeben.";
+    return;
+  }
+  const suggested = findWorkbookCatalogMatchForChildReport(subject, materialFamily, pageText);
+  const timestamp = nowIso();
+  const report = {
+    id: makeId(),
+    classId: state.activeClassId,
+    animalId: animal.id,
+    tierNameSnapshot: animal.tierName,
+    tierEmojiSnapshot: animal.tierEmoji,
+    subject,
+    materialFamily,
+    pageText,
+    status,
+    note,
+    suggestedWorkbookCatalogId: suggested?.id || "",
+    selectedWorkbookCatalogId: suggested?.id || "",
+    reviewStatus: "wartet",
+    source: "Kind gemeldet",
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  await persist({ ...state, childWorkbookReports: [...(state.childWorkbookReports || []), report] });
+  screen = "childSelfReportConfirm";
   render();
 }
 
@@ -1361,7 +1569,90 @@ function renderProgress() {
         </label>
       </form>
     </section>
+    ${renderChildViewSettingsPanel()}
+    ${renderPendingChildWorkbookReports(classId)}
     ${selectedAnimal ? renderAnimalProgressWorkspace(classId, selectedAnimal) : `<section class="panel"><div class="empty">Bitte lege zuerst ein aktives Tier an.</div></section>`}
+  `;
+}
+
+function renderChildViewSettingsPanel() {
+  const settings = childViewSettings();
+  const allowed = settings.allowedSelfReportMaterials || {};
+  return `
+    <section class="panel">
+      <h2>Kinderansicht</h2>
+      <p class="message">Hier steuerst du, welche Wege Kinder in „Meine Lernreise“ sehen. Der vollständige Arbeitsheft-Katalog bleibt im Kinderbereich ausgeblendet.</p>
+      <form class="settings-grid" onsubmit="saveChildViewSettings(event)">
+        <label class="check-row">
+          <input type="checkbox" id="childSettingShowWeek" ${settings.showWeek ? "checked" : ""}>
+          Wochenplan anzeigen
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="childSettingShowWorkbooks" ${settings.showWorkbookTasks ? "checked" : ""}>
+          Deutsch & Mathe-Zuweisungen anzeigen
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="childSettingAllowReports" ${settings.allowSelfReports ? "checked" : ""}>
+          Kinder dürfen selbst Seiten melden
+        </label>
+        <div class="field full-width">
+          <strong>Erlaubte Materialien für „Das habe ich geschafft“</strong>
+          <label class="check-row"><input type="checkbox" id="childAllowedAbc" ${allowed.abc ? "checked" : ""}> ABC der Tiere</label>
+          <label class="check-row"><input type="checkbox" id="childAllowedMinimax" ${allowed.minimax ? "checked" : ""}> MiniMax</label>
+          <label class="check-row"><input type="checkbox" id="childAllowedOther" ${allowed.other ? "checked" : ""}> weitere Materialien</label>
+        </div>
+        <button class="primary" type="submit">Kinderansicht speichern</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderPendingChildWorkbookReports(classId) {
+  const reports = (state.childWorkbookReports || [])
+    .filter((report) => report.classId === classId && report.reviewStatus === "wartet")
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  return `
+    <section class="panel">
+      <h2>Von Kindern gemeldet</h2>
+      <p class="message">Diese Einträge warten auf Bestätigung. Erst nach deiner Bestätigung werden sie in den endgültigen Fortschritt übernommen.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tier</th><th>Fach</th><th>Material</th><th>Seite</th><th>Status</th><th>mögliche Zuordnung</th><th>Datum</th><th>Notiz</th><th>Aktion</th></tr></thead>
+          <tbody>
+            ${reports.map((report) => renderPendingChildWorkbookReportRow(report)).join("") || `<tr><td colspan="9">Keine offenen Meldungen von Kindern.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderPendingChildWorkbookReportRow(report) {
+  const animal = state.animals.find((item) => item.id === report.animalId) || report;
+  const options = workbookCatalogOptionsForChildReport(report);
+  const dateLabel = report.createdAt ? `${formatGermanDate(report.createdAt)} ${formatExcelTime(report.createdAt)}` : "ohne Datum";
+  return `
+    <tr>
+      <td>${teacherAnimalLabel(animal)}</td>
+      <td>${escapeHtml(report.subject)}</td>
+      <td>${escapeHtml(childReportMaterialLabel(report.materialFamily))}</td>
+      <td>${escapeHtml(report.pageText)}</td>
+      <td>${simpleWorkStatusBadge(report.status)}</td>
+      <td>
+        ${options.length ? `
+          <select class="select-input compact-select" id="childReportCatalog_${escapeAttribute(report.id)}">
+            ${options.map((item) => `<option value="${item.id}" ${item.id === (report.selectedWorkbookCatalogId || report.suggestedWorkbookCatalogId) ? "selected" : ""}>${escapeHtml(workbookCatalogFullLabel(item))}</option>`).join("")}
+          </select>
+        ` : `<span class="muted">Keine eindeutige Zuordnung gefunden.</span>`}
+      </td>
+      <td>${escapeHtml(dateLabel)}</td>
+      <td>${escapeHtml(report.note || "–")}</td>
+      <td class="status-action-cell">
+        <button class="small-button" type="button" onclick="confirmChildWorkbookReport('${escapeAttribute(report.id)}')">bestätigen</button>
+        <button class="small-button" type="button" onclick="confirmChildWorkbookReport('${escapeAttribute(report.id)}','teilweise')">auf teilweise setzen</button>
+        <button class="danger small-button" type="button" onclick="rejectChildWorkbookReport('${escapeAttribute(report.id)}')">ablehnen</button>
+      </td>
+    </tr>
   `;
 }
 
@@ -1536,7 +1827,80 @@ function renderWorkbookDirectPlanning() {
         </select>
       </label>
     </section>
+    ${renderWorkbookAssignmentManager(classId)}
     ${selectedAnimal ? renderDirectWorkbookProgressForm(selectedAnimal, "Deutsch") + renderDirectWorkbookProgressForm(selectedAnimal, "Mathe") : `<section class="panel"><div class="empty">Bitte lege zuerst ein aktives Tier an.</div></section>`}
+  `;
+}
+
+function renderWorkbookAssignmentManager(classId) {
+  const animals = animalsForClass(classId).filter((animal) => animal.aktiv);
+  const catalog = workbookCatalogForClass(classId)
+    .filter((item) => item.active !== false && (item.subject === "Deutsch" || item.subject === "Mathe"))
+    .sort((a, b) => a.subject.localeCompare(b.subject, "de") || a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || Number(a.page) - Number(b.page));
+  const assignments = (state.workbookAssignments || [])
+    .filter((item) => item.classId === classId && item.active !== false)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  return `
+    <section class="panel">
+      <h2>Deutsch & Mathe-Zuweisung für Kinder</h2>
+      <p class="message">Diese Zuweisungen erscheinen im Kinderbereich nur dann, wenn „Deutsch & Mathe-Zuweisungen anzeigen“ in der Kinderansicht aktiv ist.</p>
+      <form class="inline-form" onsubmit="saveWorkbookAssignment(event)">
+        <label class="field">Aufgabe auswählen
+          <select class="select-input" id="assignmentCatalogId">
+            ${renderWorkbookCatalogSelectOptions(catalog)}
+          </select>
+        </label>
+        <label class="field">Zuordnung
+          <select class="select-input" id="assignmentMode">
+            <option value="all">für alle Tiere</option>
+            <option value="selected">für ausgewählte Tiere</option>
+          </select>
+        </label>
+        <label class="field">Titel optional
+          <input class="text-input" id="assignmentTitle" placeholder="z. B. Zusatz für diese Woche">
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="assignmentAutoConfirm">
+          fertige Kindmarkierung sofort in Fortschritt übernehmen
+        </label>
+        <div class="animal-checkbox-grid full-width">
+          ${animals.map((animal) => `
+            <label class="check-row">
+              <input type="checkbox" name="assignmentAnimal" value="${escapeAttribute(animal.id)}">
+              ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}
+            </label>
+          `).join("")}
+        </div>
+        <button class="primary" type="submit">Zuweisung speichern</button>
+      </form>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Aufgabe</th><th>Für</th><th>Status</th><th>Aktion</th></tr></thead>
+          <tbody>
+            ${assignments.map((assignment) => renderWorkbookAssignmentRow(assignment, animals)).join("") || `<tr><td colspan="4">Noch keine Zuweisung angelegt.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderWorkbookAssignmentRow(assignment, animals) {
+  const catalog = workbookCatalogForClass(assignment.classId).find((item) => item.id === assignment.workbookCatalogId);
+  const target = assignment.assignmentMode === "all" || !assignment.animalIds?.length
+    ? "alle Tiere"
+    : assignment.animalIds.map((id) => {
+      const animal = animals.find((item) => item.id === id);
+      return animal ? `${animal.tierEmoji} ${animal.tierName}` : "Tier";
+    }).join(", ");
+  const statuses = (state.workbookAssignmentStatuses || []).filter((item) => item.assignmentId === assignment.id);
+  return `
+    <tr>
+      <td><strong>${escapeHtml(catalog ? workbookCatalogShortLabel(catalog) : "unbekannte Aufgabe")}</strong><br><span class="muted">${escapeHtml(catalog ? workbookCatalogFullLabel(catalog) : assignment.workbookCatalogId)}</span></td>
+      <td>${escapeHtml(target)}</td>
+      <td>${statuses.length ? escapeHtml(`${statuses.filter((item) => normalizeSimpleWorkStatus(item.status) === "fertig").length} fertig · ${statuses.filter((item) => normalizeSimpleWorkStatus(item.status) === "teilweise").length} begonnen/teilweise`) : "noch offen"}</td>
+      <td><button class="danger small-button" type="button" onclick="deleteWorkbookAssignment('${escapeAttribute(assignment.id)}')">entfernen</button></td>
+    </tr>
   `;
 }
 
@@ -3121,6 +3485,9 @@ async function deleteClassItem(classId) {
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId !== classId),
     trainingHistory: (state.trainingHistory || []).filter((item) => item.classId !== classId),
     workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId !== classId),
+    workbookAssignments: (state.workbookAssignments || []).filter((item) => item.classId !== classId),
+    workbookAssignmentStatuses: (state.workbookAssignmentStatuses || []).filter((item) => item.classId !== classId),
+    childWorkbookReports: (state.childWorkbookReports || []).filter((item) => item.classId !== classId),
     weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId !== classId),
     weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId !== classId)
   });
@@ -3987,6 +4354,9 @@ function renderMergeReport() {
         <div>neu ergänzte Trainings-Bearbeitungen</div><strong>${lastMergeReport.addedTrainingCompletions || 0}</strong>
         <div>neu ergänzte Trainings-Änderungen</div><strong>${lastMergeReport.addedTrainingHistory || 0}</strong>
         <div>neu ergänzte Lehrwerk-Einträge</div><strong>${lastMergeReport.addedWorkbookCatalog || 0}</strong>
+        <div>neu ergänzte Deutsch/Mathe-Zuweisungen</div><strong>${lastMergeReport.addedWorkbookAssignments || 0}</strong>
+        <div>neu ergänzte Zuweisungs-Status</div><strong>${lastMergeReport.addedWorkbookAssignmentStatuses || 0}</strong>
+        <div>neu ergänzte Kindmeldungen</div><strong>${lastMergeReport.addedChildWorkbookReports || 0}</strong>
         <div>neu ergänzte Wochenpläne</div><strong>${lastMergeReport.addedWeeklyPlans || 0}</strong>
         <div>neu ergänzte Wochenplan-Status</div><strong>${lastMergeReport.addedWeeklyPlanStatuses || 0}</strong>
         <div>übersprungene doppelte Einträge</div><strong>${lastMergeReport.skippedDuplicateEntries}</strong>
@@ -3996,6 +4366,9 @@ function renderMergeReport() {
         <div>übersprungene doppelte Trainings-Bearbeitungen</div><strong>${lastMergeReport.skippedDuplicateTrainingCompletions || 0}</strong>
         <div>übersprungene doppelte Trainings-Änderungen</div><strong>${lastMergeReport.skippedDuplicateTrainingHistory || 0}</strong>
         <div>übersprungene doppelte Lehrwerk-Einträge</div><strong>${lastMergeReport.skippedDuplicateWorkbookCatalog || 0}</strong>
+        <div>übersprungene doppelte Deutsch/Mathe-Zuweisungen</div><strong>${lastMergeReport.skippedDuplicateWorkbookAssignments || 0}</strong>
+        <div>übersprungene doppelte Zuweisungs-Status</div><strong>${lastMergeReport.skippedDuplicateWorkbookAssignmentStatuses || 0}</strong>
+        <div>übersprungene doppelte Kindmeldungen</div><strong>${lastMergeReport.skippedDuplicateChildWorkbookReports || 0}</strong>
         <div>übersprungene doppelte Wochenpläne</div><strong>${lastMergeReport.skippedDuplicateWeeklyPlans || 0}</strong>
         <div>übersprungene doppelte Wochenplan-Status</div><strong>${lastMergeReport.skippedDuplicateWeeklyPlanStatuses || 0}</strong>
         <div>Konflikte</div><strong>${lastMergeReport.conflicts.length}</strong>
@@ -5326,6 +5699,9 @@ function renderStorageStatus() {
         <div>Anzahl bearbeiteter Trainingsaufgaben</div><strong>${(state.trainingCompletions || []).filter((item) => item.status === "bearbeitet").length}</strong>
         <div>Anzahl Trainings-Änderungen</div><strong>${(state.trainingHistory || []).length}</strong>
         <div>Anzahl Lehrwerk-Einträge</div><strong>${(state.workbookCatalog || []).length}</strong>
+        <div>Anzahl Deutsch/Mathe-Zuweisungen</div><strong>${(state.workbookAssignments || []).length}</strong>
+        <div>Anzahl Zuweisungs-Status</div><strong>${(state.workbookAssignmentStatuses || []).length}</strong>
+        <div>offene Kindmeldungen</div><strong>${(state.childWorkbookReports || []).filter((item) => item.reviewStatus === "wartet").length}</strong>
         <div>Anzahl Wochenpläne</div><strong>${(state.weeklyPlans || []).length}</strong>
         <div>Anzahl Wochenplan-Status</div><strong>${(state.weeklyPlanStatuses || []).length}</strong>
         <div>letzte Änderung Tests & Lernzielkontrollen</div><strong>${latestAssessmentChange ? formatDateTime(latestAssessmentChange) : "noch keine"}</strong>
@@ -6467,6 +6843,117 @@ function selectedAnimal() {
   return state.animals.find((item) => item.id === childDraft.animalId && item.classId === state.activeClassId);
 }
 
+function childViewSettings() {
+  return {
+    ...DEFAULT_CHILD_VIEW_SETTINGS,
+    ...(state.childViewSettings || {}),
+    allowedSelfReportMaterials: {
+      ...DEFAULT_CHILD_VIEW_SETTINGS.allowedSelfReportMaterials,
+      ...((state.childViewSettings || {}).allowedSelfReportMaterials || {})
+    }
+  };
+}
+
+function allowedSelfReportMaterials() {
+  const allowed = childViewSettings().allowedSelfReportMaterials;
+  return [
+    allowed.abc ? { value: "abc", label: "ABC der Tiere", subject: "Deutsch" } : null,
+    allowed.minimax ? { value: "minimax", label: "MiniMax", subject: "Mathe" } : null,
+    allowed.other ? { value: "other-deutsch", label: "Anderes Deutsch-Material", subject: "Deutsch" } : null,
+    allowed.other ? { value: "other-mathe", label: "Anderes Mathe-Material", subject: "Mathe" } : null
+  ].filter(Boolean);
+}
+
+function childMaterialFamilyAllowed(materialFamily) {
+  return allowedSelfReportMaterials().some((item) => item.value === materialFamily);
+}
+
+function workbookAssignmentsForChild(animalId, subject) {
+  return (state.workbookAssignments || [])
+    .filter((assignment) => assignment.classId === state.activeClassId && assignment.subject === subject && assignment.active !== false)
+    .filter((assignment) => assignment.assignmentMode === "all" || !assignment.animalIds?.length || assignment.animalIds.includes(animalId))
+    .map((assignment) => {
+      const catalog = workbookCatalogForActiveClass().find((item) => item.id === assignment.workbookCatalogId);
+      const status = (state.workbookAssignmentStatuses || [])
+        .filter((item) => item.assignmentId === assignment.id && item.animalId === animalId)
+        .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+      return catalog ? { assignment, catalog, status: normalizeSimpleWorkStatus(status?.status || "offen"), statusRecord: status || null } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.catalog.workbook.localeCompare(b.catalog.workbook, "de", { numeric: true }) || Number(a.catalog.page) - Number(b.catalog.page));
+}
+
+function normalizePageText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/–/g, "-")
+    .replace(/\s+/g, "")
+    .replace(/[^0-9,\-]/g, "");
+}
+
+function pageNumbersFromText(value) {
+  const text = normalizePageText(value);
+  if (!text) return [];
+  return text.split(",").flatMap((part) => {
+    const [start, end] = part.split("-").map((item) => Number(item)).filter(Boolean);
+    if (!start) return [];
+    if (!end || end <= start) return [start];
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  });
+}
+
+function findWorkbookCatalogMatchForChildReport(subject, materialFamily, pageText) {
+  const pages = pageNumbersFromText(pageText);
+  if (!pages.length) return null;
+  const first = Math.min(...pages);
+  const last = Math.max(...pages);
+  const familyNeedle = materialFamily === "abc" ? "ABC der Tiere" : materialFamily === "minimax" ? "MiniMax" : "";
+  const candidates = workbookCatalogForActiveClass()
+    .filter((item) => item.subject === subject && item.active !== false)
+    .filter((item) => !familyNeedle || item.workbook.includes(familyNeedle))
+    .filter((item) => {
+      const itemStart = Number(item.page || 0);
+      const itemEnd = Number(item.pageEnd || item.page || 0);
+      return itemStart <= first && itemEnd >= last;
+    })
+    .sort((a, b) => {
+      const spanA = Number(a.pageEnd || a.page || 0) - Number(a.page || 0);
+      const spanB = Number(b.pageEnd || b.page || 0) - Number(b.page || 0);
+      return spanA - spanB || a.workbook.localeCompare(b.workbook, "de", { numeric: true });
+    });
+  return candidates[0] || null;
+}
+
+function childReportMaterialLabel(materialFamily) {
+  if (materialFamily === "abc") return "ABC der Tiere";
+  if (materialFamily === "minimax") return "MiniMax";
+  if (materialFamily === "other-deutsch") return "weiteres Deutsch-Material";
+  if (materialFamily === "other-mathe") return "weiteres Mathe-Material";
+  return materialFamily || "Material";
+}
+
+function workbookCatalogOptionsForChildReport(report) {
+  const familyNeedle = report.materialFamily === "abc" ? "ABC der Tiere" : report.materialFamily === "minimax" ? "MiniMax" : "";
+  const pages = pageNumbersFromText(report.pageText);
+  const first = pages.length ? Math.min(...pages) : 0;
+  const last = pages.length ? Math.max(...pages) : 0;
+  const items = workbookCatalogForClass(report.classId || state.activeClassId)
+    .filter((item) => item.active !== false && item.subject === report.subject)
+    .filter((item) => !familyNeedle || item.workbook.includes(familyNeedle))
+    .sort((a, b) => {
+      const aContains = first && Number(a.page || 0) <= first && Number(a.pageEnd || a.page || 0) >= last ? 0 : 1;
+      const bContains = first && Number(b.page || 0) <= first && Number(b.pageEnd || b.page || 0) >= last ? 0 : 1;
+      return aContains - bContains
+        || a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        || Number(a.page || 0) - Number(b.page || 0);
+    });
+  if ((report.suggestedWorkbookCatalogId || report.selectedWorkbookCatalogId) && !items.some((item) => item.id === (report.selectedWorkbookCatalogId || report.suggestedWorkbookCatalogId))) {
+    const suggested = workbookCatalogForClass(report.classId || state.activeClassId).find((item) => item.id === (report.selectedWorkbookCatalogId || report.suggestedWorkbookCatalogId));
+    return suggested ? [suggested, ...items] : items;
+  }
+  return items;
+}
+
 function animalsForActiveClass() {
   return state.animals.filter((item) => item.classId === state.activeClassId);
 }
@@ -6599,6 +7086,134 @@ async function saveAnimalProgressNote(event, animalId) {
   await persistAndRender({ ...state, animals });
 }
 
+async function saveChildViewSettings(event) {
+  event.preventDefault();
+  const nextSettings = {
+    ...childViewSettings(),
+    showWeek: document.querySelector("#childSettingShowWeek")?.checked === true,
+    showWorkbookTasks: document.querySelector("#childSettingShowWorkbooks")?.checked === true,
+    allowSelfReports: document.querySelector("#childSettingAllowReports")?.checked === true,
+    allowedSelfReportMaterials: {
+      abc: document.querySelector("#childAllowedAbc")?.checked === true,
+      minimax: document.querySelector("#childAllowedMinimax")?.checked === true,
+      other: document.querySelector("#childAllowedOther")?.checked === true
+    }
+  };
+  globalMessage = "Kinderansicht wurde gespeichert.";
+  await persistAndRender({ ...state, childViewSettings: nextSettings });
+}
+
+async function saveWorkbookAssignment(event) {
+  event.preventDefault();
+  const catalogId = document.querySelector("#assignmentCatalogId")?.value || "";
+  const catalog = workbookCatalogForActiveClass().find((item) => item.id === catalogId);
+  if (!catalog) return;
+  const timestamp = nowIso();
+  const mode = document.querySelector("#assignmentMode")?.value === "selected" ? "selected" : "all";
+  const animalIds = mode === "selected"
+    ? Array.from(document.querySelectorAll("input[name='assignmentAnimal']:checked")).map((input) => input.value)
+    : [];
+  if (mode === "selected" && !animalIds.length) {
+    globalMessage = "Bitte wähle mindestens ein Tier aus oder nutze „für alle Tiere“. ";
+    render();
+    return;
+  }
+  const assignment = {
+    id: makeId(),
+    classId: state.activeClassId,
+    subject: catalog.subject,
+    workbookCatalogId: catalog.id,
+    assignmentMode: mode,
+    animalIds,
+    title: document.querySelector("#assignmentTitle")?.value.trim() || "",
+    note: "",
+    autoConfirm: document.querySelector("#assignmentAutoConfirm")?.checked === true,
+    active: true,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  globalMessage = "Zuweisung wurde gespeichert.";
+  await persistAndRender({ ...state, workbookAssignments: [...(state.workbookAssignments || []), assignment] });
+}
+
+async function deleteWorkbookAssignment(assignmentId) {
+  if (!confirm("Diese Zuweisung aus der Kinderansicht entfernen? Bereits gespeicherte Status bleiben im Verlauf erhalten.")) return;
+  const timestamp = nowIso();
+  const assignments = (state.workbookAssignments || []).map((item) => item.id === assignmentId ? {
+    ...item,
+    active: false,
+    updatedAt: timestamp
+  } : item);
+  globalMessage = "Zuweisung wurde entfernt.";
+  await persistAndRender({ ...state, workbookAssignments: assignments });
+}
+
+async function confirmChildWorkbookReport(reportId, forcedStatus = "") {
+  const report = (state.childWorkbookReports || []).find((item) => item.id === reportId);
+  if (!report || report.reviewStatus !== "wartet") return;
+  const selectedId = document.getElementById(`childReportCatalog_${reportId}`)?.value || report.selectedWorkbookCatalogId || report.suggestedWorkbookCatalogId;
+  const catalog = workbookCatalogForActiveClass().find((item) => item.id === selectedId);
+  const animal = animalsForActiveClass().find((item) => item.id === report.animalId);
+  if (!catalog || !animal) {
+    globalMessage = "Bitte wähle zuerst eine passende Zuordnung aus.";
+    render();
+    return;
+  }
+  const status = normalizeSimpleWorkStatus(forcedStatus || report.status || "fertig");
+  const reportedPages = pageNumbersFromText(report.pageText);
+  const completedPages = reportedPages.length ? reportedPages.map(String) : weeklyCatalogPages(catalog).map(String);
+  const progressCatalog = reportedPages.length ? {
+    ...catalog,
+    page: Math.min(...reportedPages),
+    pageEnd: Math.max(...reportedPages),
+    pageLabel: report.pageText
+  } : catalog;
+  let nextState = upsertWorkbookProgressEntry(state, {
+    classId: report.classId || state.activeClassId,
+    animal,
+    catalog: progressCatalog,
+    status,
+    source: "Kind gemeldet",
+    completedPages,
+    note: report.note || ""
+  });
+  const linked = findWorkbookProgressDuplicate(nextState.entries || [], report.classId || state.activeClassId, animal.id, progressCatalog);
+  const timestamp = nowIso();
+  nextState = {
+    ...nextState,
+    entries: (nextState.entries || []).map((entry) => entry.id === linked?.id ? {
+      ...entry,
+      confirmationStatus: "von Lehrkraft bestätigt",
+      confirmedAt: timestamp,
+      updatedAt: timestamp
+    } : entry),
+    childWorkbookReports: (nextState.childWorkbookReports || []).map((item) => item.id === report.id ? {
+      ...item,
+      status,
+      selectedWorkbookCatalogId: catalog.id,
+      reviewStatus: "bestätigt",
+      reviewedAt: timestamp,
+      progressEntryId: linked?.id || "",
+      updatedAt: timestamp
+    } : item)
+  };
+  globalMessage = "Kindmeldung wurde bestätigt und in den Fortschritt übernommen.";
+  await persistAndRender(nextState);
+}
+
+async function rejectChildWorkbookReport(reportId) {
+  if (!confirm("Diese Kindmeldung ablehnen? Sie wird nicht in den Fortschritt übernommen.")) return;
+  const timestamp = nowIso();
+  const reports = (state.childWorkbookReports || []).map((item) => item.id === reportId ? {
+    ...item,
+    reviewStatus: "abgelehnt",
+    reviewedAt: timestamp,
+    updatedAt: timestamp
+  } : item);
+  globalMessage = "Kindmeldung wurde abgelehnt.";
+  await persistAndRender({ ...state, childWorkbookReports: reports });
+}
+
 async function saveDirectWorkbookProgress(event, subject, animalId) {
   event.preventDefault();
   const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
@@ -6726,7 +7341,7 @@ function upsertWorkbookProgressEntry(currentState, { classId, animal, catalog, s
   const timestamp = nowIso();
   const pages = weeklyCatalogPages(catalog);
   const completedNumbers = completedPages.map((page) => Number(page)).filter(Boolean);
-  const targetPage = normalizeSimpleWorkStatus(status) === "teilweise" && completedNumbers.length
+  const targetPage = completedNumbers.length
     ? Math.max(...completedNumbers)
     : Number(catalog.pageEnd || catalog.page || pages[pages.length - 1] || 0);
   if (!targetPage) return currentState;

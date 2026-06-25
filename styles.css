@@ -641,6 +641,29 @@ button:disabled {
   gap: 8px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-weight: 800;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.compact-select {
+  min-width: 260px;
+}
+
 .private-name {
   color: var(--brand-dark);
   font-weight: 800;

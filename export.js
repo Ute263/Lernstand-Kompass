@@ -41,6 +41,10 @@ function makeActiveClassBackup(state, classId) {
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
     trainingHistory: (state.trainingHistory || []).filter((item) => item.classId === classId),
     workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId === classId),
+    workbookAssignments: (state.workbookAssignments || []).filter((item) => item.classId === classId),
+    workbookAssignmentStatuses: (state.workbookAssignmentStatuses || []).filter((item) => item.classId === classId),
+    childWorkbookReports: (state.childWorkbookReports || []).filter((item) => item.classId === classId),
+    childViewSettings: state.childViewSettings || {},
     weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId === classId),
     weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId)
   };
@@ -64,6 +68,10 @@ function makeLernpostPackage(state, classId) {
     trainingCompletions: (state.trainingCompletions || []).filter((item) => item.classId === classId),
     trainingHistory: [],
     workbookCatalog: (state.workbookCatalog || []).filter((item) => item.classId === classId),
+    workbookAssignments: (state.workbookAssignments || []).filter((item) => item.classId === classId),
+    workbookAssignmentStatuses: (state.workbookAssignmentStatuses || []).filter((item) => item.classId === classId),
+    childWorkbookReports: (state.childWorkbookReports || []).filter((item) => item.classId === classId),
+    childViewSettings: state.childViewSettings || {},
     weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId === classId),
     weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId),
     childSafe: true
@@ -884,6 +892,34 @@ function importActiveClassAsNew(state, backup) {
     animalId: oldToNewAnimal.get(item.animalId) || item.animalId,
     workbookCatalogId: oldToNewWorkbookCatalog.get(item.workbookCatalogId) || item.workbookCatalogId
   }));
+  const oldToNewWorkbookAssignment = new Map();
+  const workbookAssignments = (backup.workbookAssignments || []).map((item) => {
+    const newId = makeId();
+    oldToNewWorkbookAssignment.set(item.id, newId);
+    return {
+      ...item,
+      id: newId,
+      classId: newClassId,
+      workbookCatalogId: oldToNewWorkbookCatalog.get(item.workbookCatalogId) || item.workbookCatalogId,
+      animalIds: (item.animalIds || []).map((animalId) => oldToNewAnimal.get(animalId) || animalId)
+    };
+  });
+  const workbookAssignmentStatuses = (backup.workbookAssignmentStatuses || []).map((item) => ({
+    ...item,
+    id: makeId(),
+    classId: newClassId,
+    assignmentId: oldToNewWorkbookAssignment.get(item.assignmentId) || item.assignmentId,
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId,
+    workbookCatalogId: oldToNewWorkbookCatalog.get(item.workbookCatalogId) || item.workbookCatalogId
+  }));
+  const childWorkbookReports = (backup.childWorkbookReports || []).map((item) => ({
+    ...item,
+    id: makeId(),
+    classId: newClassId,
+    animalId: oldToNewAnimal.get(item.animalId) || item.animalId,
+    suggestedWorkbookCatalogId: oldToNewWorkbookCatalog.get(item.suggestedWorkbookCatalogId) || item.suggestedWorkbookCatalogId,
+    selectedWorkbookCatalogId: oldToNewWorkbookCatalog.get(item.selectedWorkbookCatalogId) || item.selectedWorkbookCatalogId
+  }));
   const entries = (backup.entries || []).map((entry) => ({
     ...entry,
     id: makeId(),
@@ -905,6 +941,9 @@ function importActiveClassAsNew(state, backup) {
     trainingCompletions: [...(state.trainingCompletions || []), ...trainingCompletions],
     trainingHistory: [...(state.trainingHistory || []), ...trainingHistory],
     workbookCatalog: [...(state.workbookCatalog || []), ...workbookCatalog],
+    workbookAssignments: [...(state.workbookAssignments || []), ...workbookAssignments],
+    workbookAssignmentStatuses: [...(state.workbookAssignmentStatuses || []), ...workbookAssignmentStatuses],
+    childWorkbookReports: [...(state.childWorkbookReports || []), ...childWorkbookReports],
     weeklyPlans: [...(state.weeklyPlans || []), ...weeklyPlans],
     weeklyPlanStatuses: [...(state.weeklyPlanStatuses || []), ...weeklyPlanStatuses],
     entries: [...state.entries, ...entries]
@@ -937,6 +976,10 @@ function stateFromBackup(backup) {
       trainingCompletions: backup.trainingCompletions || [],
       trainingHistory: backup.trainingHistory || [],
       workbookCatalog: backup.workbookCatalog || [],
+      workbookAssignments: backup.workbookAssignments || [],
+      workbookAssignmentStatuses: backup.workbookAssignmentStatuses || [],
+      childWorkbookReports: backup.childWorkbookReports || [],
+      childViewSettings: backup.childViewSettings || {},
       weeklyPlans: backup.weeklyPlans || [],
       weeklyPlanStatuses: backup.weeklyPlanStatuses || [],
       sprachweltTasks: backup.sprachweltTasks || []
@@ -958,6 +1001,10 @@ function stateFromBackup(backup) {
       trainingCompletions: backup.trainingCompletions || [],
       trainingHistory: backup.trainingHistory || [],
       workbookCatalog: backup.workbookCatalog || [],
+      workbookAssignments: backup.workbookAssignments || [],
+      workbookAssignmentStatuses: backup.workbookAssignmentStatuses || [],
+      childWorkbookReports: backup.childWorkbookReports || [],
+      childViewSettings: backup.childViewSettings || {},
       weeklyPlans: backup.weeklyPlans || [],
       weeklyPlanStatuses: backup.weeklyPlanStatuses || [],
       sprachweltTasks: backup.sprachweltTasks || []
@@ -983,6 +1030,9 @@ function mergeBackupData(currentState, importedBackup) {
     addedTrainingCompletions: 0,
     addedTrainingHistory: 0,
     addedWorkbookCatalog: 0,
+    addedWorkbookAssignments: 0,
+    addedWorkbookAssignmentStatuses: 0,
+    addedChildWorkbookReports: 0,
     addedWeeklyPlans: 0,
     addedWeeklyPlanStatuses: 0,
     skippedDuplicateTrainingCompletions: 0,
@@ -991,6 +1041,9 @@ function mergeBackupData(currentState, importedBackup) {
     skippedDuplicateAssessmentResults: 0,
     skippedDuplicateTrainingHistory: 0,
     skippedDuplicateWorkbookCatalog: 0,
+    skippedDuplicateWorkbookAssignments: 0,
+    skippedDuplicateWorkbookAssignmentStatuses: 0,
+    skippedDuplicateChildWorkbookReports: 0,
     skippedDuplicateWeeklyPlans: 0,
     skippedDuplicateWeeklyPlanStatuses: 0,
     skippedDuplicateEntries: 0,
@@ -1010,6 +1063,9 @@ function mergeBackupData(currentState, importedBackup) {
   const trainingCompletionKeys = new Set((current.trainingCompletions || []).map(trainingCompletionKey));
   const trainingHistoryIds = new Set((current.trainingHistory || []).map((item) => item.id));
   const workbookCatalogIds = new Set((current.workbookCatalog || []).map((item) => item.id));
+  const workbookAssignmentIds = new Set((current.workbookAssignments || []).map((item) => item.id));
+  const workbookAssignmentStatusIds = new Set((current.workbookAssignmentStatuses || []).map((item) => item.id));
+  const childWorkbookReportIds = new Set((current.childWorkbookReports || []).map((item) => item.id));
   const weeklyPlanIds = new Set((current.weeklyPlans || []).map((item) => item.id));
   const weeklyPlanStatusIds = new Set((current.weeklyPlanStatuses || []).map((item) => item.id));
   const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
@@ -1029,6 +1085,9 @@ function mergeBackupData(currentState, importedBackup) {
     trainingCompletions: [...(current.trainingCompletions || [])],
     trainingHistory: [...(current.trainingHistory || [])],
     workbookCatalog: [...(current.workbookCatalog || [])],
+    workbookAssignments: [...(current.workbookAssignments || [])],
+    workbookAssignmentStatuses: [...(current.workbookAssignmentStatuses || [])],
+    childWorkbookReports: [...(current.childWorkbookReports || [])],
     weeklyPlans: [...(current.weeklyPlans || [])],
     weeklyPlanStatuses: [...(current.weeklyPlanStatuses || [])]
   };
@@ -1163,6 +1222,36 @@ function mergeBackupData(currentState, importedBackup) {
     next.workbookCatalog.push(item);
     workbookCatalogIds.add(item.id);
     report.addedWorkbookCatalog += 1;
+  });
+
+  (imported.workbookAssignments || []).forEach((item) => {
+    if (workbookAssignmentIds.has(item.id)) {
+      report.skippedDuplicateWorkbookAssignments += 1;
+      return;
+    }
+    next.workbookAssignments.push(item);
+    workbookAssignmentIds.add(item.id);
+    report.addedWorkbookAssignments += 1;
+  });
+
+  (imported.workbookAssignmentStatuses || []).forEach((item) => {
+    if (workbookAssignmentStatusIds.has(item.id)) {
+      report.skippedDuplicateWorkbookAssignmentStatuses += 1;
+      return;
+    }
+    next.workbookAssignmentStatuses.push(item);
+    workbookAssignmentStatusIds.add(item.id);
+    report.addedWorkbookAssignmentStatuses += 1;
+  });
+
+  (imported.childWorkbookReports || []).forEach((item) => {
+    if (childWorkbookReportIds.has(item.id)) {
+      report.skippedDuplicateChildWorkbookReports += 1;
+      return;
+    }
+    next.childWorkbookReports.push(item);
+    childWorkbookReportIds.add(item.id);
+    report.addedChildWorkbookReports += 1;
   });
 
   (imported.weeklyPlans || []).forEach((item) => {

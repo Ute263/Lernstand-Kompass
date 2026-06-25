@@ -251,6 +251,17 @@ const DEFAULT_PROGRESS_SETTINGS = {
   showGoalComparison: true
 };
 
+const DEFAULT_CHILD_VIEW_SETTINGS = {
+  showWeek: true,
+  showWorkbookTasks: false,
+  allowSelfReports: false,
+  allowedSelfReportMaterials: {
+    abc: true,
+    minimax: true,
+    other: false
+  }
+};
+
 const DEFAULT_SPRACHWELT_TASKS = [
   { id: "D-01", titel: "Wörter im Raum finden", auftrag: "Suche 12 Wörter im Raum und schreibe sie in dein Lerntagebuch." },
   { id: "D-02", titel: "Silbenbögen zeichnen", auftrag: "Wähle 8 Wörter und zeichne Silbenbögen dazu." },
@@ -429,9 +440,13 @@ function emptyState() {
     trainingCompletions: [],
     trainingHistory: [],
     workbookCatalog: [],
+    workbookAssignments: [],
+    workbookAssignmentStatuses: [],
+    childWorkbookReports: [],
     weeklyPlans: [],
     weeklyPlanStatuses: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
+    childViewSettings: { ...DEFAULT_CHILD_VIEW_SETTINGS },
     teacherShowFirstNames: false,
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -520,9 +535,13 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     trainingCompletions: [],
     trainingHistory: [],
     workbookCatalog: createDefaultWorkbookCatalog(firstClass.id),
+    workbookAssignments: [],
+    workbookAssignmentStatuses: [],
+    childWorkbookReports: [],
     weeklyPlans: [],
     weeklyPlanStatuses: [],
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
+    childViewSettings: { ...DEFAULT_CHILD_VIEW_SETTINGS },
     teacherShowFirstNames: false,
     qrScannerEnabled: true,
     multiDeviceReminderEnabled: true,
@@ -557,12 +576,16 @@ function normalizeState(candidate) {
     trainingCompletions: Array.isArray(candidate.trainingCompletions) ? candidate.trainingCompletions : [],
     trainingHistory: Array.isArray(candidate.trainingHistory) ? candidate.trainingHistory : [],
     workbookCatalog: Array.isArray(candidate.workbookCatalog) ? candidate.workbookCatalog : [],
+    workbookAssignments: Array.isArray(candidate.workbookAssignments) ? candidate.workbookAssignments : [],
+    workbookAssignmentStatuses: Array.isArray(candidate.workbookAssignmentStatuses) ? candidate.workbookAssignmentStatuses : [],
+    childWorkbookReports: Array.isArray(candidate.childWorkbookReports) ? candidate.childWorkbookReports : [],
     weeklyPlans: Array.isArray(candidate.weeklyPlans) ? candidate.weeklyPlans : [],
     weeklyPlanStatuses: Array.isArray(candidate.weeklyPlanStatuses) ? candidate.weeklyPlanStatuses : [],
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
     },
+    childViewSettings: normalizeChildViewSettings(candidate.childViewSettings),
     teacherShowFirstNames: candidate.teacherShowFirstNames === true,
     qrScannerEnabled: candidate.qrScannerEnabled !== false,
     multiDeviceReminderEnabled: candidate.multiDeviceReminderEnabled !== false,
@@ -589,6 +612,9 @@ function normalizeState(candidate) {
   state.classes.forEach((classItem) => {
     state.workbookCatalog = mergeDefaultWorkbookCatalogForClass(state.workbookCatalog, classItem.id);
   });
+  state.workbookAssignments = state.workbookAssignments.map((item) => normalizeWorkbookAssignment(item, state.activeClassId));
+  state.workbookAssignmentStatuses = state.workbookAssignmentStatuses.map((item) => normalizeWorkbookAssignmentStatus(item, state.activeClassId));
+  state.childWorkbookReports = state.childWorkbookReports.map((item) => normalizeChildWorkbookReport(item, state.activeClassId));
   state.weeklyPlans = state.weeklyPlans.map((item) => normalizeWeeklyPlan(item, state.activeClassId));
   state.weeklyPlanStatuses = state.weeklyPlanStatuses.map((item) => normalizeWeeklyPlanStatus(item, state.activeClassId));
 
@@ -636,6 +662,78 @@ function normalizeWorkbookMaterialName(item) {
 function isRetiredDefaultWorkbookCatalogItem(item) {
   if (item.workbook === "MiniMax 2" && ["Basis", "Training", "Extra", "Test"].includes(item.category)) return true;
   return false;
+}
+
+function normalizeChildViewSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  return {
+    ...DEFAULT_CHILD_VIEW_SETTINGS,
+    ...source,
+    allowedSelfReportMaterials: {
+      ...DEFAULT_CHILD_VIEW_SETTINGS.allowedSelfReportMaterials,
+      ...(source.allowedSelfReportMaterials && typeof source.allowedSelfReportMaterials === "object" ? source.allowedSelfReportMaterials : {})
+    }
+  };
+}
+
+function normalizeWorkbookAssignment(item, fallbackClassId) {
+  const timestamp = nowIso();
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    subject: item.subject || item.fach || "Deutsch",
+    workbookCatalogId: item.workbookCatalogId || item.catalogId || "",
+    assignmentMode: item.assignmentMode || item.zuordnung || "all",
+    animalIds: Array.isArray(item.animalIds) ? item.animalIds : [],
+    title: item.title || item.titel || "",
+    note: item.note || item.bemerkung || "",
+    autoConfirm: item.autoConfirm === true,
+    active: item.active !== false && item.aktiv !== false,
+    createdAt: item.createdAt || item.erstelltAm || timestamp,
+    updatedAt: item.updatedAt || item.geaendertAm || timestamp
+  };
+}
+
+function normalizeWorkbookAssignmentStatus(item, fallbackClassId) {
+  const timestamp = nowIso();
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    assignmentId: item.assignmentId || "",
+    animalId: item.animalId || item.tierID || "",
+    workbookCatalogId: item.workbookCatalogId || item.catalogId || "",
+    status: item.status || "offen",
+    markedByChild: item.markedByChild === true,
+    progressLinked: item.progressLinked === true,
+    progressEntryId: item.progressEntryId || "",
+    createdAt: item.createdAt || timestamp,
+    updatedAt: item.updatedAt || timestamp,
+    confirmedAt: item.confirmedAt || ""
+  };
+}
+
+function normalizeChildWorkbookReport(item, fallbackClassId) {
+  const timestamp = nowIso();
+  return {
+    id: item.id || makeId(),
+    classId: item.classId || item.klasseId || fallbackClassId,
+    animalId: item.animalId || item.tierID || "",
+    tierNameSnapshot: item.tierNameSnapshot || "",
+    tierEmojiSnapshot: item.tierEmojiSnapshot || "",
+    subject: item.subject || item.fach || "Deutsch",
+    materialFamily: item.materialFamily || item.material || "",
+    pageText: item.pageText || item.pages || item.seiten || "",
+    status: item.status || "fertig",
+    note: item.note || item.notiz || "",
+    suggestedWorkbookCatalogId: item.suggestedWorkbookCatalogId || "",
+    selectedWorkbookCatalogId: item.selectedWorkbookCatalogId || "",
+    reviewStatus: item.reviewStatus || "wartet",
+    source: item.source || "Kind gemeldet",
+    createdAt: item.createdAt || item.datumUhrzeit || timestamp,
+    updatedAt: item.updatedAt || timestamp,
+    reviewedAt: item.reviewedAt || "",
+    progressEntryId: item.progressEntryId || ""
+  };
 }
 
 function workbookCatalogMergeKey(item) {
