@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v33";
+const CACHE_NAME = "lernstand-kompass-cache-v34";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -34,6 +34,10 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -41,10 +45,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+    fetch(request).then((response) => {
       const copy = response.clone();
       caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
       return response;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html")))
   );
 });
