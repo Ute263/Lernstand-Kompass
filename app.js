@@ -2015,42 +2015,57 @@ function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, 
 
 function renderWeeklyCatalogPicker() {
   if (!weeklyPickRequest) return "";
-  const items = workbookCatalogForActiveClass()
+  const allItems = workbookCatalogForActiveClass()
     .filter((item) => item.subject === weeklyPickRequest.subject && item.active !== false)
     .sort((a, b) => a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true }) || Number(a.page) - Number(b.page));
-  const workbooks = [...new Set(items.map((item) => item.workbook).filter(Boolean))];
-  const categories = [...new Set(items.map((item) => item.category).filter(Boolean))];
+  const filters = weeklyPickRequest.filters || {};
+  const selectedWorkbook = filters.workbook || "";
+  const selectedPart = filters.part || "";
+  const selectedCategory = filters.category || "";
+  const query = String(filters.query || "").trim().toLowerCase();
+  const workbooks = [...new Set(allItems.map((item) => item.workbook).filter(Boolean))];
+  const workbookItems = selectedWorkbook ? allItems.filter((item) => item.workbook === selectedWorkbook) : allItems;
+  const parts = [...new Set(workbookItems.map((item) => item.part).filter(Boolean))];
+  const partItems = selectedPart ? workbookItems.filter((item) => item.part === selectedPart) : workbookItems;
+  const categories = [...new Set(partItems.map((item) => item.category).filter(Boolean))];
+  const items = partItems.filter((item) => {
+    const matchesCategory = !selectedCategory || item.category === selectedCategory;
+    const matchesQuery = !query || workbookCatalogFullLabel(item).toLowerCase().includes(query);
+    return matchesCategory && matchesQuery;
+  });
   return `
     <div class="training-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPickerTitle">
       <section class="training-modal-card weekly-picker-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
         <h2 id="weeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} auswählen</h2>
-        <p class="message">${escapeHtml(weeklyPickRequest.day)} · Kompakte Auswahl aus den aktuell hinterlegten Materialien.</p>
+        <p class="message">${escapeHtml(weeklyPickRequest.day)} · Wähle zuerst das Material. Danach werden nur passende Einträge angezeigt.</p>
+        <div class="weekly-material-tabs" role="group" aria-label="Material auswählen">
+          <button class="small-button ${selectedWorkbook ? "" : "active"}" type="button" onclick="setWeeklyPickerFilter('workbook', '')">Alle</button>
+          ${workbooks.map((workbook) => {
+            const count = allItems.filter((item) => item.workbook === workbook).length;
+            return `<button class="small-button ${selectedWorkbook === workbook ? "active" : ""}" type="button" onclick="setWeeklyPickerFilter('workbook', ${jsString(workbook)})">${escapeHtml(workbook)} <span>${count}</span></button>`;
+          }).join("")}
+        </div>
         <div class="weekly-picker-filters">
           <label class="field compact-field">Suche
-            <input class="text-input" id="weeklyPickerSearch" placeholder="Thema, Seite oder Bereich" oninput="filterWeeklyPicker()">
-          </label>
-          <label class="field compact-field">Material
-            <select class="select-input" id="weeklyPickerWorkbook" onchange="filterWeeklyPicker()">
-              <option value="">Alle Materialien</option>
-              ${workbooks.map((workbook) => `<option value="${escapeAttribute(workbook)}">${escapeHtml(workbook)}</option>`).join("")}
-            </select>
+            <input class="text-input" id="weeklyPickerSearch" value="${escapeAttribute(filters.query || "")}" placeholder="Thema, Seite oder Bereich">
           </label>
           <label class="field compact-field">Teil
-            <select class="select-input" id="weeklyPickerPart" onchange="filterWeeklyPicker()">
+            <select class="select-input" id="weeklyPickerPart" onchange="setWeeklyPickerFilter('part', this.value)">
               <option value="">Alle Teile</option>
-              ${[...new Set(items.map((item) => item.part).filter(Boolean))].map((part) => `<option value="${escapeAttribute(part)}">${escapeHtml(part)}</option>`).join("")}
+              ${parts.map((part) => `<option value="${escapeAttribute(part)}" ${selectedPart === part ? "selected" : ""}>${escapeHtml(part)}</option>`).join("")}
             </select>
           </label>
           ${categories.length > 1 ? `
             <label class="field compact-field">Art
-              <select class="select-input" id="weeklyPickerCategory" onchange="filterWeeklyPicker()">
+              <select class="select-input" id="weeklyPickerCategory" onchange="setWeeklyPickerFilter('category', this.value)">
                 <option value="">Alle Arten</option>
-                ${categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(category)}</option>`).join("")}
+                ${categories.map((category) => `<option value="${escapeAttribute(category)}" ${selectedCategory === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
               </select>
             </label>
           ` : ""}
-          <button class="secondary" type="button" onclick="resetWeeklyPickerFilters()">Filter zurücksetzen</button>
+          <button class="secondary" type="button" onclick="setWeeklyPickerFilter('query', document.querySelector('#weeklyPickerSearch')?.value || '')">Suche anwenden</button>
+          <button class="secondary" type="button" onclick="resetWeeklyPickerFilters()">Alle Filter löschen</button>
         </div>
         <p class="message" id="weeklyPickerResultCount">${items.length} Einträge sichtbar</p>
         <div class="weekly-picker-list">
@@ -2069,7 +2084,11 @@ function renderWeeklyCatalogPicker() {
 
 function openWeeklyCatalogPicker(subject, day, scope, animalId, dayIndex) {
   weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
-  weeklyPickRequest = { subject, day, scope, animalId, dayIndex };
+  const subjectItems = workbookCatalogForActiveClass()
+    .filter((item) => item.subject === subject && item.active !== false)
+    .sort((a, b) => a.workbook.localeCompare(b.workbook, "de", { numeric: true }));
+  const firstWorkbook = [...new Set(subjectItems.map((item) => item.workbook).filter(Boolean))][0] || "";
+  weeklyPickRequest = { subject, day, scope, animalId, dayIndex, filters: { workbook: firstWorkbook, part: "", category: "", query: "" } };
   render();
 }
 
@@ -2112,6 +2131,19 @@ function openWorkbookCatalogManager() {
   render();
 }
 
+function setWeeklyPickerFilter(key, value) {
+  if (!weeklyPickRequest) return;
+  const nextFilters = { ...(weeklyPickRequest.filters || {}) };
+  nextFilters[key] = value || "";
+  if (key === "workbook") {
+    nextFilters.part = "";
+    nextFilters.category = "";
+  }
+  if (key === "part") nextFilters.category = "";
+  weeklyPickRequest = { ...weeklyPickRequest, filters: nextFilters };
+  render();
+}
+
 function filterWeeklyPicker() {
   syncWeeklyPickerFilterOptions();
   const query = (document.querySelector("#weeklyPickerSearch")?.value || "").trim().toLowerCase();
@@ -2125,7 +2157,9 @@ function filterWeeklyPicker() {
     const matchesPart = !part || item.dataset.part === part;
     const matchesCategory = !category || item.dataset.category === category;
     const isVisible = matchesQuery && matchesWorkbook && matchesPart && matchesCategory;
-    item.hidden = !isVisible;
+    item.toggleAttribute("hidden", !isVisible);
+    item.classList.toggle("filtered-out", !isVisible);
+    item.style.display = isVisible ? "" : "none";
     if (isVisible) visibleCount += 1;
   });
   const countLabel = document.querySelector("#weeklyPickerResultCount");
@@ -2158,15 +2192,12 @@ function updateWeeklyPickerSelect(selector, emptyLabel, values, currentValue) {
 }
 
 function resetWeeklyPickerFilters() {
-  const search = document.querySelector("#weeklyPickerSearch");
-  const workbook = document.querySelector("#weeklyPickerWorkbook");
-  const part = document.querySelector("#weeklyPickerPart");
-  const category = document.querySelector("#weeklyPickerCategory");
-  if (search) search.value = "";
-  if (workbook) workbook.value = "";
-  if (part) part.value = "";
-  if (category) category.value = "";
-  filterWeeklyPicker();
+  if (!weeklyPickRequest) return;
+  weeklyPickRequest = {
+    ...weeklyPickRequest,
+    filters: { workbook: "", part: "", category: "", query: "" }
+  };
+  render();
 }
 
 function openWeeklyPrintDialog(planId) {
@@ -7066,4 +7097,8 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("\n", " ");
+}
+
+function jsString(value) {
+  return escapeAttribute(JSON.stringify(String(value ?? "")));
 }
