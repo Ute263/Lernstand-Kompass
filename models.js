@@ -52,6 +52,69 @@ const WEEKLY_PLAN_FIELDS = [
 const WEEKLY_PLAN_STATUSES = ["offen", "teilweise", "fertig"];
 
 const DEFAULT_WORKBOOK_CATALOG = [
+  ...abc1WritingCatalog("Schreiblehrgang Teil A", [
+    ["3", "Die Symbole bedeuten", "", ""],
+    ["4", "Richtige Sitz- und Schreibhaltung", "", ""],
+    ["5-9", "Grafomotorische Vorübungen", "", ""],
+    ["10", "u", "Uhu", "2, 3"],
+    ["11", "i", "Igel", "4, 5"],
+    ["12-14", "M m", "Maus", "4, 5"],
+    ["15, 16", "o", "Orang-Utan", "6, 7"],
+    ["17-19", "a", "Ameise", "8, 9"],
+    ["20-22", "e", "Elefant", "10, 11"],
+    ["23", "A, E", "Ameise, Elefant", "12, 13"],
+    ["24", "I, O", "Igel, Orang-Utan", "12, 13"],
+    ["25", "U", "Uhu", "12, 13"],
+    ["26-28", "L l", "Löwe", "14, 15"],
+    ["29-31", "T t", "Tiger", "16, 17"],
+    ["32-34", "R r", "Reh", "18, 19"],
+    ["35-37", "S s", "Seepferdchen", "20, 21"],
+    ["38-40", "W w", "Wal", "22, 23"],
+    ["41-43", "D d", "Delfin", "24, 25"],
+    ["44-46", "N n", "Nashorn", "26, 27"],
+    ["47-50", "Sch sch", "Schildkröte", "28-31"],
+    ["51-53", "Ei ei", "Eichhörnchen", "32, 33"],
+    ["54, 55", "K k", "Kakadu", "34, 35"],
+    ["56, 57", "ck", "", "34, 35"],
+    ["58-60", "B b", "Bär", "36, 37"],
+    ["61, 62", "F f", "Fisch", "38, 39"],
+    ["63, 64", "Au au", "Auerhahn", "38, 39"]
+  ]),
+  ...abc1WritingCatalog("Schreiblehrgang Teil B", [
+    ["3", "Die Symbole bedeuten", "", ""],
+    ["4", "Richtige Sitz- und Schreibhaltung", "", ""],
+    ["5-7", "G g", "Gans", "40, 41"],
+    ["8, 9, 11", "ie", "", "42, 43"],
+    ["10", "Ö ö", "Kröte", "42, 43"],
+    ["12, 14", "P p", "Papagei", "44, 45"],
+    ["13, 14", "Pf pf", "Pfau", "44, 45"],
+    ["15, 17", "H h", "Hase", "46, 47"],
+    ["16, 17", "ß", "", "46, 47"],
+    ["18-20", "ch", "Buch", "48, 49"],
+    ["21-23", "Ä ä", "Känguru", "50, 51"],
+    ["24, 26", "St st", "Storch", "52, 53"],
+    ["25, 26", "Sp sp", "Specht", "52, 53"],
+    ["27, 28, 31", "Z z", "Zebra", "54, 55"],
+    ["29-31", "tz", "", "54, 55"],
+    ["32, 33", "ai", "", "56, 57"],
+    ["34", "nk", "Anker", "58, 59"],
+    ["35", "ng", "Schlange", "58, 59"],
+    ["36, 37", "Ü ü", "Kühe", "58, 59"],
+    ["38, 39", "J j", "Jaguar", "60, 61"],
+    ["40-42", "Eu eu", "Eule", "62, 63"],
+    ["43-45", "V v", "Vogel", "64, 65"],
+    ["46-48", "Äu äu", "", "66, 67"],
+    ["49-52", "Qu qu", "Qualle", "68, 69"],
+    ["53, 54, 56", "Y y", "Pony", "70, 71"],
+    ["55, 56", "C c", "Clown", "70, 71"],
+    ["57, 58", "X x", "Boxer", "72, 73"],
+    ["59", "chs", "", "72, 73"],
+    ["60", "Mein tolles Wintererlebnis", "", ""],
+    ["61", "Winterelfchen", "", ""],
+    ["62", "Sommerelfchen", "", ""],
+    ["63", "Meine Reise", "", ""],
+    ["64", "Einladung", "", ""]
+  ]),
   ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
     ["4", "Wir sind in Klasse 2"], ["6", "Nomen"], ["10", "Silbenhaus A und Silbenhaus B"], ["11", "Bestimmter Artikel: der, die, das"], ["12", "Unbestimmter Artikel: ein, eine"], ["13", "Einzahl – Mehrzahl"], ["14", "Nomen-Probe"], ["15", "Eine Infotafel gestalten"], ["3-6", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
   ]),
@@ -113,11 +176,37 @@ const DEFAULT_WORKBOOK_CATALOG = [
     ["Addition und Subtraktion üben", "Gerade und ungerade Zahlen, geschicktes Rechnen, Gleichungen und Ungleichungen", "53-57", "58", "59", "15"],
     ["Sachrechnen", "", "60-61", "", "", ""],
     ["Division mit Rest", "", "62-63", "", "", "16"]
+  ]),
+  ...miniMax1Catalog([
+    ["Zahlen bis 20", "", "2-11"],
+    ["Orientierung im Zahlenraum bis 20", "Zahlen vergleichen; Zahlenstrahl; Nachbarzahlen; Ordnungszahlen", "12-19"],
+    ["Plusaufgaben", "Analogieaufgaben; Tauschaufgaben", "20-23"],
+    ["Minusaufgaben", "Analogieaufgaben; Umkehraufgaben", "24-28"],
+    ["Verdoppeln und halbieren", "", "29-33"],
+    ["Zehnerübergang: Plusaufgaben", "Vorbereitung; Zuerst bis 10; Verdoppeln; Zehnertrick", "34-41"],
+    ["1 + 1 Tafel", "", "42-46"],
+    ["Zehnerübergang: Minusaufgaben", "Vorbereitung; Zurück bis 10; Ergänzen; Zehnertrick", "47-53"],
+    ["1 - 1 Tafel", "", "54-58"],
+    ["Plus- und Minusaufgaben üben", "Aufgabenfamilien; Zahlenfolgen", "59-65"],
+    ["Sachrechnen", "Rätsel und Tabellen; Rechengeschichten", "66-69"],
+    ["Plus- und Minusaufgaben üben", "Gerade und ungerade Zahlen; Gleichungen und Ungleichungen; Geschicktes Rechnen mit 3 Zahlen", "70-77"],
+    ["Zehnerzahlen bis 100", "", "78-79"],
+    ["Unsere Fachsprache", "", "80"]
   ])
 ];
 
 function abcCatalog(part, area, rows) {
   return rows.map(([pageSpec, title, category = ""]) => catalogItem("Deutsch", "ABC der Tiere 2", part, area, category, pageSpec, title, "Deutsch", ""));
+}
+
+function abc1WritingCatalog(part, rows) {
+  return rows.map(([pageSpec, title, anchorImage, fibelPages]) => {
+    const details = [
+      anchorImage ? `Ankerbild: ${anchorImage}` : "",
+      fibelPages ? `zu Fibelseite: ${fibelPages}` : ""
+    ].filter(Boolean).join(" · ");
+    return catalogItem("Deutsch", "ABC der Tiere 1", part, "Schreiblehrgang", "Schreiblehrgang", pageSpec, title, details, "");
+  });
 }
 
 function miniMaxCatalog(part, rows) {
@@ -128,6 +217,10 @@ function miniMaxCatalog(part, rows) {
       return pageSpec ? catalogItem("Mathe", "MiniMax 2", part, theme, "Thema", pageSpec, theme, subtheme ? `Unterthemen: ${subtheme}` : "", test ? `Test ${test}` : "") : null;
     })
     .filter(Boolean);
+}
+
+function miniMax1Catalog(rows) {
+  return rows.map(([theme, subtheme, pages]) => catalogItem("Mathe", "MiniMax 1", "Teil 1", theme, "Thema", pages, theme, subtheme ? `Unterthemen: ${subtheme}` : "", ""));
 }
 
 function catalogItem(subject, workbook, part, area, category, pageSpec, title, competence, note) {
@@ -541,8 +634,6 @@ function normalizeWorkbookMaterialName(item) {
 }
 
 function isRetiredDefaultWorkbookCatalogItem(item) {
-  if (item.workbook === "ABC der Tiere 1" && item.category === "Schreiblehrgang") return true;
-  if (item.workbook === "MiniMax 1" && item.category === "Thema") return true;
   if (item.workbook === "MiniMax 2" && ["Basis", "Training", "Extra", "Test"].includes(item.category)) return true;
   return false;
 }

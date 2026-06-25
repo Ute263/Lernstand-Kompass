@@ -1463,7 +1463,7 @@ function renderDirectWorkbookProgressForm(animal, subject) {
     .filter((item) => item.subject === subject && item.active !== false)
     .sort((a, b) => String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
   const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
-  const subjectLabel = subject === "Deutsch" ? "ABC der Tiere 2" : "MiniMax 2";
+  const subjectLabel = subject === "Deutsch" ? "Deutsch-Material" : "Mathe-Material";
   return `
     <section class="panel">
       <h2>${escapeHtml(subject)} direkt erfassen</h2>
