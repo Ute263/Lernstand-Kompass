@@ -49,7 +49,7 @@ const WEEKLY_PLAN_FIELDS = [
   { key: "freeText", label: "Freie Aufgabe", subject: "" }
 ];
 
-const WEEKLY_PLAN_STATUSES = ["offen", "begonnen", "bearbeitet", "von Lehrkraft bestätigt"];
+const WEEKLY_PLAN_STATUSES = ["offen", "teilweise", "fertig"];
 
 const DEFAULT_WORKBOOK_CATALOG = [
   ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
@@ -582,7 +582,8 @@ function normalizeIdList(value) {
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {
   const timestamp = nowIso();
-  const statusValue = item.status === "fertig" ? "bearbeitet" : item.status;
+  const legacyStatus = item.status === "bearbeitet" || item.status === "von Lehrkraft bestätigt" ? "fertig" : item.status;
+  const statusValue = legacyStatus === "begonnen" ? "teilweise" : legacyStatus;
   const status = WEEKLY_PLAN_STATUSES.includes(statusValue) ? statusValue : "offen";
   return {
     id: item.id || makeId(),

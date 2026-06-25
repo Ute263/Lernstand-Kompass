@@ -37,14 +37,15 @@ let progressFilters = {
   sort: "animal",
   comparison: "both"
 };
+let progressAnimalTab = "overview";
 
 const TEACHER_GROUPS = [
   {
     id: "learning",
-    label: "Kinder und Lernstände",
+    label: "Kinder & Fortschritt",
     sections: [
+      ["progress", "Kinder & Fortschritt"],
       ["overview", "Tierübersicht"],
-      ["progress", "Fortschritt"],
       ["today", "Heute"],
       ["help", "Hilfe/Kontrolle"],
       ["history", "Verlauf"],
@@ -53,12 +54,17 @@ const TEACHER_GROUPS = [
     ]
   },
   {
-    id: "trainingGroup",
-    label: "Trainingszeit und Aufgaben",
+    id: "workbooksGroup",
+    label: "Arbeitshefte & Wochenplan",
     sections: [
-      ["training", "Trainingszeit"],
-      ["weeklyPlans", "Wochenpläne"]
+      ["weeklyPlans", "Wochenplan"],
+      ["workbookDirect", "Deutsch & Mathe direkt planen"]
     ]
+  },
+  {
+    id: "trainingGroup",
+    label: "Trainingszeit",
+    sections: [["training", "Trainingszeit"]]
   },
   {
     id: "assessmentGroup",
@@ -67,7 +73,7 @@ const TEACHER_GROUPS = [
   },
   {
     id: "materialsGroup",
-    label: "Materialien und Druck",
+    label: "Materialien & Druck",
     sections: [
       ["resources", "Tiere & Materialien"],
       ["materialPrint", "Material drucken"],
@@ -75,18 +81,12 @@ const TEACHER_GROUPS = [
     ]
   },
   {
-    id: "syncGroup",
-    label: "Geräte und Synchronisation",
+    id: "settingsGroup",
+    label: "Geräte, Backup & Einstellungen",
     sections: [
       ["qrCards", "Tier-QR"],
       ["excelExport", "Import / Export"],
-      ["backup", "Backup / Wiederherstellung"]
-    ]
-  },
-  {
-    id: "settingsGroup",
-    label: "Einstellungen",
-    sections: [
+      ["backup", "Backup / Wiederherstellung"],
       ["security", "PIN & Sicherheit"],
       ["storageStatus", "Speicherstatus"],
       ["privacy", "Datenschutz & Zweck"]
@@ -478,8 +478,8 @@ function renderSubjectSelection() {
       <div class="subject-grid">
         <button class="subject-button" type="button" onclick="selectSubject('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>
         <button class="subject-button" type="button" onclick="selectSubject('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>
-        <button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>
         <button class="subject-button week-subject-button" type="button" onclick="openChildWeek()"><span class="subject-icon">🗓️</span>Meine Woche</button>
+        <button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>
       </div>
     </section>
   `;
@@ -718,8 +718,8 @@ function renderChildWeeklyPlan(plan, animal) {
 }
 
 function renderChildWeeklyPlanItem(plan, animal, day, item) {
-  const status = weeklyPlanItemStatus(plan.id, animal.id, day, item.field);
-  const done = status === "bearbeitet" || status === "von Lehrkraft bestätigt";
+  const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
+  const done = status === "fertig";
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
       <strong>${escapeHtml(item.label)}</strong>
@@ -727,8 +727,8 @@ function renderChildWeeklyPlanItem(plan, animal, day, item) {
       ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
       <em>${escapeHtml(status)}</em>
       <div class="weekly-status-actions">
-        ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'begonnen')">beginnen</button>` : ""}
-        ${!done ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'bearbeitet')">bearbeitet</button>` : ""}
+        ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'teilweise')">teilweise</button>` : ""}
+        ${!done ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'fertig')">fertig</button>` : ""}
       </div>
     </div>
   `;
@@ -740,6 +740,8 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
   if (!animal || !plan || !WEEKLY_PLAN_STATUSES.includes(status)) return;
   const timestamp = nowIso();
   const item = weeklyPlanItemsForDay(plan, day, animal.id).find((entry) => entry.field === field);
+  const pages = item?.catalogItem ? weeklyCatalogPages(item.catalogItem).map(String) : [];
+  const childCompletedPages = status === "fertig" ? pages : status === "teilweise" && pages.length === 1 ? pages : [];
   const existing = (state.weeklyPlanStatuses || []).find((entry) => (
     entry.planId === planId && entry.animalId === animal.id && entry.day === day && entry.field === field
   ));
@@ -754,9 +756,9 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
     workbookCatalogId: item?.workbookCatalogId || "",
     freeText: item?.freeText || "",
     status,
-    completedPages: item?.catalogItem ? weeklyCatalogPages(item.catalogItem).map(String) : existing?.completedPages || [],
-    openPages: item?.catalogItem ? [] : existing?.openPages || [],
-    completedAt: status === "bearbeitet" ? timestamp : existing?.completedAt || "",
+    completedPages: childCompletedPages,
+    openPages: pages.filter((page) => !childCompletedPages.includes(page)),
+    completedAt: status === "fertig" ? timestamp : existing?.completedAt || "",
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp
   };
@@ -767,7 +769,7 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
       : [...(state.weeklyPlanStatuses || []), nextStatus]
   };
 
-  if (status === "bearbeitet" && weeklyPlanProgressMode(plan) === "auto" && item?.catalogItem) {
+  if (status === "fertig" && weeklyPlanProgressMode(plan) === "auto" && item?.catalogItem) {
     nextState = linkWeeklyStatusToProgress(nextState, nextStatus.id, { confirmed: true });
   }
 
@@ -1266,6 +1268,7 @@ function renderTeacherSection(tab) {
   if (tab === "assessments") return renderAssessments();
   if (tab === "training") return renderTrainingOverview();
   if (tab === "weeklyPlans") return renderWeeklyPlans();
+  if (tab === "workbookDirect") return renderWorkbookDirectPlanning();
   if (tab === "today") return renderToday();
   if (tab === "help") return renderHelp();
   if (tab === "history") return renderHistory();
@@ -1319,77 +1322,187 @@ function renderOverview() {
 function renderProgress() {
   const classId = getProgressClassId();
   const classOptions = state.classes.map((item) => `<option value="${item.id}" ${item.id === classId ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
-  const animalOptions = animalsForClass(classId).filter((animal) => animal.aktiv)
-    .map((animal) => `<option value="${animal.id}" ${progressFilters.animalId === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`)
-    .join("");
-  const materialOptions = progressMaterialOptions(classId, progressFilters.fach)
-    .map((name) => `<option value="${escapeAttribute(name)}" ${progressFilters.material === name ? "selected" : ""}>${escapeHtml(name)}</option>`)
-    .join("");
-
-  if (progressDetailAnimalId) return renderProgressDetail(classId, classOptions, materialOptions);
-
-  const rows = sortProgressRows(buildProgressRows({
-    classId,
-    fach: progressFilters.fach,
-    material: progressFilters.material,
-    animalId: progressFilters.animalId,
-    period: progressFilters.period
-  }), progressFilters.sort);
-
+  const animals = animalsForClass(classId).filter((animal) => animal.aktiv);
+  const selectedAnimal = animals.find((animal) => animal.id === progressFilters.animalId) || animals[0] || null;
+  if (selectedAnimal && progressFilters.animalId !== selectedAnimal.id) progressFilters.animalId = selectedAnimal.id;
   return `
     <section class="panel">
-      <h2>Fortschritt</h2>
+      <h2>Kinder & Fortschritt</h2>
+      <p class="message">Einfacher Ablauf: Tier auswählen, dann Wochenplan abhaken oder Deutsch/Mathe direkt erfassen. Beide Wege landen im selben Fortschritt.</p>
       <form class="filters" onsubmit="event.preventDefault();">
         <label class="field">Klasse
           <select class="select-input" onchange="setProgressFilter('classId', this.value)">${classOptions}</select>
         </label>
-        <label class="field">Fach
-          <select class="select-input" onchange="setProgressFilter('fach', this.value)">
-            <option value="">Alle Fächer</option>
-            ${SUBJECTS.map((subject) => `<option value="${subject}" ${progressFilters.fach === subject ? "selected" : ""}>${subject}</option>`).join("")}
-          </select>
-        </label>
-        <label class="field">Material
-          <select class="select-input" onchange="setProgressFilter('material', this.value)">
-            <option value="">Alle Materialien</option>${materialOptions}
-          </select>
-        </label>
-        <label class="field">Tier
+        <label class="field">Tier auswählen
           <select class="select-input" onchange="setProgressFilter('animalId', this.value)">
-            <option value="">Alle Tiere</option>${animalOptions}
-          </select>
-        </label>
-        <label class="field">Zeitraum
-          <select class="select-input" onchange="setProgressFilter('period', this.value)">
-            ${progressPeriodOptions()}
-          </select>
-        </label>
-        <label class="field">Sortieren
-          <select class="select-input" onchange="setProgressFilter('sort', this.value)">
-            <option value="animal" ${progressFilters.sort === "animal" ? "selected" : ""}>nach Tier</option>
-            <option value="page" ${progressFilters.sort === "page" ? "selected" : ""}>nach letzter Seite</option>
-            <option value="progress" ${progressFilters.sort === "progress" ? "selected" : ""}>nach Fortschritt</option>
-            <option value="activity" ${progressFilters.sort === "activity" ? "selected" : ""}>nach letzter Aktivität</option>
-            <option value="status" ${progressFilters.sort === "status" ? "selected" : ""}>nach Status</option>
-          </select>
-        </label>
-        <label class="field">Vergleich
-          <select class="select-input" onchange="setProgressFilter('comparison', this.value)">
-            <option value="both" ${progressFilters.comparison === "both" ? "selected" : ""}>Gruppe und Soll-Seite</option>
-            <option value="group" ${progressFilters.comparison === "group" ? "selected" : ""}>Vergleich mit Gruppe</option>
-            <option value="goal" ${progressFilters.comparison === "goal" ? "selected" : ""}>Vergleich mit Soll-Seite</option>
+            ${animals.map((animal) => `<option value="${animal.id}" ${selectedAnimal?.id === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
           </select>
         </label>
       </form>
-      <div class="backup-actions progress-actions">
-        <button class="primary" type="button" onclick="exportBeautifulExcel('active')">Schöne Excel-Datei aktive Klasse</button>
+    </section>
+    ${selectedAnimal ? renderAnimalProgressWorkspace(classId, selectedAnimal) : `<section class="panel"><div class="empty">Bitte lege zuerst ein aktives Tier an.</div></section>`}
+  `;
+}
+
+function renderAnimalProgressWorkspace(classId, animal) {
+  const tabs = [
+    ["overview", "Überblick"],
+    ["weekly", "Wochenplan"],
+    ["deutsch", "Deutsch"],
+    ["mathe", "Mathe"],
+    ["note", "Notiz"]
+  ];
+  const activeTab = tabs.some(([id]) => id === progressAnimalTab) ? progressAnimalTab : "overview";
+  return `
+    <section class="panel animal-progress-header">
+      <h2>${teacherAnimalLabel(animal)} – Fortschritt</h2>
+      <div class="section-tabs">
+        ${tabs.map(([id, label]) => `<button class="small-button ${activeTab === id ? "active" : ""}" type="button" onclick="setProgressAnimalTab('${id}')">${escapeHtml(label)}</button>`).join("")}
+      </div>
+    </section>
+    ${activeTab === "overview" ? renderAnimalProgressOverview(classId, animal) : ""}
+    ${activeTab === "weekly" ? renderAnimalWeeklyProgressEditor(classId, animal) : ""}
+    ${activeTab === "deutsch" ? renderDirectWorkbookProgressForm(animal, "Deutsch") : ""}
+    ${activeTab === "mathe" ? renderDirectWorkbookProgressForm(animal, "Mathe") : ""}
+    ${activeTab === "note" ? renderAnimalProgressNote(animal) : ""}
+  `;
+}
+
+function renderAnimalProgressOverview(classId, animal) {
+  const entries = entriesForAnimalProgress(classId, animal.id);
+  const latestDeutsch = latestWorkbookEntry(classId, animal.id, "Deutsch");
+  const latestMathe = latestWorkbookEntry(classId, animal.id, "Mathe");
+  const weeklyRows = buildWeeklyProgressRows(classId).filter((row) => row.animal.id === animal.id);
+  const thisWeekRows = weeklyRows.map((row) => `${row.day}: ${row.subject} ${simpleWorkStatusLabel(row.status)}`);
+  const detailRows = entries.slice(0, 12);
+  return `
+    <section class="panel">
+      <h2>Aktueller Stand</h2>
+      <div class="summary-grid">
+        <div>Deutsch</div><strong>${latestDeutsch ? escapeHtml(progressEntrySummary(latestDeutsch)) : "noch kein Stand"}</strong>
+        <div>Mathe</div><strong>${latestMathe ? escapeHtml(progressEntrySummary(latestMathe)) : "noch kein Stand"}</strong>
+        <div>Diese Woche</div><strong>${thisWeekRows.length ? escapeHtml(thisWeekRows.slice(0, 4).join(" · ")) : "kein aktueller Wochenplan"}</strong>
       </div>
     </section>
     <section class="panel">
-      <h2>Fortschrittstabelle</h2>
-      ${renderProgressTable(rows)}
+      <h2>Details</h2>
+      <p class="message">Kurzansicht zuerst: Deutsch und Mathe zeigen den neuesten erfassten Arbeitsheftstand. Unten stehen die letzten Fortschrittseinträge aus Wochenplan und Direkteingabe.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Fach</th><th>Material</th><th>Bereich</th><th>Seite</th><th>Thema</th><th>Status</th><th>Quelle</th></tr></thead>
+          <tbody>
+            ${detailRows.map((entry) => `
+              <tr>
+                <td>${escapeHtml(entry.fach)}</td>
+                <td>${escapeHtml(entry.materialName || "–")}</td>
+                <td>${escapeHtml(entry.workbookPart || entry.workbookCategory || "–")}</td>
+                <td>${escapeHtml(entryWorkLabel(entry))}</td>
+                <td>${escapeHtml(entry.zusatzText || "–")}</td>
+                <td>${simpleWorkStatusBadge(entry.workStatus || entry.status)}</td>
+                <td>${escapeHtml(entry.source || entry.weeklyPlanSource || "Direkteingabe")}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="7">Noch keine Fortschrittseinträge vorhanden.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
     </section>
-    ${renderWeeklyProgressOverview(classId)}
+  `;
+}
+
+function renderAnimalWeeklyProgressEditor(classId, animal) {
+  const rows = buildWeeklyProgressRows(classId).filter((row) => row.animal.id === animal.id);
+  return `
+    <section class="panel">
+      <h2>Wochenplan abhaken</h2>
+      <p class="message">Hier wird der Arbeitsheft-Wochenplan für ${teacherAnimalLabel(animal)} erfasst. Trainingszeit-Aufgaben erscheinen hier bewusst nicht.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tag</th><th>Fach</th><th>Aufgabe</th><th>Status</th><th>Aktion</th></tr></thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${escapeHtml(row.day)}</td>
+                <td>${escapeHtml(row.subject)}</td>
+                <td><strong>${escapeHtml(row.pagesLabel)}</strong><br><span class="muted">${escapeHtml(row.topic || row.workbookLabel)}</span></td>
+                <td>${simpleWorkStatusBadge(row.status)}</td>
+                <td class="status-action-cell">
+                  ${["offen", "teilweise", "fertig"].map((status) => `<button class="small-button ${normalizeSimpleWorkStatus(row.status) === status ? "active" : ""}" type="button" onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${status}')">${status}</button>`).join(" ")}
+                </td>
+              </tr>
+            `).join("") || `<tr><td colspan="5">Für dieses Tier gibt es aktuell keinen Wochenplan.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderDirectWorkbookProgressForm(animal, subject) {
+  const items = workbookCatalogForActiveClass()
+    .filter((item) => item.subject === subject && item.active !== false)
+    .sort((a, b) => String(a.part || "").localeCompare(String(b.part || ""), "de") || Number(a.page) - Number(b.page));
+  const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
+  const subjectLabel = subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  return `
+    <section class="panel">
+      <h2>${escapeHtml(subject)} direkt erfassen</h2>
+      <p class="message">${escapeHtml(subjectLabel)} unabhängig vom Wochenplan auswählen und mit offen, teilweise oder fertig speichern.</p>
+      <form class="inline-form direct-progress-form" id="${formId}" onsubmit="saveDirectWorkbookProgress(event, '${subject}', '${escapeAttribute(animal.id)}')">
+        <label class="field">${escapeHtml(subjectLabel)} auswählen
+          <select class="select-input" id="${formId}Catalog">
+            ${items.map((item) => `<option value="${item.id}">${escapeHtml(workbookCatalogFullLabel(item))}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Status
+          <select class="select-input" id="${formId}Status">
+            <option value="offen">offen</option>
+            <option value="teilweise">teilweise</option>
+            <option value="fertig">fertig</option>
+          </select>
+        </label>
+        <label class="field">Bearbeitete Seiten optional
+          <input class="text-input" id="${formId}Pages" placeholder="z. B. 19, 20">
+        </label>
+        <label class="field">Bemerkung optional
+          <input class="text-input" id="${formId}Note" placeholder="kurz und sachlich">
+        </label>
+        <button class="primary" type="submit">Fortschritt speichern</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderAnimalProgressNote(animal) {
+  return `
+    <section class="panel">
+      <h2>Notiz</h2>
+      <p class="message">Kurze interne Lehrkraftnotiz zu diesem Tier. Im Kinderbereich wird diese Notiz nicht angezeigt.</p>
+      <form onsubmit="saveAnimalProgressNote(event, '${escapeAttribute(animal.id)}')">
+        <label class="field">Notiz
+          <textarea class="text-input free-text-input" id="animalProgressNote">${escapeHtml(animal.progressNote || "")}</textarea>
+        </label>
+        <button class="primary" type="submit">Notiz speichern</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderWorkbookDirectPlanning() {
+  const classId = getProgressClassId();
+  const animals = animalsForClass(classId).filter((animal) => animal.aktiv);
+  const selectedAnimal = animals.find((animal) => animal.id === progressFilters.animalId) || animals[0] || null;
+  if (selectedAnimal && progressFilters.animalId !== selectedAnimal.id) progressFilters.animalId = selectedAnimal.id;
+  return `
+    <section class="panel">
+      <h2>Deutsch & Mathe direkt planen / auswählen</h2>
+      <p class="message">Dieser Bereich nutzt den Arbeitsheft-Katalog. Wähle zuerst ein Tier und trage dann Deutsch- oder Mathe-Fortschritt direkt ein.</p>
+      <label class="field">Tier
+        <select class="select-input" onchange="setProgressFilter('animalId', this.value)">
+          ${animals.map((animal) => `<option value="${animal.id}" ${selectedAnimal?.id === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
+        </select>
+      </label>
+    </section>
+    ${selectedAnimal ? renderDirectWorkbookProgressForm(selectedAnimal, "Deutsch") + renderDirectWorkbookProgressForm(selectedAnimal, "Mathe") : `<section class="panel"><div class="empty">Bitte lege zuerst ein aktives Tier an.</div></section>`}
   `;
 }
 
@@ -2103,20 +2216,19 @@ function renderWeeklyPlanStatusOverview(plans = weeklyPlansForActiveClass()) {
       statusRecord: weeklyPlanStatusRecord(plan.id, animal.id, day, item.field)
     })))));
   const rows = allRows
-    .map((row) => ({ ...row, status: row.statusRecord?.status || "offen" }))
+    .map((row) => ({ ...row, status: normalizeSimpleWorkStatus(row.statusRecord?.status || "offen") }))
     .filter((row) => weeklyStatusFilterMatches(row, weeklyStatusFilter));
   return `
     <section class="panel">
       <h2>Wochenplan-Status</h2>
-      <p class="message">Hier sieht die Lehrkraft, welches Tier welche Wochenplan-Aufgabe begonnen oder bearbeitet hat und ob die Seite schon in den Fortschritt übernommen wurde.</p>
+      <p class="message">Hier sieht die Lehrkraft, welches Tier welche Arbeitsheft-Aufgabe aus dem Wochenplan offen, teilweise oder fertig hat und ob sie schon im Fortschritt steht.</p>
       <label class="field compact-filter">Filter
         <select class="select-input" onchange="setWeeklyStatusFilter(this.value)">
           ${[
             ["all", "alle"],
             ["offen", "offen"],
-            ["begonnen", "begonnen"],
-            ["bearbeitet", "bearbeitet"],
-            ["pending", "wartet auf Bestätigung"],
+            ["teilweise", "teilweise"],
+            ["fertig", "fertig"],
             ["linked", "in Fortschritt übernommen"]
           ].map(([value, label]) => `<option value="${value}" ${weeklyStatusFilter === value ? "selected" : ""}>${label}</option>`).join("")}
         </select>
@@ -2504,8 +2616,8 @@ function renderWeeklyProgressOverview(classId) {
       deutschDone: weeklyPagesForSummary(animalRows, "Deutsch", "done"),
       mathePlanned: weeklyPagesForSummary(animalRows, "Mathe", "planned"),
       matheDone: weeklyPagesForSummary(animalRows, "Mathe", "done"),
-      openCount: animalRows.filter((row) => row.status === "offen" || row.status === "begonnen").length,
-      pendingCount: animalRows.filter((row) => row.status === "bearbeitet" && !row.progressLinked).length
+      openCount: animalRows.filter((row) => normalizeSimpleWorkStatus(row.status) === "offen").length,
+      partialCount: animalRows.filter((row) => normalizeSimpleWorkStatus(row.status) === "teilweise").length
     };
   });
   return `
@@ -2514,7 +2626,7 @@ function renderWeeklyProgressOverview(classId) {
       <p class="message">Hier werden die geplanten Arbeitsheftseiten aus dem aktuellen Wochenplan mit dem Fortschritt der Tiere verbunden.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Tier</th><th>Deutsch geplant</th><th>Deutsch bearbeitet</th><th>Mathe geplant</th><th>Mathe bearbeitet</th><th>offen</th><th>wartet auf Bestätigung</th></tr></thead>
+          <thead><tr><th>Tier</th><th>Deutsch geplant</th><th>Deutsch fertig</th><th>Mathe geplant</th><th>Mathe fertig</th><th>offen</th><th>teilweise</th></tr></thead>
           <tbody>
             ${summaryRows.map((row) => `
               <tr>
@@ -2524,7 +2636,7 @@ function renderWeeklyProgressOverview(classId) {
                 <td>${escapeHtml(row.mathePlanned || "–")}</td>
                 <td>${escapeHtml(row.matheDone || "–")}</td>
                 <td>${row.openCount}</td>
-                <td>${row.pendingCount}</td>
+                <td>${row.partialCount}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -2552,7 +2664,7 @@ function renderWeeklyProgressForAnimal(classId, animalId) {
                 <td>${escapeHtml(row.topic || "–")}</td>
                 <td>${escapeHtml(row.source)}</td>
                 <td>${weeklyStatusBadge(row.status)}</td>
-                <td>${row.progressLinked ? `<span class="badge done">übernommen</span>` : row.status === "bearbeitet" ? `<span class="badge help">wartet auf Bestätigung</span>` : `<span class="badge stale">offen</span>`}</td>
+                <td>${row.progressLinked ? `<span class="badge done">übernommen</span>` : simpleWorkStatusBadge(row.status)}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -2582,7 +2694,7 @@ function buildWeeklyProgressRows(classId) {
           pagesLabel: pageRangeLabel(catalog),
           topic: catalog.area || catalog.title || "",
           source: plan.weekLabel || plan.title,
-          status: statusRecord?.status || "offen",
+          status: normalizeSimpleWorkStatus(statusRecord?.status || "offen"),
           progressLinked: statusRecord?.progressLinked === true,
           progressEntryId: statusRecord?.progressEntryId || ""
         };
@@ -2590,7 +2702,7 @@ function buildWeeklyProgressRows(classId) {
 }
 
 function weeklyPagesForSummary(rows, subject, mode) {
-  const selected = rows.filter((row) => row.subject === subject && (mode === "planned" || row.progressLinked || row.status === "bearbeitet" || row.status === "von Lehrkraft bestätigt"));
+  const selected = rows.filter((row) => row.subject === subject && (mode === "planned" || row.progressLinked || normalizeSimpleWorkStatus(row.status) === "fertig"));
   return [...new Set(selected.map((row) => row.pagesLabel).filter(Boolean))].join(", ");
 }
 
@@ -5767,7 +5879,7 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
 }
 
 function weeklyPlanItemStatus(planId, animalId, day, field) {
-  return weeklyPlanStatusRecord(planId, animalId, day, field)?.status || "offen";
+  return normalizeSimpleWorkStatus(weeklyPlanStatusRecord(planId, animalId, day, field)?.status || "offen");
 }
 
 function weeklyPlanStatusRecord(planId, animalId, day, field) {
@@ -5777,8 +5889,7 @@ function weeklyPlanStatusRecord(planId, animalId, day, field) {
 }
 
 function weeklyStatusBadge(status) {
-  const className = status === "von Lehrkraft bestätigt" ? "done" : status === "bearbeitet" ? "check" : status === "begonnen" ? "help" : "stale";
-  return `<span class="badge ${className}">${escapeHtml(status)}</span>`;
+  return simpleWorkStatusBadge(status);
 }
 
 function weeklyPlanProgressMode(plan) {
@@ -5800,22 +5911,22 @@ function weeklyItemPageSummary(item) {
 
 function weeklyStatusFilterMatches(row, filter) {
   if (!filter || filter === "all") return true;
-  if (filter === "pending") return row.status === "bearbeitet" && !row.statusRecord?.progressLinked && row.item.catalogItem;
   if (filter === "linked") return row.statusRecord?.progressLinked === true;
-  return row.status === filter;
+  return normalizeSimpleWorkStatus(row.status) === filter;
 }
 
 function weeklyProgressLinkBadge(statusRecord) {
   if (statusRecord?.progressLinked) return `<span class="badge done">übernommen</span>`;
-  if (statusRecord?.status === "bearbeitet") return `<span class="badge help">wartet auf Bestätigung</span>`;
+  if (normalizeSimpleWorkStatus(statusRecord?.status) === "fertig") return `<span class="badge help">noch nicht übernommen</span>`;
+  if (normalizeSimpleWorkStatus(statusRecord?.status) === "teilweise") return `<span class="badge help">teilweise</span>`;
   return `<span class="badge stale">nicht übernommen</span>`;
 }
 
 function weeklyStatusActions(row) {
   const statusId = row.statusRecord?.id || "";
-  const canConfirm = row.item.catalogItem && row.status === "bearbeitet" && !row.statusRecord?.progressLinked;
+  const canConfirm = row.item.catalogItem && normalizeSimpleWorkStatus(row.status) !== "offen" && !row.statusRecord?.progressLinked;
   const buttons = [];
-  if (canConfirm) buttons.push(`<button class="small-button" type="button" onclick="confirmWeeklyPlanProgress('${statusId}')">bestätigen</button>`);
+  if (canConfirm) buttons.push(`<button class="small-button" type="button" onclick="confirmWeeklyPlanProgress('${statusId}')">in Fortschritt übernehmen</button>`);
   if (row.status !== "offen") buttons.push(`<button class="small-button" type="button" onclick="setWeeklyPlanStatusFromTeacher('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','offen')">auf offen setzen</button>`);
   if (row.statusRecord?.progressLinked) buttons.push(`<button class="small-button" type="button" onclick="unlinkWeeklyPlanProgress('${statusId}')">Zuordnung entfernen</button>`);
   return buttons.join(" ") || "–";
@@ -5879,9 +5990,18 @@ function linkWeeklyStatusToProgress(currentState, statusId, options = {}) {
   if (!plan || !animal || !item?.catalogItem) return currentState;
   const catalog = item.catalogItem;
   const pages = weeklyCatalogPages(catalog);
-  const targetPage = pages.length ? pages[pages.length - 1] : Number(catalog.page || 0);
+  const completedPages = (status.completedPages || []).map((page) => Number(page)).filter(Boolean);
+  const targetPage = normalizeSimpleWorkStatus(status.status) === "teilweise" && completedPages.length
+    ? Math.max(...completedPages)
+    : pages.length ? pages[pages.length - 1] : Number(catalog.page || 0);
   if (!targetPage) return currentState;
   const duplicate = (currentState.entries || []).find((entry) => (
+    entry.classId === status.classId
+    && entry.tierID === animal.id
+    && entry.fach === catalog.subject
+    && entry.materialName === catalog.workbook
+    && entry.workbookCatalogId === catalog.id
+  )) || (currentState.entries || []).find((entry) => (
     entry.classId === status.classId
     && entry.tierID === animal.id
     && entry.fach === catalog.subject
@@ -5895,7 +6015,15 @@ function linkWeeklyStatusToProgress(currentState, statusId, options = {}) {
     weeklyPlanField: duplicate.weeklyPlanField || status.field,
     weeklyPlanSource: weeklyPlanPeriodLabel(plan),
     weeklyPlanRepeated: duplicate.weeklyPlanId && duplicate.weeklyPlanId !== plan.id ? true : duplicate.weeklyPlanRepeated === true,
-    source: duplicate.source || "Wochenplan"
+    source: duplicate.source || "Wochenplan",
+    workbookCatalogId: duplicate.workbookCatalogId || catalog.id,
+    workbookPart: duplicate.workbookPart || catalog.part || "",
+    workbookArea: duplicate.workbookArea || catalog.area || "",
+    workbookCategory: duplicate.workbookCategory || catalog.category || "",
+    seite: targetPage,
+    seiteVon: Number(catalog.page || targetPage),
+    seiteBis: Number(catalog.pageEnd || targetPage),
+    workStatus: normalizeSimpleWorkStatus(status.status)
   } : {
     id: makeId(),
     classId: status.classId,
@@ -5904,11 +6032,16 @@ function linkWeeklyStatusToProgress(currentState, statusId, options = {}) {
     tierEmojiSnapshot: animal.tierEmoji,
     fach: catalog.subject,
     materialName: catalog.workbook,
+    workbookCatalogId: catalog.id,
+    workbookPart: catalog.part || "",
+    workbookArea: catalog.area || "",
+    workbookCategory: catalog.category || "",
     seite: targetPage,
     seiteVon: Number(catalog.page || targetPage),
     seiteBis: Number(catalog.pageEnd || targetPage),
     zusatzText: catalog.title || catalog.area || "",
     status: "fertig",
+    workStatus: normalizeSimpleWorkStatus(status.status),
     erledigt: false,
     datumUhrzeit: status.completedAt || timestamp,
     source: "Wochenplan",
@@ -5922,11 +6055,11 @@ function linkWeeklyStatusToProgress(currentState, statusId, options = {}) {
     : [...(currentState.entries || []), progressEntry];
   const weeklyPlanStatuses = (currentState.weeklyPlanStatuses || []).map((item) => item.id === status.id ? {
     ...item,
-    status: options.confirmed ? "von Lehrkraft bestätigt" : item.status,
+    status: normalizeSimpleWorkStatus(item.status) === "offen" ? "fertig" : normalizeSimpleWorkStatus(item.status),
     progressLinked: true,
     progressEntryId: progressEntry.id,
-    completedPages: pages.map(String),
-    openPages: [],
+    completedPages: normalizeSimpleWorkStatus(item.status) === "teilweise" && status.completedPages?.length ? status.completedPages : pages.map(String),
+    openPages: normalizeSimpleWorkStatus(item.status) === "teilweise" ? pages.map(String).filter((page) => !(status.completedPages || []).includes(page)) : [],
     confirmedAt: options.confirmed ? timestamp : item.confirmedAt || "",
     updatedAt: timestamp
   } : item);
@@ -5946,7 +6079,7 @@ function removeWeeklyProgressLink(currentState, statusId) {
   } : entry);
   const weeklyPlanStatuses = (currentState.weeklyPlanStatuses || []).map((item) => item.id === statusId ? {
     ...item,
-    status: item.status === "von Lehrkraft bestätigt" ? "bearbeitet" : item.status,
+    status: normalizeSimpleWorkStatus(item.status),
     progressLinked: false,
     progressEntryId: "",
     confirmedAt: "",
@@ -6041,6 +6174,230 @@ function setProgressFilter(field, value) {
     progressFilters = { ...progressFilters, material: "" };
   }
   render();
+}
+
+function setProgressAnimalTab(tab) {
+  progressAnimalTab = tab || "overview";
+  render();
+}
+
+function normalizeSimpleWorkStatus(status) {
+  if (status === "bearbeitet" || status === "von Lehrkraft bestätigt") return "fertig";
+  if (status === "begonnen") return "teilweise";
+  return ["offen", "teilweise", "fertig"].includes(status) ? status : "offen";
+}
+
+function simpleWorkStatusLabel(status) {
+  return normalizeSimpleWorkStatus(status);
+}
+
+function simpleWorkStatusBadge(status) {
+  const normalized = normalizeSimpleWorkStatus(status);
+  const className = normalized === "fertig" ? "done" : normalized === "teilweise" ? "help" : "stale";
+  return `<span class="badge ${className}">${escapeHtml(normalized)}</span>`;
+}
+
+function entriesForAnimalProgress(classId, animalId) {
+  return (state.entries || [])
+    .filter((entry) => entry.classId === classId && entry.tierID === animalId && (entry.fach === "Deutsch" || entry.fach === "Mathe"))
+    .sort(sortNewest);
+}
+
+function latestWorkbookEntry(classId, animalId, subject) {
+  return entriesForAnimalProgress(classId, animalId)
+    .filter((entry) => entry.fach === subject)
+    .sort(sortNewest)[0] || null;
+}
+
+function progressEntrySummary(entry) {
+  if (!entry) return "noch kein Stand";
+  const part = entry.workbookPart ? ` ${entry.workbookPart}` : "";
+  const status = entry.workStatus && entry.workStatus !== "fertig" ? ` (${normalizeSimpleWorkStatus(entry.workStatus)})` : "";
+  return `${entry.materialName}${part}: bis ${entryWorkLabel(entry)}${status}`;
+}
+
+async function saveAnimalProgressNote(event, animalId) {
+  event.preventDefault();
+  const note = document.querySelector("#animalProgressNote")?.value.trim() || "";
+  const animals = (state.animals || []).map((animal) => animal.id === animalId ? {
+    ...animal,
+    progressNote: note,
+    updatedAt: nowIso()
+  } : animal);
+  globalMessage = "Notiz wurde gespeichert.";
+  await persistAndRender({ ...state, animals });
+}
+
+async function saveDirectWorkbookProgress(event, subject, animalId) {
+  event.preventDefault();
+  const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
+  const catalogId = document.querySelector(`#${formId}Catalog`)?.value || "";
+  const status = normalizeSimpleWorkStatus(document.querySelector(`#${formId}Status`)?.value || "offen");
+  const pageText = document.querySelector(`#${formId}Pages`)?.value.trim() || "";
+  const note = document.querySelector(`#${formId}Note`)?.value.trim() || "";
+  const catalog = workbookCatalogForActiveClass().find((item) => item.id === catalogId);
+  const animal = animalsForActiveClass().find((item) => item.id === animalId);
+  if (!catalog || !animal) return;
+  const nextState = upsertWorkbookProgressEntry(state, {
+    classId: state.activeClassId,
+    animal,
+    catalog,
+    status,
+    source: "Direkteingabe",
+    note,
+    completedPages: parsePageSelection(pageText, catalog)
+  });
+  globalMessage = "Fortschritt wurde gespeichert.";
+  await persistAndRender(nextState);
+}
+
+async function setWeeklyPlanSimpleStatus(planId, animalId, day, field, status) {
+  const normalized = normalizeSimpleWorkStatus(status);
+  const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+  const animal = animalsForActiveClass().find((item) => item.id === animalId);
+  const item = plan && animal ? weeklyPlanItemsForDay(plan, day, animal.id).find((entry) => entry.field === field) : null;
+  if (!plan || !animal || !item || !WEEKLY_PLAN_STATUSES.includes(normalized)) return;
+  const timestamp = nowIso();
+  const pages = item.catalogItem ? weeklyCatalogPages(item.catalogItem) : [];
+  const completedPages = normalized === "fertig"
+    ? pages.map(String)
+    : normalized === "teilweise" && pages.length > 1
+      ? promptCompletedPages(pages)
+      : normalized === "teilweise" && pages.length === 1
+        ? [String(pages[0])]
+        : [];
+  const openPages = pages.map(String).filter((page) => !completedPages.includes(page));
+  const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
+  const nextStatus = {
+    ...(existing || {}),
+    id: existing?.id || makeId(),
+    classId: state.activeClassId,
+    planId,
+    animalId,
+    day,
+    field,
+    workbookCatalogId: item.workbookCatalogId || "",
+    freeText: item.freeText || "",
+    status: normalized,
+    completedPages,
+    openPages,
+    completedAt: normalized === "fertig" ? timestamp : existing?.completedAt || "",
+    updatedAt: timestamp,
+    createdAt: existing?.createdAt || timestamp
+  };
+  let nextState = {
+    ...state,
+    weeklyPlanStatuses: existing
+      ? (state.weeklyPlanStatuses || []).map((entry) => entry.id === existing.id ? nextStatus : entry)
+      : [...(state.weeklyPlanStatuses || []), nextStatus]
+  };
+  if (normalized === "offen" && existing?.progressLinked) {
+    nextState = removeWeeklyProgressLink(nextState, existing.id);
+  }
+  if (item.catalogItem && (normalized === "teilweise" || normalized === "fertig")) {
+    nextState = upsertWorkbookProgressEntry(nextState, {
+      classId: state.activeClassId,
+      animal,
+      catalog: item.catalogItem,
+      status: normalized,
+      source: "Wochenplan",
+      weeklyPlan: plan,
+      weeklyStatus: nextStatus,
+      completedPages
+    });
+    const linkedEntry = findWorkbookProgressDuplicate(nextState.entries || [], state.activeClassId, animal.id, item.catalogItem);
+    nextState = {
+      ...nextState,
+      weeklyPlanStatuses: (nextState.weeklyPlanStatuses || []).map((entry) => entry.id === nextStatus.id ? {
+        ...entry,
+        progressLinked: true,
+        progressEntryId: linkedEntry?.id || entry.progressEntryId || "",
+        updatedAt: timestamp
+      } : entry)
+    };
+  }
+  await persist(nextState);
+  render();
+}
+
+function promptCompletedPages(pages) {
+  const answer = window.prompt(`Welche Seiten wurden bearbeitet?\nMöglich: ${pages.map((page) => `S. ${page}`).join(", ")}\nBitte Seitenzahlen mit Komma trennen.`, pages[0] ? String(pages[0]) : "");
+  if (answer == null) return [];
+  return parsePageSelection(answer, { page: pages[0], pageEnd: pages[pages.length - 1] });
+}
+
+function parsePageSelection(text, catalog) {
+  const allowed = new Set(weeklyCatalogPages(catalog).map(String));
+  return String(text || "")
+    .split(/[,\s;]+/)
+    .map((part) => part.replace(/[^0-9]/g, ""))
+    .filter((part) => part && (!allowed.size || allowed.has(part)));
+}
+
+function findWorkbookProgressDuplicate(entries, classId, animalId, catalog) {
+  const targetPage = Number(catalog?.pageEnd || catalog?.page || 0);
+  return (entries || []).find((entry) => (
+    entry.classId === classId
+    && entry.tierID === animalId
+    && entry.fach === catalog.subject
+    && entry.materialName === catalog.workbook
+    && entry.workbookCatalogId === catalog.id
+  )) || (entries || []).find((entry) => (
+    entry.classId === classId
+    && entry.tierID === animalId
+    && entry.fach === catalog.subject
+    && entry.materialName === catalog.workbook
+    && Number(entry.seite) === targetPage
+  ));
+}
+
+function upsertWorkbookProgressEntry(currentState, { classId, animal, catalog, status, source, weeklyPlan = null, weeklyStatus = null, completedPages = [], note = "" }) {
+  const timestamp = nowIso();
+  const pages = weeklyCatalogPages(catalog);
+  const completedNumbers = completedPages.map((page) => Number(page)).filter(Boolean);
+  const targetPage = normalizeSimpleWorkStatus(status) === "teilweise" && completedNumbers.length
+    ? Math.max(...completedNumbers)
+    : Number(catalog.pageEnd || catalog.page || pages[pages.length - 1] || 0);
+  if (!targetPage) return currentState;
+  const duplicate = findWorkbookProgressDuplicate(currentState.entries || [], classId, animal.id, catalog);
+  const sourceLabel = source || "Direkteingabe";
+  const sourceSet = new Set(String(duplicate?.source || "").split(",").map((item) => item.trim()).filter(Boolean));
+  sourceSet.add(sourceLabel);
+  const progressEntry = {
+    ...(duplicate || {}),
+    id: duplicate?.id || makeId(),
+    classId,
+    tierID: animal.id,
+    tierNameSnapshot: animal.tierName,
+    tierEmojiSnapshot: animal.tierEmoji,
+    fach: catalog.subject,
+    materialName: catalog.workbook,
+    workbookCatalogId: catalog.id,
+    workbookPart: catalog.part || "",
+    workbookArea: catalog.area || "",
+    workbookCategory: catalog.category || "",
+    seite: targetPage,
+    seiteVon: Number(catalog.page || targetPage),
+    seiteBis: Number(catalog.pageEnd || targetPage),
+    zusatzText: note || catalog.title || catalog.area || "",
+    status: "fertig",
+    workStatus: normalizeSimpleWorkStatus(status),
+    completedPages,
+    openPages: pages.map(String).filter((page) => !completedPages.includes(page)),
+    erledigt: false,
+    datumUhrzeit: timestamp,
+    source: [...sourceSet].join(", "),
+    weeklyPlanId: weeklyPlan?.id || duplicate?.weeklyPlanId || "",
+    weeklyPlanDay: weeklyStatus?.day || duplicate?.weeklyPlanDay || "",
+    weeklyPlanField: weeklyStatus?.field || duplicate?.weeklyPlanField || "",
+    weeklyPlanSource: weeklyPlan ? weeklyPlanPeriodLabel(weeklyPlan) : duplicate?.weeklyPlanSource || "",
+    createdAt: duplicate?.createdAt || timestamp,
+    updatedAt: timestamp
+  };
+  const entries = duplicate
+    ? (currentState.entries || []).map((entry) => entry.id === duplicate.id ? progressEntry : entry)
+    : [...(currentState.entries || []), progressEntry];
+  return { ...currentState, entries };
 }
 
 function openProgressDetail(animalId) {
@@ -6306,8 +6663,9 @@ function isExtraMaterialName(materialName) {
 }
 
 function entryWorkLabel(entry) {
-  if (entry?.zusatzText) return entry.zusatzText;
   const page = Number(entry?.seite);
+  if (page > 0 && !isExtraMaterialName(entry?.materialName)) return `S. ${page}`;
+  if (entry?.zusatzText) return entry.zusatzText;
   return page > 0 ? `S. ${page}` : "–";
 }
 

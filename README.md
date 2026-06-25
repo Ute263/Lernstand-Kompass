@@ -57,7 +57,7 @@ Im geschützten Bereich `Material drucken` sind die fertigen Stickerbögen als f
 
 ## Werkseinstellung
 
-Unter `Geräte und Synchronisation` -> `Backup / Wiederherstellung` gibt es im geschützten Lehrkraftbereich den Abschnitt `App zurücksetzen`. Vor dem Zurücksetzen werden Backup-Hinweis, Lehrkraft-PIN, eine Warnung und das Bestätigungswort `ZURÜCKSETZEN` verlangt. Erst danach werden die lokalen App-Daten auf diesem Gerät gelöscht und die Einrichtung startet neu.
+Unter `Geräte, Backup & Einstellungen` -> `Backup / Wiederherstellung` gibt es im geschützten Lehrkraftbereich den Abschnitt `App zurücksetzen`. Vor dem Zurücksetzen werden Backup-Hinweis, Lehrkraft-PIN, eine Warnung und das Bestätigungswort `ZURÜCKSETZEN` verlangt. Erst danach werden die lokalen App-Daten auf diesem Gerät gelöscht und die Einrichtung startet neu.
 
 ## Lernzielkontrollen
 
@@ -71,7 +71,7 @@ In `Meine Lernreise` gibt es `Trainingszeit` mit den Bereichen `Schule` und `OGS
 
 ## Wochenpläne
 
-Im Kinderbereich `Meine Lernreise` gibt es zusätzlich die Kachel `Meine Woche`. Der Wochenplan enthält nur Deutsch-Arbeitsheft/Lehrwerk, Mathe-Arbeitsheft/Lehrwerk und freie Aufgaben der Lehrkraft. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher werden dort nicht angezeigt. Im Lehrkraftbereich unter `Trainingszeit und Aufgaben` -> `Wochenpläne` gibt es die Unterbereiche `Aktuelle Woche`, `Wochenplan erstellen`, `Vorlagen` und `Arbeitsheft-Katalog`. Die Lehrkraft pflegt dort Inhaltsverzeichnisse für `ABC der Tiere`, `MiniMax` oder eigene Lehrwerke, wählt eine oder mehrere Seiten über ein Such- und Filter-Auswahlfenster aus, legt Standardpläne für alle Tiere an und kann individuelle Abweichungen pro Tier speichern. Wochenpläne können kindgerecht als A4-Hochformat gedruckt oder als PDF gespeichert werden. Wochenplan-Aufgaben aus dem Arbeitsheft-Katalog können automatisch oder erst nach Bestätigung der Lehrkraft in den Fortschritt übernommen werden. Sichtbar sind die Status `offen`, `begonnen`, `bearbeitet` und `von Lehrkraft bestätigt`.
+Im Kinderbereich `Meine Lernreise` gibt es zusätzlich die Kachel `Meine Woche`. Der Wochenplan enthält nur Deutsch-Arbeitsheft/Lehrwerk, Mathe-Arbeitsheft/Lehrwerk und freie Aufgaben der Lehrkraft. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher werden dort nicht angezeigt. Im Lehrkraftbereich liegt der Wochenplan jetzt unter `Arbeitshefte & Wochenplan` mit den Unterbereichen `Aktuelle Woche`, `Wochenplan erstellen`, `Vorlagen` und `Arbeitsheft-Katalog`. Die Lehrkraft pflegt dort Inhaltsverzeichnisse für `ABC der Tiere`, `MiniMax` oder eigene Lehrwerke, wählt eine oder mehrere Seiten über ein Such- und Filter-Auswahlfenster aus, legt Standardpläne für alle Tiere an und kann individuelle Abweichungen pro Tier speichern. Wochenpläne können kindgerecht als A4-Hochformat gedruckt oder als PDF gespeichert werden. Wochenplan-Aufgaben aus dem Arbeitsheft-Katalog und direkte Deutsch-/Mathe-Einträge landen gemeinsam im Fortschritt. Sichtbar sind nur die Status `offen`, `teilweise` und `fertig`.
 
 ## Deutsch-Notizen
 
@@ -79,7 +79,7 @@ Im Kinderbereich führt `Deutsch` bei freien Zusatz-/Notizmaterialien nicht mehr
 
 ## Lehrkraftnavigation
 
-Die `Lernstand-Übersicht` ist in wenige Hauptbereiche gegliedert: `Kinder und Lernstände`, `Trainingszeit und Aufgaben`, `Lernzielkontrollen`, `Materialien und Druck`, `Geräte und Synchronisation` und `Einstellungen`. Die bisherigen Detailansichten bleiben als Unterpunkte in diesen Bereichen erreichbar.
+Die `Lernstand-Übersicht` ist in wenige Hauptbereiche gegliedert: `Kinder & Fortschritt`, `Arbeitshefte & Wochenplan`, `Trainingszeit`, `Lernzielkontrollen`, `Materialien & Druck` und `Geräte, Backup & Einstellungen`. Die bisherigen Detailansichten bleiben als Unterpunkte in diesen Bereichen erreichbar.
 
 ## Lernpost
 

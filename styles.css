@@ -1004,6 +1004,28 @@ th {
   margin-top: 14px;
 }
 
+.animal-progress-header {
+  display: grid;
+  gap: 12px;
+}
+
+.status-action-cell {
+  min-width: 220px;
+}
+
+.status-action-cell .small-button {
+  margin: 2px;
+}
+
+.status-action-cell .small-button.active {
+  background: var(--brand);
+  color: #fff;
+}
+
+.direct-progress-form {
+  grid-template-columns: minmax(260px, 2fr) repeat(auto-fit, minmax(160px, 1fr));
+}
+
 .fallback-export {
   margin-top: 16px;
   padding: 12px 14px;
