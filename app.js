@@ -768,11 +768,15 @@ function renderChildWeeklyPlanItem(plan, animal, day, item) {
   const done = status === "fertig";
   const childText = item.catalogItem ? weeklyWorkbookPlanLabel(item.catalogItem, item.taskNumber) : item.text;
   const childDetail = item.catalogItem ? childWorkbookCatalogDetailLabel(item.catalogItem) : item.detail;
+  const cover = item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover") : "";
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
+      ${cover}
       <strong>${escapeHtml(item.label)}</strong>
-      <span>${escapeHtml(childText)}</span>
-      ${childDetail ? `<small>${escapeHtml(childDetail)}</small>` : ""}
+      <div class="weekly-child-main">
+        <span>${escapeHtml(childText)}</span>
+        ${childDetail ? `<small>${escapeHtml(childDetail)}</small>` : ""}
+      </div>
       <em>${escapeHtml(status)}</em>
       <div class="weekly-status-actions">
         ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'teilweise')">teilweise</button>` : ""}
@@ -802,11 +806,15 @@ function renderChildWorkbookTasks() {
 function renderChildWorkbookAssignmentItem(row) {
   const done = row.status === "fertig";
   const label = row.catalog.subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const cover = renderWorkbookCoverImage(row.catalog, "weekly-child-cover");
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
+      ${cover}
       <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(pageRangeLabel(row.catalog))}</span>
-      <small>${escapeHtml(row.catalog.title || row.catalog.area || "")}</small>
+      <div class="weekly-child-main">
+        <span>${escapeHtml(pageRangeLabel(row.catalog))}</span>
+        <small>${escapeHtml(row.catalog.title || row.catalog.area || "")}</small>
+      </div>
       <em>${escapeHtml(row.status)}</em>
       <div class="weekly-status-actions">
         ${row.status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWorkbookAssignmentStatus('${escapeAttribute(row.assignment.id)}','teilweise')">teilweise</button>` : ""}
@@ -2087,7 +2095,7 @@ function renderTeacherMaterialPickerControl({ targetId, subject = "", selectedId
 }
 
 function openTeacherMaterialPicker(mode, subject = "", targetId = "", selectedId = "", classId = "", meta = {}) {
-  const catalog = workbookCatalogForClass(classId || state.activeClassId)
+  const catalog = workbookCatalogForPickerClass(classId || state.activeClassId, mode)
     .filter((item) => item.active !== false && (!subject || item.subject === subject))
     .sort(sortWorkbookCatalogItems);
   const defaultId = subject ? defaultWorkbookCatalogIdForSubject(subject, { animalId: meta?.animalId || "", groupId: meta?.groupId || "", classId: classId || state.activeClassId }) : "";
@@ -2118,7 +2126,8 @@ function sortWorkbookCatalogItems(a, b) {
   return schoolYearSortValue(a.schoolYear) - schoolYearSortValue(b.schoolYear)
     || String(a.subject || "").localeCompare(String(b.subject || ""), "de")
     || String(a.workbook || "").localeCompare(String(b.workbook || ""), "de", { numeric: true })
-    || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true });
+    || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+    || Number(a.page || 0) - Number(b.page || 0);
 }
 
 function schoolYearSortValue(value) {
@@ -2193,7 +2202,7 @@ function workbookCatalogPickerSummary(item) {
 
 function teacherMaterialPickerCatalog(request = teacherMaterialPicker) {
   if (!request) return [];
-  return workbookCatalogForClass(request.classId || state.activeClassId)
+  return workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode)
     .filter((item) => item.active !== false && item.subject === request.subject)
     .filter((item) => request.showAllYears || materialMatchesSchoolYear(item, request.schoolYear))
     .sort(sortWorkbookCatalogItems);
@@ -2275,7 +2284,7 @@ function renderTeacherMaterialPicker() {
   const request = normalizeTeacherMaterialPicker(teacherMaterialPicker);
   teacherMaterialPicker = request;
   const catalog = teacherMaterialPickerCatalog(request);
-  const allCatalog = workbookCatalogForClass(request.classId || state.activeClassId)
+  const allCatalog = workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode)
     .filter((item) => item.active !== false && item.subject === request.subject);
   const schoolYears = uniqueInOrder([
     request.schoolYear,
@@ -2288,12 +2297,13 @@ function renderTeacherMaterialPicker() {
   const topics = uniqueInOrder(sectionItems.map(materialPickerTopic));
   const topicItems = sectionItems.filter((item) => materialPickerTopic(item) === request.topic);
   const selected = topicItems.find((item) => item.id === request.itemId) || null;
+  const pageStepLabel = request.mode === "weekly" ? "6. Seite" : "6. Seite / Seitenbereich";
   return `
     <div class="training-modal-overlay" id="teacherMaterialPickerOverlay" role="dialog" aria-modal="true" aria-labelledby="teacherMaterialPickerTitle">
       <section class="training-modal-card teacher-material-picker-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTeacherMaterialPicker()">×</button>
         <h2 id="teacherMaterialPickerTitle">Material auswählen</h2>
-        <p class="message">Wähle Schritt für Schritt: zuerst das Schuljahr, dann Fach, Material, Kapitel und Seitenbereich. Über „Alle Materialien anzeigen“ bleibt bewusst auch anderes Material erreichbar.</p>
+        <p class="message">Wähle Schritt für Schritt: zuerst das Schuljahr, dann Fach, Material, Kapitel und ${request.mode === "weekly" ? "Seite" : "Seitenbereich"}. Über „Alle Materialien anzeigen“ bleibt bewusst auch anderes Material erreichbar.</p>
         <div class="teacher-material-picker-steps">
           <label class="field"><strong>1. Schuljahr</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('schoolYear', this.value)" ${request.showAllYears ? "disabled" : ""}>
@@ -2320,7 +2330,7 @@ function renderTeacherMaterialPicker() {
               ${topics.map((topic) => `<option value="${escapeAttribute(topic)}" ${request.topic === topic ? "selected" : ""}>${escapeHtml(topic)}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>6. Seite / Seitenbereich</strong>
+          <label class="field"><strong>${escapeHtml(pageStepLabel)}</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('itemId', this.value)">
               ${topicItems.map((item) => `<option value="${escapeAttribute(item.id)}" ${request.itemId === item.id ? "selected" : ""}>${escapeHtml(workbookCatalogPickerPageLabel(item, request.topic))}</option>`).join("")}
             </select>
@@ -2345,7 +2355,7 @@ function renderTeacherMaterialPicker() {
 function applyTeacherMaterialPickerSelection() {
   const request = teacherMaterialPicker;
   if (!request?.itemId) return;
-  const selected = workbookCatalogForClass(request.classId || state.activeClassId).find((item) => item.id === request.itemId);
+  const selected = workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode).find((item) => item.id === request.itemId);
   if (!selected) return;
   if (request.mode === "weekly") {
     const meta = request.meta || {};
@@ -3289,7 +3299,7 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
 
 function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "", taskNumber = "") {
   const ids = normalizeIdArray(selectedIds);
-  const items = ids.map((id) => workbookCatalogForActiveClass().find((entry) => entry.id === id)).filter(Boolean);
+  const items = ids.map((id) => workbookCatalogForWeeklyPlanClass(state.activeClassId).find((entry) => entry.id === id)).filter(Boolean);
   const taskNumberId = `${inputId}TaskNumber`;
   return `
     <div class="weekly-pick-cell">
@@ -3419,7 +3429,8 @@ function clearWeeklyPick(inputId) {
 }
 
 function showWorkbookCatalogInfo(itemId) {
-  const item = workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
+  const item = workbookCatalogForWeeklyPlanClass(state.activeClassId).find((entry) => entry.id === itemId)
+    || workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
   if (item) alert(workbookCatalogFullLabel(item));
 }
 
@@ -6012,6 +6023,7 @@ function renderWeeklyPrintSubject(icon, label, items, options) {
       ${items.length ? items.map((item) => `
         <div class="weekly-print-task">
           ${checkbox}
+          ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-print-cover") : ""}
           <div>
             <strong>${escapeHtml(item.text)}</strong>
             ${options.variant !== "short" && options.showTheme !== false && item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
@@ -6454,11 +6466,18 @@ function printViewCss(landscape = false) {
       font-weight: 800;
     }
     .weekly-print-task {
-      display: grid;
-      grid-template-columns: auto 1fr;
+      display: flex;
       gap: 8px;
       align-items: start;
       margin-bottom: 5px;
+    }
+    .weekly-print-cover {
+      width: 30px;
+      height: 42px;
+      object-fit: cover;
+      border: 1px solid #ddd6c8;
+      border-radius: 4px;
+      background: #fff;
     }
     .weekly-print-task strong,
     .weekly-print-task span {
@@ -7403,6 +7422,49 @@ function workbookCatalogForClass(classId) {
   return (state.workbookCatalog || []).filter((item) => item.classId === classId);
 }
 
+function workbookCatalogForPickerClass(classId, mode = "") {
+  return mode === "weekly" ? expandedWorkbookCatalogForClass(classId, false) : workbookCatalogForClass(classId);
+}
+
+function workbookCatalogForWeeklyPlanClass(classId) {
+  return expandedWorkbookCatalogForClass(classId, true);
+}
+
+function expandedWorkbookCatalogForClass(classId, includeRangeParents = false) {
+  return workbookCatalogForClass(classId).flatMap((item) => {
+    const pages = workbookCatalogItemPages(item);
+    if (pages.length <= 1) return [item];
+    const pageItems = pages.map((page) => workbookCatalogPageItem(item, page));
+    return includeRangeParents ? [item, ...pageItems] : pageItems;
+  });
+}
+
+function workbookCatalogItemPages(item) {
+  const listedPages = pageNumbersFromText(item?.pageLabel || item?.displayPages || "");
+  if (listedPages.length) return [...new Set(listedPages)].sort((a, b) => a - b);
+  const start = Number(item?.page || item?.startPage || 0);
+  const end = Number(item?.pageEnd || item?.endPage || start || 0);
+  if (!start) return [];
+  const last = end && end > start ? end : start;
+  return Array.from({ length: last - start + 1 }, (_, index) => start + index);
+}
+
+function workbookCatalogPageItem(item, page) {
+  return {
+    ...item,
+    id: `${item.id}__page_${page}`,
+    sourceCatalogId: item.id,
+    page,
+    startPage: page,
+    pageEnd: "",
+    endPage: page,
+    pageLabel: String(page),
+    displayPages: `S. ${page}`,
+    pageRangeMode: "single",
+    catalogKey: `${item.catalogKey || item.id}|page:${page}`
+  };
+}
+
 function weeklyInputPrefix(scope, animalId = "") {
   return scope === "override" && animalId ? `weeklyOverride_${animalId}_` : "weekly";
 }
@@ -7597,7 +7659,7 @@ function effectiveWeeklyDayData(plan, day, animalId = "") {
 
 function weeklyPlanItemsForDay(plan, day, animalId = "") {
   const dayData = effectiveWeeklyDayData(plan, day, animalId);
-  const catalog = workbookCatalogForClass(plan.classId);
+  const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
   const deutschItems = normalizeIdArray(dayData.deutschIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
   const matheItems = normalizeIdArray(dayData.matheIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
   return [
@@ -7664,14 +7726,47 @@ function weeklyItemPageSummary(item) {
 
 function weeklyWorkbookPlanLabel(catalogItem, taskNumber = "") {
   if (!catalogItem) return "";
-  const family = catalogItem.subject === "Deutsch" ? "ABC der Tiere" : catalogItem.subject === "Mathe" ? "MiniMax" : catalogItem.workbook || "Material";
-  return [family, weeklyPageNumberLabel(catalogItem, taskNumber)].filter(Boolean).join(" · ");
+  const material = catalogItem.workbook || (catalogItem.subject === "Deutsch" ? "ABC der Tiere" : catalogItem.subject === "Mathe" ? "MiniMax" : "Material");
+  const topic = weeklyCatalogTopicLabel(catalogItem);
+  const title = [material, topic].filter(Boolean).join(" – ");
+  return [title, weeklyPageNumberLabel(catalogItem, taskNumber)].filter(Boolean).join(", ");
 }
 
 function weeklyPageNumberLabel(catalogItem, taskNumber = "") {
   const pageLabel = pageRangeLabel(catalogItem);
   const normalizedTaskNumber = normalizeTaskNumberText(taskNumber);
   return [pageLabel, normalizedTaskNumber ? `Nr. ${normalizedTaskNumber}` : ""].filter(Boolean).join(" ");
+}
+
+function weeklyCatalogTopicLabel(catalogItem) {
+  if (!catalogItem) return "";
+  if (catalogItem.workbook === "ABC der Tiere 1") return abc1CatalogDisplayTitle(catalogItem) || catalogItem.title || catalogItem.area || "";
+  if (catalogItem.subject === "Deutsch") return catalogItem.title || catalogItem.area || "";
+  return catalogItem.area || catalogItem.title || "";
+}
+
+function workbookCoverForCatalogItem(catalogItem) {
+  const workbook = String(catalogItem?.workbook || "");
+  if (workbook === "ABC der Tiere 1") {
+    return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
+  }
+  if (workbook === "ABC der Tiere 2") {
+    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: "ABC der Tiere 2" };
+  }
+  if (workbook === "MiniMax 1") {
+    return { src: "./materials/cover-minimax-1.svg", alt: "MiniMax 1" };
+  }
+  if (workbook === "MiniMax 2" || workbook === "MiniMax") {
+    return { src: "./materials/cover-minimax-2.svg", alt: "MiniMax 2" };
+  }
+  return null;
+}
+
+function renderWorkbookCoverImage(catalogItem, className = "") {
+  const cover = workbookCoverForCatalogItem(catalogItem);
+  if (!cover) return "";
+  const classes = ["workbook-cover", className].filter(Boolean).join(" ");
+  return `<img class="${escapeAttribute(classes)}" src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt)}">`;
 }
 
 function weeklyStatusFilterMatches(row, filter) {
