@@ -766,7 +766,7 @@ function renderChildWeeklyPlan(plan, animal) {
 function renderChildWeeklyPlanItem(plan, animal, day, item) {
   const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
   const done = status === "fertig";
-  const childText = item.catalogItem ? childWorkbookCatalogShortLabel(item.catalogItem) : item.text;
+  const childText = item.catalogItem ? weeklyWorkbookPlanLabel(item.catalogItem, item.taskNumber) : item.text;
   const childDetail = item.catalogItem ? childWorkbookCatalogDetailLabel(item.catalogItem) : item.detail;
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
@@ -3278,8 +3278,8 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
         const dayData = days?.[day] || {};
         return `
           <strong>${escapeHtml(day)}</strong>
-          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId)}
-          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId)}
+          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId, dayData.deutschTaskNumber || "")}
+          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId, dayData.matheTaskNumber || "")}
           <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
         `;
       }).join("")}
@@ -3287,15 +3287,19 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
   `;
 }
 
-function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "") {
+function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "", taskNumber = "") {
   const ids = normalizeIdArray(selectedIds);
   const items = ids.map((id) => workbookCatalogForActiveClass().find((entry) => entry.id === id)).filter(Boolean);
+  const taskNumberId = `${inputId}TaskNumber`;
   return `
     <div class="weekly-pick-cell">
       <input type="hidden" id="${escapeAttribute(inputId)}" value="${escapeAttribute(ids.join(","))}">
       <div id="${escapeAttribute(inputId)}Label" class="weekly-pick-label ${items.length ? "" : "empty"}">
         ${items.length ? items.map((item) => `<span>${escapeHtml(workbookCatalogShortLabel(item))}</span>`).join("") : "keine Auswahl"}
       </div>
+      <label class="weekly-task-number-label">Nr.
+        <input class="text-input weekly-task-number-input" id="${escapeAttribute(taskNumberId)}" value="${escapeAttribute(taskNumber)}" placeholder="z. B. 1 + 3">
+      </label>
       ${items.length ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${escapeAttribute(items[0].id)}')">Info</button>` : ""}
       <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
       ${items.length ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
@@ -3405,6 +3409,11 @@ function clearWeeklyPick(inputId) {
     const field = match[3];
     const day = WEEK_DAYS[Number(match[4])];
     setWeeklyDraftValue(weeklyPlanDraft, animalId ? "override" : "standard", animalId, day, field, "");
+    const dayData = animalId ? weeklyPlanDraft.overrides?.[animalId]?.days?.[day] : weeklyPlanDraft.days?.[day];
+    if (dayData) {
+      if (field === "Deutsch") dayData.deutschTaskNumber = "";
+      if (field === "Mathe") dayData.matheTaskNumber = "";
+    }
   }
   render();
 }
@@ -3651,8 +3660,10 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
     days[day] = {
       deutschId: deutschIds[0] || "",
       deutschIds,
+      deutschTaskNumber: normalizeTaskNumberText(document.getElementById(`${prefix}Deutsch${index}TaskNumber`)?.value || ""),
       matheId: matheIds[0] || "",
       matheIds,
+      matheTaskNumber: normalizeTaskNumberText(document.getElementById(`${prefix}Mathe${index}TaskNumber`)?.value || ""),
       freeText: document.getElementById(`${prefix}Free${index}`)?.value.trim() || ""
     };
   });
@@ -3660,7 +3671,7 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
 }
 
 function weeklyDaysHaveContent(days) {
-  return Object.values(days || {}).some((day) => normalizeIdArray(day.deutschIds || day.deutschId).length || normalizeIdArray(day.matheIds || day.matheId).length || day.freeText);
+  return Object.values(days || {}).some((day) => normalizeIdArray(day.deutschIds || day.deutschId).length || normalizeIdArray(day.matheIds || day.matheId).length || day.deutschTaskNumber || day.matheTaskNumber || day.freeText);
 }
 
 function setWeeklyDraftValue(draft, scope, animalId, day, field, value) {
@@ -7578,6 +7589,8 @@ function effectiveWeeklyDayData(plan, day, animalId = "") {
   return {
     deutschIds: overrideDeutschIds.length ? overrideDeutschIds : baseDeutschIds,
     matheIds: overrideMatheIds.length ? overrideMatheIds : baseMatheIds,
+    deutschTaskNumber: normalizeTaskNumberText(override.deutschTaskNumber || base.deutschTaskNumber || ""),
+    matheTaskNumber: normalizeTaskNumberText(override.matheTaskNumber || base.matheTaskNumber || ""),
     freeText: override.freeText || base.freeText || ""
   };
 }
@@ -7593,7 +7606,8 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
       label: "Deutsch",
       workbookCatalogId: deutsch.id,
       catalogItem: deutsch,
-      text: workbookCatalogShortLabel(deutsch),
+      taskNumber: dayData.deutschTaskNumber || "",
+      text: weeklyWorkbookPlanLabel(deutsch, dayData.deutschTaskNumber),
       detail: workbookCatalogFullLabel(deutsch)
     })),
     ...matheItems.map((mathe) => ({
@@ -7601,7 +7615,8 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
       label: "Mathe",
       workbookCatalogId: mathe.id,
       catalogItem: mathe,
-      text: workbookCatalogShortLabel(mathe),
+      taskNumber: dayData.matheTaskNumber || "",
+      text: weeklyWorkbookPlanLabel(mathe, dayData.matheTaskNumber),
       detail: workbookCatalogFullLabel(mathe)
     })),
     dayData.freeText ? {
@@ -7644,7 +7659,19 @@ function weeklyCatalogPages(item) {
 
 function weeklyItemPageSummary(item) {
   if (!item?.catalogItem) return "–";
-  return pageRangeLabel(item.catalogItem);
+  return weeklyPageNumberLabel(item.catalogItem, item.taskNumber);
+}
+
+function weeklyWorkbookPlanLabel(catalogItem, taskNumber = "") {
+  if (!catalogItem) return "";
+  const family = catalogItem.subject === "Deutsch" ? "ABC der Tiere" : catalogItem.subject === "Mathe" ? "MiniMax" : catalogItem.workbook || "Material";
+  return [family, weeklyPageNumberLabel(catalogItem, taskNumber)].filter(Boolean).join(" · ");
+}
+
+function weeklyPageNumberLabel(catalogItem, taskNumber = "") {
+  const pageLabel = pageRangeLabel(catalogItem);
+  const normalizedTaskNumber = normalizeTaskNumberText(taskNumber);
+  return [pageLabel, normalizedTaskNumber ? `Nr. ${normalizedTaskNumber}` : ""].filter(Boolean).join(" ");
 }
 
 function weeklyStatusFilterMatches(row, filter) {
