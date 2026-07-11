@@ -223,7 +223,20 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
 ]);
 
 function abcCatalog(part, area, rows) {
-  return rows.map(([pageSpec, title, category = ""]) => catalogItem("Deutsch", "ABC der Tiere 2", part, area, category, pageSpec, title, "Deutsch", ""));
+  return rows.map(([pageSpec, title, category = ""]) => {
+    const isLernstandsheft = category === "Lernstandsheft";
+    return catalogItem(
+      "Deutsch",
+      isLernstandsheft ? "ABC der Tiere 2 - Lernstandsheft" : "ABC der Tiere 2",
+      isLernstandsheft ? "Teil C" : part,
+      area,
+      category,
+      pageSpec,
+      title,
+      "Deutsch",
+      ""
+    );
+  });
 }
 
 function abc1WorkbookCatalog(part, rows) {
@@ -504,51 +517,54 @@ const DEFAULT_SPRACHWELT_TASKS = [
 ];
 
 const ANALOG_TRAINING_TASKS = [
-  { code: "D-01", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Wörter im Raum finden", text: "Suche 12 Wörter im Raum und schreibe sie auf.", symbol: "🔍", steps: ["Schau dich langsam im Raum um.", "Suche 12 Wörter.", "Schreibe sie in dein Lerntagebuch.", "Kontrolliere, ob du 12 Wörter gefunden hast."] },
-  { code: "D-02", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Silbenbögen", text: "Wähle 8 Wörter und zeichne Silbenbögen dazu.", symbol: "📖", steps: ["Wähle 8 Wörter.", "Sprich jedes Wort langsam.", "Schreibe die Wörter in dein Lerntagebuch.", "Zeichne Silbenbögen dazu."] },
-  { code: "D-03", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Nomen und Artikel", text: "Suche 10 Nomen im Raum und schreibe den Artikel dazu.", symbol: "📄", steps: ["Suche 10 Nomen im Raum.", "Schreibe sie in dein Lerntagebuch.", "Schreibe der, die oder das dazu.", "Prüfe die Großschreibung."] },
-  { code: "D-04", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Sätze schreiben", text: "Schreibe 5 Sätze über Dinge, die du gerade siehst.", symbol: "✏️", steps: ["Wähle Dinge aus, die du siehst.", "Schreibe 5 ganze Sätze.", "Achte auf Satzanfang und Punkt.", "Lies deine Sätze noch einmal."] },
-  { code: "D-05", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Verben sammeln", text: "Sammle 10 Verben: Was kann man im Raum tun?", symbol: "🏃", steps: ["Überlege, was man im Raum tun kann.", "Sammle 10 Verben.", "Schreibe sie in dein Lerntagebuch.", "Lies deine Wörter noch einmal."] },
-  { code: "D-06", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Wiewörter", text: "Beschreibe 5 Dinge mit passenden Wiewörtern.", symbol: "💭", steps: ["Suche 5 Dinge.", "Überlege: Wie ist das Ding?", "Schreibe passende Wiewörter dazu.", "Kontrolliere, ob die Wörter gut passen."] },
-  { code: "D-07", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Wortfamilie", text: "Wähle ein Wort und finde Wörter aus der Wortfamilie.", symbol: "🌳", steps: ["Wähle ein Wort.", "Schreibe es in dein Lerntagebuch.", "Finde Wörter aus derselben Wortfamilie.", "Markiere, was ähnlich ist."] },
-  { code: "D-08", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Reimpaare", text: "Finde 6 Reimwörter und schreibe passende Paare auf.", symbol: "💬", steps: ["Finde Wörter, die sich reimen.", "Bilde passende Paare.", "Schreibe 6 Paare in dein Lerntagebuch.", "Sprich die Paare leise vor."] },
-  { code: "D-09", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Fragen", text: "Schreibe 5 Fragen zu einem Gegenstand im Raum.", symbol: "❓", steps: ["Wähle einen Gegenstand.", "Überlege 5 Fragen dazu.", "Schreibe die Fragen in dein Lerntagebuch.", "Setze Fragezeichen."] },
-  { code: "D-10", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Schöne Wörter", text: "Wähle ein Buch und schreibe 5 schöne Wörter heraus.", symbol: "📘", steps: ["Wähle ein Buch.", "Lies eine Seite oder einen Abschnitt.", "Suche 5 schöne Wörter.", "Schreibe sie in dein Lerntagebuch."] },
-  { code: "D-11", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Genau beschreiben", text: "Beschreibe ein Bild, ein Buchcover oder eine Seite genau.", symbol: "🖼️", steps: ["Wähle ein Bild, Cover oder eine Seite.", "Schau genau hin.", "Schreibe auf, was du siehst.", "Nutze passende Nomen, Verben und Wiewörter."] },
-  { code: "D-12", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Sätze kontrollieren", text: "Schreibe 5 Sätze und kontrolliere Satzanfang und Punkt.", symbol: "📋", steps: ["Schreibe 5 Sätze.", "Prüfe jeden Satzanfang.", "Prüfe jeden Punkt.", "Verbessere deine Sätze."] },
-  { code: "D-13", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Wörter sortieren", text: "Suche Wörter mit ie, ei, au oder eu und sortiere sie.", symbol: "🔤", steps: ["Suche Wörter mit ie, ei, au oder eu.", "Lege vier Spalten an.", "Sortiere die Wörter.", "Lies die Wörter noch einmal."] },
-  { code: "D-14", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Gegensatzpaare", text: "Finde 8 Gegensatzpaare aus dem Alltag.", symbol: "↔️", steps: ["Denke an Wörter aus dem Alltag.", "Finde das Gegenteil.", "Schreibe 8 Paare auf.", "Prüfe, ob die Paare zusammenpassen."] },
-  { code: "D-15", subject: "Deutsch", subcategory: "Deutsch-Entdecker", title: "Kleine Geschichte", text: "Schreibe eine kleine Geschichte mit einem Ding aus dem Raum.", symbol: "📝", steps: ["Wähle ein Ding aus dem Raum.", "Überlege, was passieren könnte.", "Schreibe eine kleine Geschichte.", "Lies sie noch einmal."] },
-  { code: "M-01", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Zahlen ordnen", text: "Suche Zahlen im Raum und ordne sie von klein nach groß.", symbol: "🔢", steps: ["Suche Zahlen im Raum.", "Schreibe sie in dein Lerntagebuch.", "Ordne sie von klein nach groß.", "Kontrolliere deine Reihenfolge."] },
-  { code: "M-02", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Plusaufgaben", text: "Erfinde 6 Plusaufgaben mit Dingen, die du siehst.", symbol: "➕", steps: ["Suche Dinge, die du zählen kannst.", "Erfinde 6 Plusaufgaben.", "Schreibe Aufgabe und Ergebnis auf.", "Kontrolliere durch Nachzählen."] },
-  { code: "M-03", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Minusaufgaben", text: "Erfinde 6 Minusaufgaben mit Dingen, die du siehst.", symbol: "➖", steps: ["Suche Dinge, die du zählen kannst.", "Erfinde 6 Minusaufgaben.", "Schreibe Aufgabe und Ergebnis auf.", "Kontrolliere durch Nachzählen."] },
-  { code: "M-04", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Zahlenrätsel", text: "Denke dir eine Zahl aus und beschreibe sie mit 4 Hinweisen.", symbol: "💡", steps: ["Denke dir eine Zahl aus.", "Schreibe 4 Hinweise.", "Notiere die Lösung.", "Prüfe, ob man die Zahl finden kann."] },
-  { code: "M-05", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Formen finden", text: "Suche Formen im Raum und zeichne 6 Beispiele.", symbol: "🔺", steps: ["Suche Formen im Raum.", "Zeichne 6 Beispiele.", "Schreibe die Formnamen dazu.", "Kontrolliere deine Zeichnungen."] },
-  { code: "M-06", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Muster", text: "Zeichne ein Muster und setze es mindestens 10 Schritte fort.", symbol: "🔴", steps: ["Beginne mit einem Muster.", "Zeichne es in dein Lerntagebuch.", "Setze es mindestens 10 Schritte fort.", "Kontrolliere die Regel."] },
-  { code: "M-07", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Zahlenmuster", text: "Erfinde ein eigenes Zahlenmuster und schreibe es weiter.", symbol: "2️⃣", steps: ["Wähle eine Startzahl.", "Erfinde eine Regel.", "Schreibe das Zahlenmuster weiter.", "Erkläre die Regel."] },
-  { code: "M-08", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Zählen und Aufgaben", text: "Zähle Dinge im Raum und schreibe passende Aufgaben dazu.", symbol: "||||", steps: ["Zähle Dinge im Raum.", "Schreibe die Anzahl auf.", "Erfinde passende Aufgaben.", "Kontrolliere durch Nachzählen."] },
-  { code: "M-09", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Schätzen", text: "Schätze eine Anzahl und zähle danach genau nach.", symbol: "📏", steps: ["Wähle eine Menge.", "Schätze zuerst.", "Zähle genau nach.", "Vergleiche Schätzung und Ergebnis."] },
-  { code: "M-10", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Mengen vergleichen", text: "Suche Dinge und vergleiche: mehr, weniger oder gleich viele.", symbol: "🍎", steps: ["Suche zwei Mengen.", "Vergleiche sie.", "Schreibe mehr, weniger oder gleich viele.", "Zeichne oder notiere dein Beispiel."] },
-  { code: "M-11", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Längen ordnen", text: "Finde Dinge, die länger oder kürzer sind, und ordne sie.", symbol: "✏️", steps: ["Finde mehrere Dinge.", "Vergleiche die Länge.", "Ordne sie.", "Schreibe deine Ordnung in dein Lerntagebuch."] },
-  { code: "M-12", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Zahlzerlegungen", text: "Wähle eine Zahl und finde passende Zahlzerlegungen.", symbol: "🔢", steps: ["Wähle eine Zahl.", "Finde passende Zerlegungen.", "Schreibe sie auf.", "Kontrolliere deine Ergebnisse."] },
-  { code: "M-13", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Rechengeschichten", text: "Erfinde 4 kleine Rechengeschichten aus dem Alltag.", symbol: "💬", steps: ["Denke an Alltagssituationen.", "Erfinde 4 Rechengeschichten.", "Schreibe Aufgabe und Ergebnis auf.", "Prüfe, ob die Geschichte passt."] },
-  { code: "M-14", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Symmetrie", text: "Suche symmetrische Formen oder Bilder und zeichne sie.", symbol: "🦋", steps: ["Suche symmetrische Formen oder Bilder.", "Schau auf die Spiegelachse.", "Zeichne Beispiele.", "Markiere die Mitte."] },
-  { code: "M-15", subject: "Mathe", subcategory: "Mathe-Entdecker", title: "Verdoppeln und Halbieren", text: "Finde Beispiele zum Verdoppeln und Halbieren.", symbol: "🍏", steps: ["Finde passende Beispiele.", "Verdopple eine Menge.", "Halbiere eine Menge.", "Schreibe oder zeichne dein Ergebnis."] },
-  { code: "F-01", subject: "Forscher", subcategory: "Forscher", title: "Dinge genau betrachten", text: "Wähle einen Gegenstand, zeichne ihn und notiere 5 Beobachtungen.", symbol: "🔍", researchQuestion: "Was kann ich entdecken, wenn ich ganz genau hinschaue?", steps: ["Wähle einen Gegenstand.", "Betrachte ihn genau.", "Zeichne ihn in dein Lerntagebuch.", "Notiere 5 Beobachtungen."] },
-  { code: "F-02", subject: "Forscher", subcategory: "Forscher", title: "Materialforscher", text: "Suche 8 Gegenstände und ordne sie nach Material.", symbol: "🧱", researchQuestion: "Woraus bestehen Dinge?", steps: ["Suche 8 Gegenstände.", "Schau auf das Material.", "Ordne sie nach Material.", "Notiere deine Ordnung."] },
-  { code: "F-03", subject: "Forscher", subcategory: "Forscher", title: "Schwimmt oder sinkt?", text: "Vermute und teste: Was schwimmt? Was sinkt?", symbol: "💧", researchQuestion: "Welche Dinge schwimmen?", steps: ["Wähle kleine Gegenstände.", "Vermute zuerst.", "Teste vorsichtig.", "Notiere schwimmt oder sinkt."], material: ["Lerntagebuch", "Stift", "Schüssel mit Wasser", "kleine Gegenstände"] },
-  { code: "F-04", subject: "Forscher", subcategory: "Forscher", title: "Magnetforscher", text: "Prüfe mit dem Magneten: Was ist magnetisch?", symbol: "🧲", researchQuestion: "Was ist magnetisch?", steps: ["Sammle Gegenstände.", "Teste sie mit dem Magneten.", "Sortiere magnetisch und nicht magnetisch.", "Notiere dein Ergebnis."], material: ["Lerntagebuch", "Stift", "Magnet", "verschiedene Gegenstände"] },
-  { code: "F-05", subject: "Forscher", subcategory: "Forscher", title: "Geräusche entdecken", text: "Lausche 3 Minuten und notiere oder male die Geräusche.", symbol: "👂", researchQuestion: "Welche Geräusche gibt es um uns herum?", steps: ["Setze dich ruhig hin.", "Lausche 3 Minuten.", "Notiere oder male Geräusche.", "Ordne, wenn du möchtest: laut, leise, angenehm, störend."] },
-  { code: "F-06", subject: "Forscher", subcategory: "Forscher", title: "Pflanzenforscher", text: "Zeichne eine Pflanze, beschrifte ihre Teile und schreibe, was sie braucht.", symbol: "🌱", researchQuestion: "Was braucht eine Pflanze zum Leben?", steps: ["Zeichne eine Pflanze.", "Beschrifte wichtige Teile.", "Schreibe auf, was sie braucht.", "Kontrolliere deine Beschriftung."] },
-  { code: "F-07", subject: "Forscher", subcategory: "Forscher", title: "Blätter vergleichen", text: "Vergleiche 3 Blätter: Form, Rand und Farbe.", symbol: "🍃", researchQuestion: "Sind alle Blätter gleich?", steps: ["Wähle 3 Blätter oder Bilder.", "Vergleiche Form, Rand und Farbe.", "Zeichne oder notiere deine Beobachtungen.", "Schreibe Gemeinsamkeiten und Unterschiede auf."], material: ["Lerntagebuch", "Stift", "Blätter oder Blattbilder"] },
-  { code: "F-08", subject: "Forscher", subcategory: "Forscher", title: "Tierforscher", text: "Wähle ein Tier und sammle Infos zu Lebensraum, Nahrung und Aussehen.", symbol: "🦊", researchQuestion: "Woran erkennt man Tiere?", steps: ["Wähle ein Tier.", "Sammle Infos zu Lebensraum, Nahrung und Aussehen.", "Schreibe sie in dein Lerntagebuch.", "Zeichne das Tier, wenn du möchtest."] },
-  { code: "F-09", subject: "Forscher", subcategory: "Forscher", title: "Lebensräume", text: "Ordne Tiere oder Pflanzen ihrem Lebensraum zu.", symbol: "🌳", researchQuestion: "Wo leben Tiere und Pflanzen?", steps: ["Wähle Tiere oder Pflanzen.", "Überlege den Lebensraum.", "Ordne sie zu.", "Begründe einige Beispiele."] },
-  { code: "F-10", subject: "Forscher", subcategory: "Forscher", title: "Jahreszeiten", text: "Wähle eine Jahreszeit und sammle Merkmale dazu.", symbol: "🍂", researchQuestion: "Was verändert sich im Jahr?", steps: ["Wähle eine Jahreszeit.", "Sammle Merkmale.", "Schreibe oder male sie in dein Lerntagebuch.", "Denke an Wetter, Kleidung, Pflanzen und Tiere."] },
-  { code: "F-11", subject: "Forscher", subcategory: "Forscher", title: "Wetterbeobachter", text: "Beobachte das Wetter und male ein Wettersymbol.", symbol: "🌧️", researchQuestion: "Wie ist das Wetter heute?", steps: ["Schau nach draußen.", "Beobachte Wolken, Wind und Niederschlag.", "Male ein Wettersymbol.", "Notiere kurz, was du beobachtest."], material: ["Lerntagebuch", "Stift", "Blick nach draußen"] },
-  { code: "F-12", subject: "Forscher", subcategory: "Forscher", title: "Schattenforscher", text: "Beobachte einen Schatten und zeichne Licht, Gegenstand und Schatten.", symbol: "🔦", researchQuestion: "Wann entsteht ein Schatten?", steps: ["Stelle einen Gegenstand ins Licht.", "Beobachte den Schatten.", "Zeichne Licht, Gegenstand und Schatten.", "Schreibe eine kurze Beobachtung."], material: ["Lerntagebuch", "Stift", "Lichtquelle oder Sonnenlicht"] },
-  { code: "F-13", subject: "Forscher", subcategory: "Forscher", title: "Zeitforscher", text: "Finde Beispiele, woran du merkst, dass Zeit vergeht.", symbol: "⌛", researchQuestion: "Woran merke ich, dass Zeit vergeht?", steps: ["Sammle Beispiele für Zeit.", "Schreibe oder male sie.", "Denke an Uhr, Kalender, Tagesablauf und Jahreszeiten.", "Ordne einige Beispiele."] },
-  { code: "F-14", subject: "Forscher", subcategory: "Forscher", title: "Körperforscher", text: "Zeichne einen Körperumriss und beschrifte wichtige Körperteile.", symbol: "🧍", researchQuestion: "Was kann mein Körper alles?", steps: ["Zeichne einen Körperumriss.", "Beschrifte wichtige Körperteile.", "Schreibe auf, wofür du sie brauchst.", "Kontrolliere deine Beschriftung."] },
-  { code: "F-15", subject: "Forscher", subcategory: "Forscher", title: "Sinne entdecken", text: "Schreibe zu jedem Sinn ein passendes Beispiel.", symbol: "👁️", researchQuestion: "Wie erforsche ich die Welt?", steps: ["Schreibe die fünf Sinne auf.", "Finde zu jedem Sinn ein Beispiel.", "Notiere oder male dein Beispiel.", "Überlege, welcher Sinn heute besonders wichtig ist."] }
+  { code: "E-01", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Geräusche-Detektiv", text: "Setze dich 5 Minuten ruhig hin. Höre genau zu und sammle 5 verschiedene Geräusche.", symbol: "👂", steps: ["Setze dich ruhig hin.", "Höre 5 Minuten genau zu.", "Sammle 5 verschiedene Geräusche.", "Schreibe oder male deine Geräusche auf."] },
+  { code: "E-02", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Mein Frühstück", text: "Beobachte dein Frühstück. Was hast du gegessen und getrunken?", symbol: "🍽️", steps: ["Denke an dein Frühstück.", "Schreibe oder male, was du gegessen hast.", "Schreibe oder male, was du getrunken hast.", "Überlege, was daran gesund war."] },
+  { code: "E-03", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Buchstaben sammeln", text: "Suche den Anfangsbuchstaben deines Namens. Finde ihn 5-mal in deiner Umgebung.", symbol: "🔤", steps: ["Schreibe den Anfangsbuchstaben deines Namens auf.", "Suche ihn in deiner Umgebung.", "Finde ihn 5-mal.", "Notiere oder male deine Fundstellen."] },
+  { code: "E-04", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Zahlenjagd", text: "Suche Zahlen in deiner Umgebung. Finde mindestens 10 Zahlen.", symbol: "🔢", steps: ["Schau dich genau um.", "Suche Zahlen in deiner Umgebung.", "Finde mindestens 10 Zahlen.", "Schreibe sie auf."] },
+  { code: "E-05", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Wörter im Raum", text: "Suche 12 Wörter im Raum und schreibe sie auf.", symbol: "✏️", steps: ["Schau dich im Raum um.", "Suche Wörter, die du lesen kannst.", "Schreibe 12 Wörter auf.", "Kontrolliere, ob du 12 Wörter gefunden hast."] },
+  { code: "E-06", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Formenjäger", text: "Suche Rechtecke, Kreise und Dreiecke. Finde mindestens 3 von jeder Form.", symbol: "🔺", steps: ["Suche Rechtecke.", "Suche Kreise.", "Suche Dreiecke.", "Finde von jeder Form mindestens 3 Beispiele."] },
+  { code: "E-07", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Farbenforscher", text: "Suche Dinge in Rot, Blau, Gelb und Grün. Sammle jeweils 3 Beispiele.", symbol: "🎨", steps: ["Suche rote Dinge.", "Suche blaue, gelbe und grüne Dinge.", "Sammle zu jeder Farbe 3 Beispiele.", "Schreibe oder male deine Beispiele auf."] },
+  { code: "E-08", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Treppen zählen", text: "Zähle eine Treppe. Wie viele Stufen hat sie?", symbol: "🔢", steps: ["Suche eine Treppe.", "Zähle die Stufen langsam.", "Schreibe die Anzahl auf.", "Kontrolliere noch einmal."] },
+  { code: "E-09", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Münzen entdecken", text: "Suche Euro-Münzen. Ordne sie von klein nach groß.", symbol: "🪙", steps: ["Suche verschiedene Euro-Münzen.", "Schau dir die Werte genau an.", "Ordne sie von klein nach groß.", "Schreibe oder zeichne deine Reihenfolge auf."] },
+  { code: "E-10", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Meine Hände", text: "Betrachte deine Hände. Wofür hast du sie heute benutzt?", symbol: "✋", steps: ["Betrachte deine Hände genau.", "Überlege, wofür du sie heute benutzt hast.", "Sammle mehrere Beispiele.", "Schreibe oder male deine Ideen auf."] },
+  { code: "E-11", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Wetterbericht", text: "Schau aus dem Fenster. Beschreibe das Wetter.", symbol: "🌦️", steps: ["Schau aus dem Fenster.", "Beobachte Himmel, Wolken, Wind und Regen.", "Beschreibe das Wetter.", "Male ein passendes Wettersymbol."] },
+  { code: "E-12", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Tierbeobachter", text: "Beobachte ein Tier. Was macht es?", symbol: "🔎", steps: ["Suche ein Tier oder ein Bild von einem Tier.", "Beobachte genau.", "Beschreibe, was es macht.", "Schreibe oder male deine Beobachtung auf."] },
+  { code: "E-13", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Pflanzenforscher", text: "Suche eine Pflanze. Beschreibe Blatt, Farbe und Größe.", symbol: "🌱", steps: ["Suche eine Pflanze.", "Betrachte Blätter, Farbe und Größe.", "Beschreibe die Pflanze.", "Zeichne sie, wenn du möchtest."] },
+  { code: "E-14", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Blätter vergleichen", text: "Suche 3 Blätter und vergleiche sie. Beschreibe jedes Blatt.", symbol: "🍃", steps: ["Suche 3 Blätter.", "Vergleiche Form, Farbe und Größe.", "Beschreibe jedes Blatt.", "Schreibe Gemeinsamkeiten und Unterschiede auf."] },
+  { code: "E-15", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Wasser sparen", text: "Finde 5 Ideen, wie man Wasser sparen kann.", symbol: "💧", steps: ["Überlege, wann du Wasser benutzt.", "Finde 5 Ideen zum Wassersparen.", "Schreibe die Ideen auf.", "Markiere deine beste Idee."] },
+  { code: "E-16", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Strom im Alltag", text: "Suche Dinge, die Strom brauchen, und ordne sie.", symbol: "⚡", steps: ["Suche Dinge, die Strom brauchen.", "Schreibe oder male sie auf.", "Ordne sie nach Ort oder Nutzung.", "Überlege, welche Dinge oft gebraucht werden."] },
+  { code: "E-17", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Helfer im Alltag", text: "Finde 5 Dinge, die Menschen im Alltag helfen.", symbol: "🧰", steps: ["Schau dich genau um.", "Finde Dinge, die Menschen helfen.", "Wähle 5 Dinge aus.", "Schreibe auf, wobei sie helfen."] },
+  { code: "E-18", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Wasserforscher", text: "Teste verschiedene Gegenstände. Was schwimmt? Was sinkt?", symbol: "💧", steps: ["Sammle verschiedene Gegenstände.", "Vermute: Was schwimmt? Was sinkt?", "Teste vorsichtig im Wasser.", "Notiere deine Ergebnisse."], material: ["Lerntagebuch", "Stift", "Schüssel mit Wasser", "verschiedene Gegenstände"] },
+  { code: "E-19", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Verpackungs-Leser", text: "Lies eine Verpackung. Welche Wörter kannst du erkennen?", symbol: "📦", steps: ["Suche eine Verpackung.", "Lies die Wörter darauf.", "Schreibe Wörter auf, die du erkennst.", "Markiere ein besonders wichtiges Wort."] },
+  { code: "E-20", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Nomen finden", text: "Suche 10 Nomen im Raum und schreibe den Artikel dazu.", symbol: "📄", steps: ["Suche 10 Nomen im Raum.", "Schreibe sie auf.", "Schreibe der, die oder das dazu.", "Prüfe die Großschreibung."] },
+  { code: "E-21", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Adjektive sammeln", text: "Suche 5 Dinge im Raum und beschreibe sie mit passenden Adjektiven.", symbol: "💭", steps: ["Suche 5 Dinge im Raum.", "Überlege: Wie ist jedes Ding?", "Schreibe passende Adjektive dazu.", "Kontrolliere, ob die Wörter gut passen."] },
+  { code: "E-22", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Genau betrachten", text: "Betrachte einen Gegenstand genau. Zeichne oder beschreibe ihn.", symbol: "🔍", steps: ["Wähle einen Gegenstand.", "Betrachte ihn ganz genau.", "Zeichne oder beschreibe ihn.", "Notiere besondere Details."] },
+  { code: "E-23", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Rollen, biegen, stapeln", text: "Suche je ein Ding: biegt sich, rollt, stapelt oder kippt. Zeichne oder beschreibe deine Fundstücke.", symbol: "🧱", steps: ["Suche ein Ding, das sich biegt.", "Suche ein Ding, das rollt.", "Suche ein Ding, das man stapeln kann oder das kippt.", "Zeichne oder beschreibe deine Fundstücke."] },
+  { code: "E-24", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Symmetrie suchen", text: "Suche Dinge, die auf beiden Seiten ähnlich aussehen.", symbol: "↔️", steps: ["Suche Dinge, die links und rechts ähnlich aussehen.", "Betrachte die Mitte.", "Zeichne oder beschreibe Beispiele.", "Markiere, wenn du möchtest, die Spiegelachse."] },
+  { code: "E-25", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Etwas helfen", text: "Hilf bei einer kleinen Aufgabe. Beschreibe, was du gemacht hast.", symbol: "🤝", steps: ["Suche eine kleine Aufgabe, bei der du helfen kannst.", "Hilf sorgfältig.", "Beschreibe, was du gemacht hast.", "Überlege, wem es geholfen hat."] },
+  { code: "E-26", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Ein Kompliment schenken", text: "Mache einer Person ein ehrliches Kompliment. Beobachte die Reaktion.", symbol: "💬", steps: ["Überlege dir ein ehrliches Kompliment.", "Sage es freundlich.", "Beobachte die Reaktion.", "Schreibe oder erzähle, was passiert ist."] },
+  { code: "E-27", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Interview: Guter Freund", text: "Interviewe eine Person: Was ist ein guter Freund oder eine gute Freundin?", symbol: "🎤", steps: ["Suche eine Person für dein Interview.", "Frage: Was ist ein guter Freund oder eine gute Freundin?", "Höre genau zu.", "Schreibe oder erzähle die Antwort."] },
+  { code: "E-28", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Was ist Glück?", text: "Frage eine Person: Was ist Glück? Schreibe oder erzähle die Antwort.", symbol: "☀️", steps: ["Suche eine Person.", "Frage: Was ist Glück?", "Höre genau zu.", "Schreibe oder erzähle die Antwort."] },
+  { code: "E-29", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Gefühle erkennen", text: "Denke an deinen Tag. Welche Gefühle hattest du?", symbol: "💭", steps: ["Denke an deinen Tag.", "Sammle Gefühle, die du hattest.", "Schreibe oder male sie auf.", "Überlege, wann du welches Gefühl hattest."] },
+  { code: "E-30", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Mein Lieblingsplatz", text: "Suche deinen Lieblingsplatz zu Hause oder auf dem Schulhof. Beschreibe ihn mit mindestens 5 Wörtern.", symbol: "📍", steps: ["Denke an deinen Lieblingsplatz.", "Schau ihn dir genau an oder stelle ihn dir vor.", "Beschreibe ihn mit mindestens 5 Wörtern.", "Male ihn, wenn du möchtest."] },
+  { code: "E-31", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Satzdetektiv", text: "Schreibe einen Satz ab. Zähle die Wörter und die Buchstaben.", symbol: "🕵️", steps: ["Wähle einen Satz.", "Schreibe ihn sorgfältig ab.", "Zähle die Wörter.", "Zähle die Buchstaben."] },
+  { code: "E-32", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Reimfinder", text: "Finde Reimwörter. Sammle 5 Reimpaare.", symbol: "🎵", steps: ["Suche Wörter, die sich reimen.", "Bilde passende Paare.", "Sammle 5 Reimpaare.", "Sprich die Paare leise vor."] },
+  { code: "E-33", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Sätze über den Raum", text: "Schreibe 5 Sätze über Dinge, die du gerade siehst.", symbol: "✏️", steps: ["Schau dich im Raum um.", "Wähle Dinge aus, die du siehst.", "Schreibe 5 ganze Sätze.", "Achte auf Satzanfang und Punkt."] },
+  { code: "E-34", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Bild oder Buchcover", text: "Wähle ein Bild oder Buchcover und schreibe 5 Sätze dazu.", symbol: "🖼️", steps: ["Wähle ein Bild oder Buchcover.", "Schau genau hin.", "Schreibe 5 Sätze dazu.", "Lies deine Sätze noch einmal."] },
+  { code: "E-35", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Rätsel schreiben", text: "Schreibe ein Rätsel zu einem Gegenstand im Raum.", symbol: "❓", steps: ["Wähle einen Gegenstand im Raum.", "Sammle Hinweise dazu.", "Schreibe ein Rätsel.", "Prüfe, ob jemand die Lösung finden kann."] },
+  { code: "E-36", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Ding-Geschichte", text: "Wähle ein Ding im Raum und schreibe eine Geschichte mit 5 Sätzen.", symbol: "📝", steps: ["Wähle ein Ding im Raum.", "Überlege, was passieren könnte.", "Schreibe eine Geschichte mit 5 Sätzen.", "Lies deine Geschichte noch einmal."] },
+  { code: "E-37", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Geschichtenstarter", text: "Beginne mit: „Heute habe ich etwas Überraschendes entdeckt ...“", symbol: "✨", steps: ["Schreibe den Geschichtenstarter ab.", "Überlege, was entdeckt wurde.", "Schreibe deine Geschichte weiter.", "Lies sie noch einmal."] },
+  { code: "E-38", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Mein Wochenglanz", text: "Denke an die Woche zurück. Was war dein schönstes Erlebnis?", symbol: "🌟", steps: ["Denke an deine Woche.", "Wähle dein schönstes Erlebnis.", "Schreibe oder male es auf.", "Erkläre, warum es schön war."] },
+  { code: "E-39", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Gesunde Einkaufsliste", text: "Schreibe eine Einkaufsliste für ein gesundes Brötchen in der Klasse.", symbol: "🥪", steps: ["Überlege, was auf ein gesundes Brötchen passt.", "Schreibe eine Einkaufsliste.", "Prüfe, ob alles zusammenpasst.", "Ergänze Getränke oder Obst, wenn du möchtest."] },
+  { code: "E-40", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Zahlen-Hinweise", text: "Denke dir eine Zahl aus und schreibe 3 Hinweise dazu.", symbol: "💡", steps: ["Denke dir eine Zahl aus.", "Schreibe 3 Hinweise dazu.", "Notiere die Lösung.", "Prüfe, ob man deine Zahl finden kann."] },
+  { code: "E-41", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Muster fortsetzen", text: "Zeichne ein Muster und setze es mindestens 10 Schritte fort.", symbol: "🔴", steps: ["Beginne mit einem Muster.", "Zeichne es auf.", "Setze es mindestens 10 Schritte fort.", "Kontrolliere die Regel."] },
+  { code: "E-42", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Strichliste erstellen", text: "Wähle 3 Dinge aus, zum Beispiel Bücher, Stifte oder Spiele. Zähle sie und erstelle eine Strichliste.", symbol: "||||", steps: ["Wähle 3 Dinge aus.", "Zähle jedes Ding.", "Erstelle eine Strichliste.", "Kontrolliere deine Zählung."] },
+  { code: "E-43", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Größen vergleichen", text: "Suche Dinge, die länger, kürzer, höher oder niedriger sind. Schreibe 4 Sätze. Beispiel: Die Vase ist höher als die Tasse.", symbol: "📏", steps: ["Suche Dinge zum Vergleichen.", "Vergleiche länger, kürzer, höher oder niedriger.", "Schreibe 4 Sätze.", "Nutze das Beispiel als Hilfe."] },
+  { code: "E-44", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Bewegungsaufgabe", text: "Überlege dir eine Bewegungsaufgabe für die Klasse und schreibe sie auf.", symbol: "🏃", steps: ["Überlege dir eine Bewegung.", "Formuliere eine Aufgabe für die Klasse.", "Schreibe sie auf.", "Prüfe, ob andere sie gut verstehen."] },
+  { code: "E-45", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Zukunfts-Gegenstand", text: "Wähle einen Gegenstand. Wie könnte er in Zukunft aussehen?", symbol: "🚀", steps: ["Wähle einen Gegenstand.", "Überlege, wie er in Zukunft aussehen könnte.", "Zeichne oder beschreibe ihn.", "Erkläre eine besondere neue Funktion."] },
+  { code: "E-46", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Geheimschrift", text: "Erfinde eine Geheimschrift und schreibe deinen Namen damit.", symbol: "🔐", steps: ["Erfinde Zeichen für Buchstaben.", "Schreibe deinen Namen in Geheimschrift.", "Notiere den Schlüssel.", "Prüfe, ob jemand ihn lesen kann."] },
+  { code: "E-47", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Eigene Entdeckeraufgabe", text: "Erfinde eine eigene Entdeckeraufgabe für ein anderes Kind.", symbol: "⭐", steps: ["Überlege dir eine neue Aufgabe.", "Schreibe sie verständlich auf.", "Denke an Material und Schritte.", "Prüfe, ob ein anderes Kind sie lösen kann."] },
+  { code: "E-48", subject: "Entdecker", subcategory: "Entdeckeraufgaben", title: "Joker-Aufgabe", text: "Wähle eine Aufgabe von Seite 1 oder 2 noch einmal und verändere sie.", symbol: "🃏", steps: ["Wähle eine Entdeckeraufgabe aus.", "Verändere eine Regel oder einen Auftrag.", "Bearbeite deine neue Version.", "Schreibe auf, was du verändert hast."] }
 ];
 
 const ENTDECKER_SUBCATEGORY = "Entdeckeraufgaben";
@@ -596,7 +612,7 @@ function trainingTask(code, subject, subcategory, title, text, steps, tips = [],
     tips,
     tip: tips[0] || "",
     material,
-    symbol: overrides.symbol || (subject === "Deutsch" ? "📘" : subject === "Mathe" ? "🔢" : "🔎"),
+    symbol: overrides.symbol || (subject === "Deutsch" ? "📘" : subject === "Mathe" ? "🔢" : subject === "Entdecker" ? "⭐" : "🔎"),
     active: overrides.active !== false
   };
 }
@@ -968,6 +984,10 @@ function normalizeWorkbookMaterialName(item) {
     const normalized = { ...item, workbook: "ABC der Tiere 2" };
     return { ...normalized, schoolYear: normalized.schoolYear || "2", catalogKey: makeWorkbookCatalogKey(normalized) };
   }
+  if (item.workbook === "ABC der Tiere 2" && item.category === "Lernstandsheft") {
+    const normalized = { ...item, workbook: "ABC der Tiere 2 - Lernstandsheft", part: "Teil C", schoolYear: item.schoolYear || "2" };
+    return { ...normalized, catalogKey: makeWorkbookCatalogKey(normalized) };
+  }
   if (item.workbook === "MiniMax") {
     const normalized = { ...item, workbook: "MiniMax 2" };
     return { ...normalized, schoolYear: normalized.schoolYear || "2", catalogKey: makeWorkbookCatalogKey(normalized) };
@@ -1289,11 +1309,17 @@ function mergeDefaultTrainingTasks(tasks) {
   });
   tasks.forEach((task) => {
     const key = task.code || task.taskCode || task.id;
-    if (!defaultKeys.has(key)) {
+    if (!defaultKeys.has(key) && !isRetiredEntdeckerTask(task)) {
       merged.push({ ...task, active: false, deprecated: true });
     }
   });
   return merged;
+}
+
+function isRetiredEntdeckerTask(task) {
+  const key = String(task?.code || task?.taskCode || task?.id || "");
+  const subcategory = String(task?.subcategory || task?.unterbereich || "");
+  return /^(D|M|F)-\d+$/i.test(key) || ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"].includes(subcategory);
 }
 
 function normalizeTrainingTask(item) {
@@ -1482,6 +1508,7 @@ function normalizeStringList(value, fallback = []) {
 }
 
 function defaultTrainingSubject(code) {
+  if (String(code).startsWith("E-")) return "Entdecker";
   if (String(code).startsWith("M-")) return "Mathe";
   if (String(code).startsWith("F-")) return "Forscher";
   if (String(code).startsWith("S-")) return "Schule";
@@ -1495,6 +1522,7 @@ function defaultTrainingSubcategory(code) {
 
 function normalizeTrainingSubcategory(value, code = "") {
   if (String(code).startsWith("S-") || value === "Schule") return "Schule";
+  if (String(code).startsWith("E-")) return ENTDECKER_SUBCATEGORY;
   if (["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher", ENTDECKER_SUBCATEGORY].includes(value)) return ENTDECKER_SUBCATEGORY;
   return value || defaultTrainingSubcategory(code);
 }

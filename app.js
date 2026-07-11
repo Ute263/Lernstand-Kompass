@@ -2961,8 +2961,8 @@ function renderTrainingOverview() {
         </label>
         <label class="field">Fach
           <select class="select-input" onchange="setTrainingFilter('subject', this.value)">
-            <option value="">alle Fächer</option>
-            ${["Deutsch", "Mathe", "Forscher"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
+            <option value="">alle Aufgaben</option>
+            ${["Entdecker"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
           </select>
         </label>
         <label class="field">Bereich
@@ -7903,7 +7903,7 @@ function workbookCoverForCatalogItem(catalogItem) {
   if (workbook === "ABC der Tiere 1") {
     return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
   }
-  if (workbook === "ABC der Tiere 2") {
+  if (workbook === "ABC der Tiere 2" || workbook === "ABC der Tiere 2 - Lernstandsheft") {
     return { src: "./materials/cover-abc-der-tiere-2.svg", alt: "ABC der Tiere 2" };
   }
   if (workbook === "MiniMax 1") {
