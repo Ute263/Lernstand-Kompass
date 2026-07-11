@@ -507,6 +507,21 @@ button:disabled {
   align-self: stretch;
 }
 
+.weekly-task-number-label {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.weekly-task-number-input {
+  min-height: 34px;
+  padding: 7px 9px;
+}
+
 .weekly-pick-label {
   display: grid;
   gap: 4px;
