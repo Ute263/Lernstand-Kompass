@@ -384,7 +384,7 @@ button:disabled {
 
 .weekly-child-item {
   display: grid;
-  grid-template-columns: minmax(96px, 130px) 1fr auto;
+  grid-template-columns: auto minmax(96px, 130px) minmax(0, 1fr) auto;
   gap: 8px 12px;
   align-items: center;
   padding: 12px;
@@ -393,8 +393,33 @@ button:disabled {
   background: #fff;
 }
 
-.weekly-child-item small {
-  grid-column: 2 / -1;
+.workbook-cover {
+  display: block;
+  object-fit: cover;
+  background: #fff;
+  border: 1px solid #dfe7ef;
+  border-radius: 6px;
+  box-shadow: 0 6px 14px rgba(40, 74, 105, 0.12);
+}
+
+.weekly-child-cover {
+  width: 46px;
+  height: 64px;
+  align-self: start;
+}
+
+.weekly-child-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.weekly-child-main span,
+.weekly-child-main small {
+  min-width: 0;
+}
+
+.weekly-child-main small {
   color: var(--muted);
   font-weight: 750;
 }
@@ -418,6 +443,7 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  grid-column: 3 / -1;
 }
 
 .weekly-catalog-form,
@@ -505,6 +531,21 @@ button:disabled {
   display: grid;
   gap: 7px;
   align-self: stretch;
+}
+
+.weekly-task-number-label {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.weekly-task-number-input {
+  min-height: 34px;
+  padding: 7px 9px;
 }
 
 .weekly-pick-label {
@@ -1782,6 +1823,15 @@ th {
 
   .weekly-child-item {
     grid-template-columns: 1fr;
+  }
+
+  .weekly-child-cover {
+    width: 54px;
+    height: 76px;
+  }
+
+  .weekly-status-actions {
+    grid-column: auto;
   }
 
   .weekly-grid-editor {
