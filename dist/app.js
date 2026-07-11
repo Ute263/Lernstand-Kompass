@@ -575,9 +575,9 @@ function renderTrainingStart() {
 
 function selectTrainingArea(area) {
   childDraft.trainingArea = area;
-  childDraft.trainingSubcategory = "";
+  childDraft.trainingSubcategory = area === "OGS/Zuhause" ? "Entdeckeraufgaben" : "";
   pendingTrainingTaskCode = "";
-  screen = area === "OGS/Zuhause" ? "childTrainingSubcategory" : "childTrainingArea";
+  screen = "childTrainingArea";
   render();
 }
 
@@ -587,14 +587,8 @@ function renderTrainingSubcategorySelection() {
       ${renderBackButton("childTraining")}
       <h2 class="child-title">OGS / Zuhause</h2>
       <div class="subject-grid training-area-grid">
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Deutsch-Entdecker')">
-          <span class="subject-icon">📘</span>Deutsch-Entdecker
-        </button>
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Mathe-Entdecker')">
-          <span class="subject-icon">🔢</span>Mathe-Entdecker
-        </button>
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Forscher')">
-          <span class="subject-icon">🔎</span>Forscher
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Entdeckeraufgaben')">
+          <span class="subject-icon">⭐</span>Entdeckeraufgaben
         </button>
       </div>
     </section>
@@ -625,8 +619,8 @@ function renderTrainingArea() {
   }
   return `
     <section class="step-wrap">
-      ${renderBackButton("childTrainingSubcategory")}
-      <h2 class="child-title">${escapeHtml(subcategory || "OGS / Zuhause")}</h2>
+      ${renderBackButton("childTraining")}
+      <h2 class="child-title">Entdeckeraufgaben</h2>
       <div class="training-task-grid">
         ${tasks.map((task) => {
           const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
@@ -635,7 +629,7 @@ function renderTrainingArea() {
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
               <strong>${escapeHtml(task.code)}</strong>
               <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
-              <small>${escapeHtml(task.subject)} · ${escapeHtml(task.subcategory || "")}</small>
+              <small>${escapeHtml(task.subject)}</small>
               <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
             </button>
           `;
@@ -772,13 +766,17 @@ function renderChildWeeklyPlan(plan, animal) {
 function renderChildWeeklyPlanItem(plan, animal, day, item) {
   const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
   const done = status === "fertig";
-  const childText = item.catalogItem ? childWorkbookCatalogShortLabel(item.catalogItem) : item.text;
+  const childText = item.catalogItem ? weeklyWorkbookPlanLabel(item.catalogItem, item.taskNumber) : item.text;
   const childDetail = item.catalogItem ? childWorkbookCatalogDetailLabel(item.catalogItem) : item.detail;
+  const cover = item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover") : "";
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
+      ${cover}
       <strong>${escapeHtml(item.label)}</strong>
-      <span>${escapeHtml(childText)}</span>
-      ${childDetail ? `<small>${escapeHtml(childDetail)}</small>` : ""}
+      <div class="weekly-child-main">
+        <span>${escapeHtml(childText)}</span>
+        ${childDetail ? `<small>${escapeHtml(childDetail)}</small>` : ""}
+      </div>
       <em>${escapeHtml(status)}</em>
       <div class="weekly-status-actions">
         ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'teilweise')">teilweise</button>` : ""}
@@ -808,11 +806,15 @@ function renderChildWorkbookTasks() {
 function renderChildWorkbookAssignmentItem(row) {
   const done = row.status === "fertig";
   const label = row.catalog.subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const cover = renderWorkbookCoverImage(row.catalog, "weekly-child-cover");
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
+      ${cover}
       <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(pageRangeLabel(row.catalog))}</span>
-      <small>${escapeHtml(row.catalog.title || row.catalog.area || "")}</small>
+      <div class="weekly-child-main">
+        <span>${escapeHtml(pageRangeLabel(row.catalog))}</span>
+        <small>${escapeHtml(row.catalog.title || row.catalog.area || "")}</small>
+      </div>
       <em>${escapeHtml(row.status)}</em>
       <div class="weekly-status-actions">
         ${row.status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWorkbookAssignmentStatus('${escapeAttribute(row.assignment.id)}','teilweise')">teilweise</button>` : ""}
@@ -2093,7 +2095,7 @@ function renderTeacherMaterialPickerControl({ targetId, subject = "", selectedId
 }
 
 function openTeacherMaterialPicker(mode, subject = "", targetId = "", selectedId = "", classId = "", meta = {}) {
-  const catalog = workbookCatalogForClass(classId || state.activeClassId)
+  const catalog = workbookCatalogForPickerClass(classId || state.activeClassId, mode)
     .filter((item) => item.active !== false && (!subject || item.subject === subject))
     .sort(sortWorkbookCatalogItems);
   const defaultId = subject ? defaultWorkbookCatalogIdForSubject(subject, { animalId: meta?.animalId || "", groupId: meta?.groupId || "", classId: classId || state.activeClassId }) : "";
@@ -2124,7 +2126,8 @@ function sortWorkbookCatalogItems(a, b) {
   return schoolYearSortValue(a.schoolYear) - schoolYearSortValue(b.schoolYear)
     || String(a.subject || "").localeCompare(String(b.subject || ""), "de")
     || String(a.workbook || "").localeCompare(String(b.workbook || ""), "de", { numeric: true })
-    || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true });
+    || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+    || Number(a.page || 0) - Number(b.page || 0);
 }
 
 function schoolYearSortValue(value) {
@@ -2199,7 +2202,7 @@ function workbookCatalogPickerSummary(item) {
 
 function teacherMaterialPickerCatalog(request = teacherMaterialPicker) {
   if (!request) return [];
-  return workbookCatalogForClass(request.classId || state.activeClassId)
+  return workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode)
     .filter((item) => item.active !== false && item.subject === request.subject)
     .filter((item) => request.showAllYears || materialMatchesSchoolYear(item, request.schoolYear))
     .sort(sortWorkbookCatalogItems);
@@ -2281,7 +2284,7 @@ function renderTeacherMaterialPicker() {
   const request = normalizeTeacherMaterialPicker(teacherMaterialPicker);
   teacherMaterialPicker = request;
   const catalog = teacherMaterialPickerCatalog(request);
-  const allCatalog = workbookCatalogForClass(request.classId || state.activeClassId)
+  const allCatalog = workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode)
     .filter((item) => item.active !== false && item.subject === request.subject);
   const schoolYears = uniqueInOrder([
     request.schoolYear,
@@ -2294,12 +2297,13 @@ function renderTeacherMaterialPicker() {
   const topics = uniqueInOrder(sectionItems.map(materialPickerTopic));
   const topicItems = sectionItems.filter((item) => materialPickerTopic(item) === request.topic);
   const selected = topicItems.find((item) => item.id === request.itemId) || null;
+  const pageStepLabel = request.mode === "weekly" ? "6. Seite" : "6. Seite / Seitenbereich";
   return `
     <div class="training-modal-overlay" id="teacherMaterialPickerOverlay" role="dialog" aria-modal="true" aria-labelledby="teacherMaterialPickerTitle">
       <section class="training-modal-card teacher-material-picker-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTeacherMaterialPicker()">×</button>
         <h2 id="teacherMaterialPickerTitle">Material auswählen</h2>
-        <p class="message">Wähle Schritt für Schritt: zuerst das Schuljahr, dann Fach, Material, Kapitel und Seitenbereich. Über „Alle Materialien anzeigen“ bleibt bewusst auch anderes Material erreichbar.</p>
+        <p class="message">Wähle Schritt für Schritt: zuerst das Schuljahr, dann Fach, Material, Kapitel und ${request.mode === "weekly" ? "Seite" : "Seitenbereich"}. Über „Alle Materialien anzeigen“ bleibt bewusst auch anderes Material erreichbar.</p>
         <div class="teacher-material-picker-steps">
           <label class="field"><strong>1. Schuljahr</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('schoolYear', this.value)" ${request.showAllYears ? "disabled" : ""}>
@@ -2326,7 +2330,7 @@ function renderTeacherMaterialPicker() {
               ${topics.map((topic) => `<option value="${escapeAttribute(topic)}" ${request.topic === topic ? "selected" : ""}>${escapeHtml(topic)}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>6. Seite / Seitenbereich</strong>
+          <label class="field"><strong>${escapeHtml(pageStepLabel)}</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('itemId', this.value)">
               ${topicItems.map((item) => `<option value="${escapeAttribute(item.id)}" ${request.itemId === item.id ? "selected" : ""}>${escapeHtml(workbookCatalogPickerPageLabel(item, request.topic))}</option>`).join("")}
             </select>
@@ -2351,7 +2355,7 @@ function renderTeacherMaterialPicker() {
 function applyTeacherMaterialPickerSelection() {
   const request = teacherMaterialPicker;
   if (!request?.itemId) return;
-  const selected = workbookCatalogForClass(request.classId || state.activeClassId).find((item) => item.id === request.itemId);
+  const selected = workbookCatalogForPickerClass(request.classId || state.activeClassId, request.mode).find((item) => item.id === request.itemId);
   if (!selected) return;
   if (request.mode === "weekly") {
     const meta = request.meta || {};
@@ -2994,7 +2998,7 @@ function renderWeeklyPlans() {
   return `
     <section class="panel">
       <h2>Wochenpläne</h2>
-      <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher bleiben eigene Bereiche.</p>
+      <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Die Entdeckeraufgaben bleiben ein eigener Bereich.</p>
       <div class="section-tabs weekly-section-tabs">
         ${[
           ["current", "Aktuelle Woche"],
@@ -3284,8 +3288,8 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
         const dayData = days?.[day] || {};
         return `
           <strong>${escapeHtml(day)}</strong>
-          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId)}
-          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId)}
+          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId, dayData.deutschTaskNumber || "")}
+          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId, dayData.matheTaskNumber || "")}
           <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
         `;
       }).join("")}
@@ -3293,15 +3297,19 @@ function renderWeeklyPlannerTable(days, scope, animalId = "") {
   `;
 }
 
-function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "") {
+function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, animalId = "", taskNumber = "") {
   const ids = normalizeIdArray(selectedIds);
-  const items = ids.map((id) => workbookCatalogForActiveClass().find((entry) => entry.id === id)).filter(Boolean);
+  const items = ids.map((id) => workbookCatalogForWeeklyPlanClass(state.activeClassId).find((entry) => entry.id === id)).filter(Boolean);
+  const taskNumberId = `${inputId}TaskNumber`;
   return `
     <div class="weekly-pick-cell">
       <input type="hidden" id="${escapeAttribute(inputId)}" value="${escapeAttribute(ids.join(","))}">
       <div id="${escapeAttribute(inputId)}Label" class="weekly-pick-label ${items.length ? "" : "empty"}">
         ${items.length ? items.map((item) => `<span>${escapeHtml(workbookCatalogShortLabel(item))}</span>`).join("") : "keine Auswahl"}
       </div>
+      <label class="weekly-task-number-label">Nr.
+        <input class="text-input weekly-task-number-input" id="${escapeAttribute(taskNumberId)}" value="${escapeAttribute(taskNumber)}" placeholder="z. B. 1 + 3">
+      </label>
       ${items.length ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${escapeAttribute(items[0].id)}')">Info</button>` : ""}
       <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
       ${items.length ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
@@ -3411,12 +3419,18 @@ function clearWeeklyPick(inputId) {
     const field = match[3];
     const day = WEEK_DAYS[Number(match[4])];
     setWeeklyDraftValue(weeklyPlanDraft, animalId ? "override" : "standard", animalId, day, field, "");
+    const dayData = animalId ? weeklyPlanDraft.overrides?.[animalId]?.days?.[day] : weeklyPlanDraft.days?.[day];
+    if (dayData) {
+      if (field === "Deutsch") dayData.deutschTaskNumber = "";
+      if (field === "Mathe") dayData.matheTaskNumber = "";
+    }
   }
   render();
 }
 
 function showWorkbookCatalogInfo(itemId) {
-  const item = workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
+  const item = workbookCatalogForWeeklyPlanClass(state.activeClassId).find((entry) => entry.id === itemId)
+    || workbookCatalogForActiveClass().find((entry) => entry.id === itemId);
   if (item) alert(workbookCatalogFullLabel(item));
 }
 
@@ -3657,8 +3671,10 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
     days[day] = {
       deutschId: deutschIds[0] || "",
       deutschIds,
+      deutschTaskNumber: normalizeTaskNumberText(document.getElementById(`${prefix}Deutsch${index}TaskNumber`)?.value || ""),
       matheId: matheIds[0] || "",
       matheIds,
+      matheTaskNumber: normalizeTaskNumberText(document.getElementById(`${prefix}Mathe${index}TaskNumber`)?.value || ""),
       freeText: document.getElementById(`${prefix}Free${index}`)?.value.trim() || ""
     };
   });
@@ -3666,7 +3682,7 @@ function readWeeklyDaysFromDom(scope, animalId = "") {
 }
 
 function weeklyDaysHaveContent(days) {
-  return Object.values(days || {}).some((day) => normalizeIdArray(day.deutschIds || day.deutschId).length || normalizeIdArray(day.matheIds || day.matheId).length || day.freeText);
+  return Object.values(days || {}).some((day) => normalizeIdArray(day.deutschIds || day.deutschId).length || normalizeIdArray(day.matheIds || day.matheId).length || day.deutschTaskNumber || day.matheTaskNumber || day.freeText);
 }
 
 function setWeeklyDraftValue(draft, scope, animalId, day, field, value) {
@@ -4567,7 +4583,7 @@ function renderResources() {
 
 function renderMaterialPrint() {
   const tasks = printableTrainingTasks();
-  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  const groups = ["Entdeckeraufgaben"];
   return `
     <section class="panel">
       <h2>Stickerbögen</h2>
@@ -4656,8 +4672,8 @@ function openAllStickerSheets() {
 
 function printableTrainingTasks() {
   return (state.trainingTasks || [])
-    .filter((task) => task.active !== false && task.area === "OGS/Zuhause" && ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"].includes(task.subcategory))
-    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || String(a.code || "").localeCompare(String(b.code || ""), "de", { numeric: true }));
+    .filter((task) => task.active !== false && task.area === "OGS/Zuhause" && task.subcategory === "Entdeckeraufgaben")
+    .sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""), "de", { numeric: true }));
 }
 
 function setStickerSelection(mode) {
@@ -4724,7 +4740,7 @@ function printTrainingStickerTasks(tasks) {
 }
 
 function renderTrainingOverviewPrint(tasks) {
-  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  const groups = ["Entdeckeraufgaben"];
   return `
     <section class="training-overview-print-page">
       <header class="training-print-header">
@@ -4773,8 +4789,8 @@ function stickerText(task) {
 }
 
 function stickerClassForTask(task) {
-  if (task.subcategory === "Deutsch-Entdecker") return "deutsch-sticker";
-  if (task.subcategory === "Mathe-Entdecker") return "mathe-sticker";
+  if (String(task.code || "").startsWith("D-")) return "deutsch-sticker";
+  if (String(task.code || "").startsWith("M-")) return "mathe-sticker";
   return "forscher-sticker";
 }
 
@@ -6007,6 +6023,7 @@ function renderWeeklyPrintSubject(icon, label, items, options) {
       ${items.length ? items.map((item) => `
         <div class="weekly-print-task">
           ${checkbox}
+          ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-print-cover") : ""}
           <div>
             <strong>${escapeHtml(item.text)}</strong>
             ${options.variant !== "short" && options.showTheme !== false && item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
@@ -6449,11 +6466,18 @@ function printViewCss(landscape = false) {
       font-weight: 800;
     }
     .weekly-print-task {
-      display: grid;
-      grid-template-columns: auto 1fr;
+      display: flex;
       gap: 8px;
       align-items: start;
       margin-bottom: 5px;
+    }
+    .weekly-print-cover {
+      width: 30px;
+      height: 42px;
+      object-fit: cover;
+      border: 1px solid #ddd6c8;
+      border-radius: 4px;
+      background: #fff;
     }
     .weekly-print-task strong,
     .weekly-print-task span {
@@ -7398,6 +7422,49 @@ function workbookCatalogForClass(classId) {
   return (state.workbookCatalog || []).filter((item) => item.classId === classId);
 }
 
+function workbookCatalogForPickerClass(classId, mode = "") {
+  return mode === "weekly" ? expandedWorkbookCatalogForClass(classId, false) : workbookCatalogForClass(classId);
+}
+
+function workbookCatalogForWeeklyPlanClass(classId) {
+  return expandedWorkbookCatalogForClass(classId, true);
+}
+
+function expandedWorkbookCatalogForClass(classId, includeRangeParents = false) {
+  return workbookCatalogForClass(classId).flatMap((item) => {
+    const pages = workbookCatalogItemPages(item);
+    if (pages.length <= 1) return [item];
+    const pageItems = pages.map((page) => workbookCatalogPageItem(item, page));
+    return includeRangeParents ? [item, ...pageItems] : pageItems;
+  });
+}
+
+function workbookCatalogItemPages(item) {
+  const listedPages = pageNumbersFromText(item?.pageLabel || item?.displayPages || "");
+  if (listedPages.length) return [...new Set(listedPages)].sort((a, b) => a - b);
+  const start = Number(item?.page || item?.startPage || 0);
+  const end = Number(item?.pageEnd || item?.endPage || start || 0);
+  if (!start) return [];
+  const last = end && end > start ? end : start;
+  return Array.from({ length: last - start + 1 }, (_, index) => start + index);
+}
+
+function workbookCatalogPageItem(item, page) {
+  return {
+    ...item,
+    id: `${item.id}__page_${page}`,
+    sourceCatalogId: item.id,
+    page,
+    startPage: page,
+    pageEnd: "",
+    endPage: page,
+    pageLabel: String(page),
+    displayPages: `S. ${page}`,
+    pageRangeMode: "single",
+    catalogKey: `${item.catalogKey || item.id}|page:${page}`
+  };
+}
+
 function weeklyInputPrefix(scope, animalId = "") {
   return scope === "override" && animalId ? `weeklyOverride_${animalId}_` : "weekly";
 }
@@ -7584,13 +7651,15 @@ function effectiveWeeklyDayData(plan, day, animalId = "") {
   return {
     deutschIds: overrideDeutschIds.length ? overrideDeutschIds : baseDeutschIds,
     matheIds: overrideMatheIds.length ? overrideMatheIds : baseMatheIds,
+    deutschTaskNumber: normalizeTaskNumberText(override.deutschTaskNumber || base.deutschTaskNumber || ""),
+    matheTaskNumber: normalizeTaskNumberText(override.matheTaskNumber || base.matheTaskNumber || ""),
     freeText: override.freeText || base.freeText || ""
   };
 }
 
 function weeklyPlanItemsForDay(plan, day, animalId = "") {
   const dayData = effectiveWeeklyDayData(plan, day, animalId);
-  const catalog = workbookCatalogForClass(plan.classId);
+  const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
   const deutschItems = normalizeIdArray(dayData.deutschIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
   const matheItems = normalizeIdArray(dayData.matheIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
   return [
@@ -7599,7 +7668,8 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
       label: "Deutsch",
       workbookCatalogId: deutsch.id,
       catalogItem: deutsch,
-      text: workbookCatalogShortLabel(deutsch),
+      taskNumber: dayData.deutschTaskNumber || "",
+      text: weeklyWorkbookPlanLabel(deutsch, dayData.deutschTaskNumber),
       detail: workbookCatalogFullLabel(deutsch)
     })),
     ...matheItems.map((mathe) => ({
@@ -7607,7 +7677,8 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
       label: "Mathe",
       workbookCatalogId: mathe.id,
       catalogItem: mathe,
-      text: workbookCatalogShortLabel(mathe),
+      taskNumber: dayData.matheTaskNumber || "",
+      text: weeklyWorkbookPlanLabel(mathe, dayData.matheTaskNumber),
       detail: workbookCatalogFullLabel(mathe)
     })),
     dayData.freeText ? {
@@ -7650,7 +7721,52 @@ function weeklyCatalogPages(item) {
 
 function weeklyItemPageSummary(item) {
   if (!item?.catalogItem) return "–";
-  return pageRangeLabel(item.catalogItem);
+  return weeklyPageNumberLabel(item.catalogItem, item.taskNumber);
+}
+
+function weeklyWorkbookPlanLabel(catalogItem, taskNumber = "") {
+  if (!catalogItem) return "";
+  const material = catalogItem.workbook || (catalogItem.subject === "Deutsch" ? "ABC der Tiere" : catalogItem.subject === "Mathe" ? "MiniMax" : "Material");
+  const topic = weeklyCatalogTopicLabel(catalogItem);
+  const title = [material, topic].filter(Boolean).join(" – ");
+  return [title, weeklyPageNumberLabel(catalogItem, taskNumber)].filter(Boolean).join(", ");
+}
+
+function weeklyPageNumberLabel(catalogItem, taskNumber = "") {
+  const pageLabel = pageRangeLabel(catalogItem);
+  const normalizedTaskNumber = normalizeTaskNumberText(taskNumber);
+  return [pageLabel, normalizedTaskNumber ? `Nr. ${normalizedTaskNumber}` : ""].filter(Boolean).join(" ");
+}
+
+function weeklyCatalogTopicLabel(catalogItem) {
+  if (!catalogItem) return "";
+  if (catalogItem.workbook === "ABC der Tiere 1") return abc1CatalogDisplayTitle(catalogItem) || catalogItem.title || catalogItem.area || "";
+  if (catalogItem.subject === "Deutsch") return catalogItem.title || catalogItem.area || "";
+  return catalogItem.area || catalogItem.title || "";
+}
+
+function workbookCoverForCatalogItem(catalogItem) {
+  const workbook = String(catalogItem?.workbook || "");
+  if (workbook === "ABC der Tiere 1") {
+    return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
+  }
+  if (workbook === "ABC der Tiere 2") {
+    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: "ABC der Tiere 2" };
+  }
+  if (workbook === "MiniMax 1") {
+    return { src: "./materials/cover-minimax-1.svg", alt: "MiniMax 1" };
+  }
+  if (workbook === "MiniMax 2" || workbook === "MiniMax") {
+    return { src: "./materials/cover-minimax-2.svg", alt: "MiniMax 2" };
+  }
+  return null;
+}
+
+function renderWorkbookCoverImage(catalogItem, className = "") {
+  const cover = workbookCoverForCatalogItem(catalogItem);
+  if (!cover) return "";
+  const classes = ["workbook-cover", className].filter(Boolean).join(" ");
+  return `<img class="${escapeAttribute(classes)}" src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt)}">`;
 }
 
 function weeklyStatusFilterMatches(row, filter) {
