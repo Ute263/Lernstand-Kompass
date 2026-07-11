@@ -2995,10 +2995,12 @@ function renderWeeklyPlans() {
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
   const editorPlan = weeklyPlanEditorId ? plans.find((plan) => plan.id === weeklyPlanEditorId) : null;
   const section = weeklyPlanSection || "current";
+  const childWeekVisible = childViewSettings().showWeek;
   return `
     <section class="panel">
       <h2>Wochenpläne</h2>
       <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Die Entdeckeraufgaben bleiben ein eigener Bereich.</p>
+      ${childWeekVisible ? "" : `<p class="message error">Hinweis: „Meine Woche“ ist in der Kinderansicht gerade ausgeblendet. Kinder können gespeicherte Wochenpläne erst sehen, wenn diese Einstellung aktiv ist.</p>`}
       <div class="section-tabs weekly-section-tabs">
         ${[
           ["current", "Aktuelle Woche"],
@@ -3048,11 +3050,16 @@ function renderWeeklyTemplates(plans) {
 }
 
 function renderWeeklyPlanSummaryCard(plan) {
+  const isOpenInEditor = weeklyPlanEditorId === plan.id;
+  const visibility = weeklyPlanChildVisibility(plan);
   return `
-    <article class="weekly-plan-card">
+    <article class="weekly-plan-card ${isOpenInEditor ? "selected" : ""}">
       <div>
         <h3>${escapeHtml(plan.title)}</h3>
+        ${isOpenInEditor ? `<span class="weekly-editor-badge">Gerade im Editor geöffnet</span>` : ""}
+        <span class="weekly-visibility-badge ${visibility.visible ? "visible" : "hidden-state"}">${escapeHtml(visibility.label)}</span>
         <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "Standard für alle Tiere" : `${plan.animalIds.length} ausgewählte Tiere`} · Abweichungen: ${Object.keys(plan.overrides || {}).length}</p>
+        ${visibility.detail ? `<p class="message">${escapeHtml(visibility.detail)}</p>` : ""}
         ${plan.note ? `<p class="message">${escapeHtml(plan.note)}</p>` : ""}
       </div>
       <div class="backup-actions">
@@ -3195,6 +3202,9 @@ function renderWorkbookAccordion(workbook, items) {
 
 function renderWeeklyPlanEditor(plan) {
   const draft = weeklyPlanDraft || plan || {};
+  const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
+  const draftId = draft.id || plan?.id || "";
+  const isExistingPlan = Boolean(draftId && plans.some((item) => item.id === draftId));
   const title = draft.title || "Wochenplan";
   const weekLabel = draft.weekLabel || "";
   const validFrom = draft.validFrom || "";
@@ -3206,12 +3216,27 @@ function renderWeeklyPlanEditor(plan) {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   const groups = (state.animalGroups || []).filter((group) => group.classId === state.activeClassId);
   const overrideAnimal = animals.find((animal) => animal.id === weeklyOverrideAnimalId) || animals[0] || null;
+  const visibility = weeklyPlanChildVisibility(draft);
   if (!weeklyOverrideAnimalId && overrideAnimal) weeklyOverrideAnimalId = overrideAnimal.id;
   return `
     <section class="panel">
-      <h2>Wochenplan erstellen</h2>
+      <div class="weekly-editor-context">
+        <div>
+          <span class="weekly-editor-badge ${isExistingPlan ? "edit" : "new"}">${isExistingPlan ? "Bestehenden Wochenplan bearbeiten" : "Neuen Wochenplan anlegen"}</span>
+          <h2>${escapeHtml(isExistingPlan ? "Wochenplan bearbeiten" : "Wochenplan erstellen")}</h2>
+          <p class="message"><strong>${escapeHtml(title)}</strong>${weeklyPlanPeriodLabel(draft) ? ` · ${escapeHtml(weeklyPlanPeriodLabel(draft))}` : ""}</p>
+          <span class="weekly-visibility-badge ${visibility.visible ? "visible" : "hidden-state"}">${escapeHtml(visibility.label)}</span>
+          ${visibility.detail ? `<p class="message">${escapeHtml(visibility.detail)}</p>` : ""}
+        </div>
+        <label class="field">Geöffneter Wochenplan
+          <select class="select-input" onchange="setWeeklyPlanEditorSelection(this.value)">
+            <option value="" ${isExistingPlan ? "" : "selected"}>+ Neuer Wochenplan</option>
+            ${plans.map((item) => `<option value="${escapeAttribute(item.id)}" ${draftId === item.id ? "selected" : ""}>${escapeHtml(weeklyPlanSelectLabel(item))}</option>`).join("")}
+          </select>
+        </label>
+      </div>
       <form class="weekly-plan-form" onsubmit="saveWeeklyPlan(event)">
-        <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draft.id || plan?.id || "")}">
+        <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
         <div class="weekly-plan-meta">
           <label class="field">Titel
             <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan 1">
@@ -3267,7 +3292,7 @@ function renderWeeklyPlanEditor(plan) {
           <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(overrideAnimal?.id || "")}')">Abweichung für dieses Tier leeren</button>
         </div>
         <div class="backup-actions">
-          <button class="primary" type="button" onclick="saveWeeklyPlan(event)">Wochenplan speichern</button>
+          <button class="primary" type="submit">Wochenplan speichern</button>
           <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Wochenplan drucken</button>
           <button class="secondary" type="button" onclick="newWeeklyPlan()">Formular leeren</button>
         </div>
@@ -3886,6 +3911,22 @@ function editWeeklyPlan(planId) {
   render();
 }
 
+function setWeeklyPlanEditorSelection(planId) {
+  if (planId) {
+    editWeeklyPlan(planId);
+    return;
+  }
+  newWeeklyPlan();
+}
+
+function weeklyPlanSelectLabel(plan) {
+  return [
+    plan.title || "Wochenplan",
+    weeklyPlanPeriodLabel(plan),
+    weeklyPlanIsCurrent(plan) ? "aktuell" : ""
+  ].filter(Boolean).join(" · ");
+}
+
 async function copyWeeklyPlan(planId) {
   const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
   if (!plan) return;
@@ -3949,6 +3990,10 @@ async function saveWeeklyPlan(event) {
   const weeklyPlans = existing
     ? (state.weeklyPlans || []).map((plan) => plan.id === existing.id ? nextPlan : plan)
     : [...(state.weeklyPlans || []), nextPlan];
+  const visibility = weeklyPlanChildVisibility(nextPlan);
+  globalMessage = visibility.visible
+    ? `Wochenplan gespeichert. ${visibility.label}.`
+    : `Wochenplan gespeichert. ${visibility.detail || "Er ist aktuell noch nicht in der Kinderansicht sichtbar."}`;
   await persistAndRender({ ...state, weeklyPlans });
 }
 
@@ -7632,6 +7677,21 @@ function weeklyPlanIsCurrent(plan) {
   if (plan.validFrom && today < plan.validFrom) return false;
   if (plan.validTo && today > plan.validTo) return false;
   return true;
+}
+
+function weeklyPlanChildVisibility(plan) {
+  if (!plan) return { visible: false, label: "Noch nicht gespeichert", detail: "Speichere den Wochenplan, damit er für Kinder erscheinen kann." };
+  if (!childViewSettings().showWeek) {
+    return { visible: false, label: "Nicht sichtbar", detail: "„Meine Woche“ ist in der Kinderansicht ausgeschaltet." };
+  }
+  if (!weeklyPlanIsCurrent(plan)) {
+    return { visible: false, label: "Nicht sichtbar", detail: "Der Zeitraum passt nicht zum heutigen Datum. Prüfe „Gültig von“ und „Gültig bis“." };
+  }
+  const animals = animalsForClass(plan.classId || state.activeClassId).filter((animal) => animal.aktiv && weeklyPlanAppliesToAnimal(plan, animal.id));
+  if (!animals.length) {
+    return { visible: false, label: "Nicht sichtbar", detail: "Der Plan ist keinem aktiven Tier zugeordnet." };
+  }
+  return { visible: true, label: `Für Kinder sichtbar (${animals.length})`, detail: "" };
 }
 
 function weeklyPlanPeriodLabel(plan) {
