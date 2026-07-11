@@ -372,6 +372,12 @@ button:disabled {
   box-shadow: 0 10px 24px rgba(40, 74, 105, 0.07);
 }
 
+.weekly-plan-card.selected {
+  border-color: var(--brand);
+  background: #f2fbff;
+  box-shadow: 0 12px 28px rgba(36, 134, 180, 0.16);
+}
+
 .weekly-child-plan h3,
 .weekly-child-plan p,
 .weekly-day-card h4 {
@@ -452,6 +458,63 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   align-items: end;
+}
+
+.weekly-editor-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #cfe7f2;
+  border-radius: 8px;
+  background: #f4fbff;
+}
+
+.weekly-editor-context h2 {
+  margin: 6px 0 4px;
+}
+
+.weekly-editor-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e7f3fb;
+  color: var(--brand-dark);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.weekly-editor-badge.new {
+  background: #eaf8ef;
+  color: #22723c;
+}
+
+.weekly-editor-badge.edit {
+  background: #fff0d9;
+  color: #8a5600;
+}
+
+.weekly-visibility-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.weekly-visibility-badge.visible {
+  background: #e7f8ed;
+  color: #20723a;
+}
+
+.weekly-visibility-badge.hidden-state {
+  background: #fff0e8;
+  color: #a14418;
 }
 
 .catalog-overview-grid {
@@ -1822,6 +1885,10 @@ th {
   }
 
   .weekly-child-item {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-editor-context {
     grid-template-columns: 1fr;
   }
 
