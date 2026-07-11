@@ -575,9 +575,9 @@ function renderTrainingStart() {
 
 function selectTrainingArea(area) {
   childDraft.trainingArea = area;
-  childDraft.trainingSubcategory = "";
+  childDraft.trainingSubcategory = area === "OGS/Zuhause" ? "Entdeckeraufgaben" : "";
   pendingTrainingTaskCode = "";
-  screen = area === "OGS/Zuhause" ? "childTrainingSubcategory" : "childTrainingArea";
+  screen = "childTrainingArea";
   render();
 }
 
@@ -587,14 +587,8 @@ function renderTrainingSubcategorySelection() {
       ${renderBackButton("childTraining")}
       <h2 class="child-title">OGS / Zuhause</h2>
       <div class="subject-grid training-area-grid">
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Deutsch-Entdecker')">
-          <span class="subject-icon">📘</span>Deutsch-Entdecker
-        </button>
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Mathe-Entdecker')">
-          <span class="subject-icon">🔢</span>Mathe-Entdecker
-        </button>
-        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Forscher')">
-          <span class="subject-icon">🔎</span>Forscher
+        <button class="subject-button training-area-button" type="button" onclick="selectTrainingSubcategory('Entdeckeraufgaben')">
+          <span class="subject-icon">⭐</span>Entdeckeraufgaben
         </button>
       </div>
     </section>
@@ -625,8 +619,8 @@ function renderTrainingArea() {
   }
   return `
     <section class="step-wrap">
-      ${renderBackButton("childTrainingSubcategory")}
-      <h2 class="child-title">${escapeHtml(subcategory || "OGS / Zuhause")}</h2>
+      ${renderBackButton("childTraining")}
+      <h2 class="child-title">Entdeckeraufgaben</h2>
       <div class="training-task-grid">
         ${tasks.map((task) => {
           const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
@@ -635,7 +629,7 @@ function renderTrainingArea() {
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
               <strong>${escapeHtml(task.code)}</strong>
               <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
-              <small>${escapeHtml(task.subject)} · ${escapeHtml(task.subcategory || "")}</small>
+              <small>${escapeHtml(task.subject)}</small>
               <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
             </button>
           `;
@@ -2994,7 +2988,7 @@ function renderWeeklyPlans() {
   return `
     <section class="panel">
       <h2>Wochenpläne</h2>
-      <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Trainingszeit, Deutsch-Entdecker, Mathe-Entdecker und Forscher bleiben eigene Bereiche.</p>
+      <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Die Entdeckeraufgaben bleiben ein eigener Bereich.</p>
       <div class="section-tabs weekly-section-tabs">
         ${[
           ["current", "Aktuelle Woche"],
@@ -4567,7 +4561,7 @@ function renderResources() {
 
 function renderMaterialPrint() {
   const tasks = printableTrainingTasks();
-  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  const groups = ["Entdeckeraufgaben"];
   return `
     <section class="panel">
       <h2>Stickerbögen</h2>
@@ -4656,8 +4650,8 @@ function openAllStickerSheets() {
 
 function printableTrainingTasks() {
   return (state.trainingTasks || [])
-    .filter((task) => task.active !== false && task.area === "OGS/Zuhause" && ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"].includes(task.subcategory))
-    .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || String(a.code || "").localeCompare(String(b.code || ""), "de", { numeric: true }));
+    .filter((task) => task.active !== false && task.area === "OGS/Zuhause" && task.subcategory === "Entdeckeraufgaben")
+    .sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""), "de", { numeric: true }));
 }
 
 function setStickerSelection(mode) {
@@ -4724,7 +4718,7 @@ function printTrainingStickerTasks(tasks) {
 }
 
 function renderTrainingOverviewPrint(tasks) {
-  const groups = ["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher"];
+  const groups = ["Entdeckeraufgaben"];
   return `
     <section class="training-overview-print-page">
       <header class="training-print-header">
@@ -4773,8 +4767,8 @@ function stickerText(task) {
 }
 
 function stickerClassForTask(task) {
-  if (task.subcategory === "Deutsch-Entdecker") return "deutsch-sticker";
-  if (task.subcategory === "Mathe-Entdecker") return "mathe-sticker";
+  if (String(task.code || "").startsWith("D-")) return "deutsch-sticker";
+  if (String(task.code || "").startsWith("M-")) return "mathe-sticker";
   return "forscher-sticker";
 }
 
