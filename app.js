@@ -739,17 +739,23 @@ function renderChildWeek() {
     <section class="step-wrap child-week-wrap">
       ${renderBackButton("childSubject")}
       <h2 class="child-title">Meine Woche</h2>
-      <p class="message">Hier siehst du deinen Wochenplan mit Deutsch, Mathe und Extra-Aufgaben.</p>
-      ${plans.length ? plans.map((plan) => renderChildWeeklyPlan(plan, animal)).join("") : `<div class="empty">Für diese Woche ist noch kein Wochenplan eingetragen.</div>`}
+      <p class="message">Hier siehst du alle freigegebenen Wochenpläne. Der aktuelle Wochenplan steht oben und ist markiert.</p>
+      ${plans.length ? plans.map((plan) => renderChildWeeklyPlan(plan, animal)).join("") : `<div class="empty">Für dich ist noch kein Wochenplan eingetragen.</div>`}
     </section>
   `;
 }
 
 function renderChildWeeklyPlan(plan, animal) {
+  const isCurrent = weeklyPlanIsCurrent(plan);
   return `
-    <article class="weekly-child-plan">
-      <h3>${escapeHtml(plan.title)}</h3>
-      <p>${escapeHtml(weeklyPlanPeriodLabel(plan))}</p>
+    <article class="weekly-child-plan ${isCurrent ? "current" : ""}">
+      <div class="weekly-child-plan-header">
+        <div>
+          <h3>${escapeHtml(plan.title)}</h3>
+          <p>${escapeHtml(weeklyPlanPeriodLabel(plan))}</p>
+        </div>
+        <span class="weekly-child-plan-badge ${isCurrent ? "current" : ""}">${isCurrent ? "Aktueller Wochenplan" : "Weiterer Wochenplan"}</span>
+      </div>
       ${WEEK_DAYS.map((day) => {
         const items = weeklyPlanItemsForDay(plan, day, animal.id);
         return `
@@ -2595,8 +2601,8 @@ function activeClassSchoolYear(classId = state.activeClassId) {
 }
 
 function effectiveActiveSchoolYear(classId, subject, { animalId = "", groupId = "" } = {}) {
-  const setting = activeWorkbookSetting(classId, subject, { animalId, groupId });
-  return normalizeSchoolYear(setting?.schoolYear || inferSchoolYearFromWorkbook(setting?.workbook || "") || activeClassSchoolYear(classId));
+  const override = explicitActiveWorkbookOverride(classId, subject, { animalId, groupId });
+  return normalizeSchoolYear(override?.schoolYear || inferSchoolYearFromWorkbook(override?.workbook || "") || activeClassSchoolYear(classId));
 }
 
 function schoolYearLabel(value) {
@@ -2635,8 +2641,24 @@ function activeWorkbookSetting(classId, subject, { animalId = "", groupId = "" }
   return settings.find((item) => item.scope === "class") || null;
 }
 
+function explicitActiveWorkbookOverride(classId, subject, { animalId = "", groupId = "" } = {}) {
+  const settings = activeWorkbookMaterialsForClass(classId).filter((item) => item.subject === subject);
+  if (animalId) {
+    const individual = settings.find((item) => item.scope === "animal" && item.animalId === animalId);
+    if (individual) return individual;
+    const groupIds = (state.animalGroups || [])
+      .filter((group) => group.classId === classId && group.animalIds?.includes(animalId))
+      .map((group) => group.id);
+    const groupSetting = settings.find((item) => item.scope === "group" && groupIds.includes(item.groupId));
+    if (groupSetting) return groupSetting;
+  }
+  if (groupId) return settings.find((item) => item.scope === "group" && item.groupId === groupId) || null;
+  return null;
+}
+
 function activeWorkbookCatalogCandidates(subject, { animalId = "", classId = state.activeClassId, groupId = "" } = {}) {
-  const setting = activeWorkbookSetting(classId, subject, { animalId, groupId });
+  const setting = explicitActiveWorkbookOverride(classId, subject, { animalId, groupId })
+    || (animalId || groupId ? null : activeWorkbookSetting(classId, subject, { animalId, groupId }));
   const schoolYear = effectiveActiveSchoolYear(classId, subject, { animalId, groupId });
   const items = workbookCatalogForClass(classId)
     .filter((item) => item.active !== false && item.subject === subject)
@@ -3570,9 +3592,9 @@ function renderWeeklyPrintDialog() {
           <div class="weekly-print-options">
             <label class="field">Variante
               <select class="select-input" id="weeklyPrintVariant">
+                <option value="compact">Kompakter Wochenplan (eine Seite)</option>
                 <option value="short">Kurzfassung</option>
                 <option value="detail">Ausführliche Fassung</option>
-                <option value="compact">Kompakter Wochenplan</option>
               </select>
             </label>
             <label class="field">Ziel
@@ -5756,7 +5778,7 @@ function renderPrintScreen() {
       <button type="button" onclick="closePrintView()">Zurück</button>
       <button type="button" onclick="closePrintView()">Fenster schließen</button>
     </div>
-    <main class="print-page">
+    <main class="print-page ${type === "weeklyPlan" ? "weekly-print-sheet" : ""}">
       ${type === "today" ? renderPrintToday(context, className, generatedAt) : ""}
       ${type === "week" ? renderPrintWeek(context, className, generatedAt) : ""}
       ${type === "helpControl" ? renderPrintHelpControl(context, className, generatedAt) : ""}
@@ -6476,6 +6498,9 @@ function printViewCss(landscape = false) {
     .weekly-print-page .print-hero {
       margin-bottom: 14px;
     }
+    .print-page.weekly-print-sheet {
+      padding: 7mm;
+    }
     .weekly-print-days {
       display: grid;
       gap: 10px;
@@ -6547,21 +6572,64 @@ function printViewCss(landscape = false) {
       text-align: center;
     }
     .weekly-print-page.compact .print-hero {
-      padding: 12px 14px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
     }
     .weekly-print-page.compact .print-hero h1 {
-      font-size: 1.55rem;
+      font-size: 1.25rem;
+      line-height: 1.05;
+    }
+    .weekly-print-page.compact .print-hero p {
+      margin-bottom: 2px;
+      font-size: 0.72rem;
+    }
+    .weekly-print-page.compact .print-hero span {
+      margin-top: 3px;
+      font-size: 0.78rem;
+    }
+    .weekly-print-page.compact .weekly-print-days {
+      gap: 5px;
     }
     .weekly-print-page.compact .weekly-print-day {
-      padding: 9px 10px;
+      padding: 5px 7px;
+      border-radius: 9px;
+    }
+    .weekly-print-page.compact .weekly-print-day h2 {
+      margin-bottom: 3px;
+      font-size: 0.98rem;
     }
     .weekly-print-page.compact .weekly-print-subject {
-      grid-template-columns: 94px 1fr;
-      padding: 5px 0;
+      grid-template-columns: 66px 1fr;
+      gap: 5px;
+      padding: 3px 0;
+    }
+    .weekly-print-page.compact .weekly-print-subject h3 {
+      font-size: 0.76rem;
+      line-height: 1.15;
+    }
+    .weekly-print-page.compact .weekly-print-task {
+      gap: 4px;
+      margin-bottom: 2px;
+      font-size: 0.78rem;
+      line-height: 1.18;
+    }
+    .weekly-print-page.compact .weekly-print-cover {
+      display: none;
+    }
+    .weekly-print-page.compact .weekly-print-checkbox {
+      font-size: 0.9rem;
+    }
+    .weekly-print-page.compact .weekly-print-task span {
+      display: none;
+    }
+    .weekly-print-page.compact .weekly-print-note {
+      margin-top: 5px;
+      font-size: 0.68rem;
     }
     @page {
       size: A4 ${landscape ? "landscape" : "portrait"};
-      margin: 12mm;
+      margin: ${landscape ? "10mm" : "7mm"};
     }
     @media print {
       body {
@@ -7664,8 +7732,13 @@ function weeklyPlansForActiveClass() {
 function weeklyPlansForAnimal(animalId) {
   return weeklyPlansForActiveClass()
     .filter((plan) => weeklyPlanAppliesToAnimal(plan, animalId))
-    .filter((plan) => weeklyPlanIsCurrent(plan))
-    .sort((a, b) => String(a.validFrom || a.createdAt || "").localeCompare(String(b.validFrom || b.createdAt || "")));
+    .sort(sortChildWeeklyPlans);
+}
+
+function sortChildWeeklyPlans(a, b) {
+  const currentDiff = Number(weeklyPlanIsCurrent(b)) - Number(weeklyPlanIsCurrent(a));
+  if (currentDiff) return currentDiff;
+  return String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || ""));
 }
 
 function weeklyPlanAppliesToAnimal(plan, animalId) {
@@ -7684,14 +7757,15 @@ function weeklyPlanChildVisibility(plan) {
   if (!childViewSettings().showWeek) {
     return { visible: false, label: "Nicht sichtbar", detail: "„Meine Woche“ ist in der Kinderansicht ausgeschaltet." };
   }
-  if (!weeklyPlanIsCurrent(plan)) {
-    return { visible: false, label: "Nicht sichtbar", detail: "Der Zeitraum passt nicht zum heutigen Datum. Prüfe „Gültig von“ und „Gültig bis“." };
-  }
   const animals = animalsForClass(plan.classId || state.activeClassId).filter((animal) => animal.aktiv && weeklyPlanAppliesToAnimal(plan, animal.id));
   if (!animals.length) {
     return { visible: false, label: "Nicht sichtbar", detail: "Der Plan ist keinem aktiven Tier zugeordnet." };
   }
-  return { visible: true, label: `Für Kinder sichtbar (${animals.length})`, detail: "" };
+  return {
+    visible: true,
+    label: `${weeklyPlanIsCurrent(plan) ? "Aktuell" : "Veröffentlicht"} · für Kinder sichtbar (${animals.length})`,
+    detail: weeklyPlanIsCurrent(plan) ? "" : "Dieser Plan ist nicht der aktuelle Zeitraum, wird Kindern aber weiterhin angezeigt."
+  };
 }
 
 function weeklyPlanPeriodLabel(plan) {
