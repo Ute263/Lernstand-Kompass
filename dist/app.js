@@ -2101,23 +2101,25 @@ function renderTeacherMaterialPickerControl({ targetId, subject = "", selectedId
 }
 
 function openTeacherMaterialPicker(mode, subject = "", targetId = "", selectedId = "", classId = "", meta = {}) {
+  const baseSubject = subject || "Deutsch";
+  const automaticSchoolYear = effectiveActiveSchoolYear(classId || state.activeClassId, baseSubject, { animalId: meta?.animalId || "", groupId: meta?.groupId || "" });
   const catalog = workbookCatalogForPickerClass(classId || state.activeClassId, mode)
     .filter((item) => item.active !== false && (!subject || item.subject === subject))
     .sort(sortWorkbookCatalogItems);
   const defaultId = subject ? defaultWorkbookCatalogIdForSubject(subject, { animalId: meta?.animalId || "", groupId: meta?.groupId || "", classId: classId || state.activeClassId }) : "";
+  const automaticCatalog = catalog.filter((item) => materialMatchesSchoolYear(item, automaticSchoolYear));
   const selected = catalog.find((item) => item.id === selectedId)
     || catalog.find((item) => item.id === defaultId)
+    || automaticCatalog[0]
     || catalog[0]
     || null;
-  const effectiveSchoolYear = selected?.schoolYear
-    || effectiveActiveSchoolYear(classId || state.activeClassId, subject || selected?.subject || "Deutsch", { animalId: meta?.animalId || "", groupId: meta?.groupId || "" });
   teacherMaterialPicker = normalizeTeacherMaterialPicker({
     mode,
     targetId,
     classId: classId || state.activeClassId,
     subject: subject || selected?.subject || "Deutsch",
     allowSubjectChange: !subject,
-    schoolYear: effectiveSchoolYear,
+    schoolYear: automaticSchoolYear || selected?.schoolYear || "",
     showAllYears: false,
     workbook: selected?.workbook || "",
     section: selected ? materialPickerSection(selected) : "",
@@ -2266,6 +2268,9 @@ function updateTeacherMaterialPicker(field, value) {
     next.section = "";
     next.topic = "";
     next.itemId = "";
+    if (value === false || value === "false") {
+      next.schoolYear = effectiveActiveSchoolYear(next.classId || state.activeClassId, next.subject || "Deutsch", next.meta || {});
+    }
   } else if (field === "workbook") {
     next.section = "";
     next.topic = "";
@@ -2304,45 +2309,49 @@ function renderTeacherMaterialPicker() {
   const topicItems = sectionItems.filter((item) => materialPickerTopic(item) === request.topic);
   const selected = topicItems.find((item) => item.id === request.itemId) || null;
   const pageStepLabel = request.mode === "weekly" ? "6. Seite" : "6. Seite / Seitenbereich";
+  const automaticSchoolYear = effectiveActiveSchoolYear(request.classId || state.activeClassId, request.subject || "Deutsch", request.meta || {});
+  const schoolYearStep = request.showAllYears ? 1 : 0;
   return `
     <div class="training-modal-overlay" id="teacherMaterialPickerOverlay" role="dialog" aria-modal="true" aria-labelledby="teacherMaterialPickerTitle">
       <section class="training-modal-card teacher-material-picker-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTeacherMaterialPicker()">×</button>
         <h2 id="teacherMaterialPickerTitle">Material auswählen</h2>
-        <p class="message">Wähle Schritt für Schritt: zuerst das Schuljahr, dann Fach, Material, Kapitel und ${request.mode === "weekly" ? "Seite" : "Seitenbereich"}. Über „Alle Materialien anzeigen“ bleibt bewusst auch anderes Material erreichbar.</p>
+        <p class="message">Automatisch aktiv: ${escapeHtml(schoolYearLabel(automaticSchoolYear))}. Wähle Fach, Material, Kapitel und ${request.mode === "weekly" ? "Seite" : "Seitenbereich"}. Ein anderes Schuljahr erscheint nur über die bewusste Zusatzwahl.</p>
         <div class="teacher-material-picker-steps">
-          <label class="field"><strong>1. Schuljahr</strong>
-            <select class="select-input" onchange="updateTeacherMaterialPicker('schoolYear', this.value)" ${request.showAllYears ? "disabled" : ""}>
-              ${schoolYearsForSelect(schoolYears).map((year) => `<option value="${escapeAttribute(year)}" ${request.schoolYear === year ? "selected" : ""}>${escapeHtml(schoolYearLabel(year))}</option>`).join("")}
-            </select>
-          </label>
-          <label class="field"><strong>2. Fach</strong>
+          ${request.showAllYears ? `
+            <label class="field"><strong>1. Schuljahr bewusst auswählen</strong>
+              <select class="select-input" onchange="updateTeacherMaterialPicker('schoolYear', this.value)">
+                ${schoolYearsForSelect(schoolYears).map((year) => `<option value="${escapeAttribute(year)}" ${request.schoolYear === year ? "selected" : ""}>${escapeHtml(schoolYearLabel(year))}</option>`).join("")}
+              </select>
+            </label>
+          ` : ""}
+          <label class="field"><strong>${schoolYearStep + 1}. Fach</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('subject', this.value)" ${request.allowSubjectChange ? "" : "disabled"}>
               ${SUBJECTS.map((subject) => `<option value="${subject}" ${request.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>3. Heft / Material</strong>
+          <label class="field"><strong>${schoolYearStep + 2}. Heft / Material</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('workbook', this.value)">
               ${workbooks.map((workbook) => `<option value="${escapeAttribute(workbook)}" ${request.workbook === workbook ? "selected" : ""}>${escapeHtml(workbook)}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>4. Bereich / Teil</strong>
+          <label class="field"><strong>${schoolYearStep + 3}. Bereich / Teil</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('section', this.value)">
               ${sections.map((section) => `<option value="${escapeAttribute(section)}" ${request.section === section ? "selected" : ""}>${escapeHtml(section)}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>5. Oberthema / Kapitel</strong>
+          <label class="field"><strong>${schoolYearStep + 4}. Oberthema / Kapitel</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('topic', this.value)">
               ${topics.map((topic) => `<option value="${escapeAttribute(topic)}" ${request.topic === topic ? "selected" : ""}>${escapeHtml(topic)}</option>`).join("")}
             </select>
           </label>
-          <label class="field"><strong>${escapeHtml(pageStepLabel)}</strong>
+          <label class="field"><strong>${schoolYearStep + 5}. ${escapeHtml(pageStepLabel.replace(/^\d+\.\s*/, ""))}</strong>
             <select class="select-input" onchange="updateTeacherMaterialPicker('itemId', this.value)">
               ${topicItems.map((item) => `<option value="${escapeAttribute(item.id)}" ${request.itemId === item.id ? "selected" : ""}>${escapeHtml(workbookCatalogPickerPageLabel(item, request.topic))}</option>`).join("")}
             </select>
           </label>
         </div>
-        <button class="secondary small-button" type="button" onclick="updateTeacherMaterialPicker('showAllYears', ${request.showAllYears ? "false" : "true"})">${request.showAllYears ? "Nur passendes Schuljahr anzeigen" : "Alle Materialien anzeigen"}</button>
+        <button class="secondary small-button" type="button" onclick="updateTeacherMaterialPicker('showAllYears', ${request.showAllYears ? "false" : "true"})">${request.showAllYears ? "Zurück zum Klassen-Schuljahr" : "Anderes Schuljahr anzeigen"}</button>
         ${selected ? `
           <div class="material-picker-summary">
             <strong>Auswahl</strong>
@@ -3326,18 +3335,26 @@ function renderWeeklyPlanEditor(plan) {
 function renderWeeklyPlannerTable(days, scope, animalId = "") {
   const prefix = weeklyInputPrefix(scope, animalId);
   return `
-    <div class="weekly-grid-editor weekly-simple-grid">
-      <div class="weekly-grid-head">Tag</div>
-      <div class="weekly-grid-head">Deutsch</div>
-      <div class="weekly-grid-head">Mathe</div>
-      <div class="weekly-grid-head">Extra</div>
+    <div class="weekly-day-editor-list">
       ${WEEK_DAYS.map((day, index) => {
         const dayData = days?.[day] || {};
         return `
-          <strong>${escapeHtml(day)}</strong>
-          ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId, dayData.deutschTaskNumber || "")}
-          ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId, dayData.matheTaskNumber || "")}
-          <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
+          <section class="weekly-day-editor-card">
+            <h4>${escapeHtml(day)}</h4>
+            <div class="weekly-day-editor-fields">
+              <div class="weekly-editor-subject">
+                <strong>Deutsch</strong>
+                ${renderWeeklyPickCell("Deutsch", day, index, normalizeIdArray(dayData.deutschIds || dayData.deutschId), `${prefix}Deutsch${index}`, scope, animalId, dayData.deutschTaskNumber || "")}
+              </div>
+              <div class="weekly-editor-subject">
+                <strong>Mathe</strong>
+                ${renderWeeklyPickCell("Mathe", day, index, normalizeIdArray(dayData.matheIds || dayData.matheId), `${prefix}Mathe${index}`, scope, animalId, dayData.matheTaskNumber || "")}
+              </div>
+              <label class="field weekly-editor-extra"><strong>Extra</strong>
+                <input class="text-input" id="${escapeAttribute(`${prefix}Free${index}`)}" value="${escapeAttribute(dayData.freeText || "")}" placeholder="z. B. Lies 10 Minuten.">
+              </label>
+            </div>
+          </section>
         `;
       }).join("")}
     </div>
@@ -3357,9 +3374,11 @@ function renderWeeklyPickCell(subject, day, index, selectedIds, inputId, scope, 
       <label class="weekly-task-number-label">Nr.
         <input class="text-input weekly-task-number-input" id="${escapeAttribute(taskNumberId)}" value="${escapeAttribute(taskNumber)}" placeholder="z. B. 1 + 3">
       </label>
-      ${items.length ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${escapeAttribute(items[0].id)}')">Info</button>` : ""}
-      <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
-      ${items.length ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
+      <div class="weekly-pick-actions">
+        <button class="small-button" type="button" onclick="openWeeklyCatalogPicker('${subject}', '${escapeAttribute(day)}', '${scope}', '${escapeAttribute(animalId)}', ${index})">+ auswählen</button>
+        ${items.length ? `<button class="link-button" type="button" onclick="showWorkbookCatalogInfo('${escapeAttribute(items[0].id)}')">Info</button>` : ""}
+        ${items.length ? `<button class="small-button" type="button" onclick="clearWeeklyPick('${escapeAttribute(inputId)}')">leeren</button>` : ""}
+      </div>
     </div>
   `;
 }
