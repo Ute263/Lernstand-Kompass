@@ -551,15 +551,8 @@ const ANALOG_TRAINING_TASKS = [
   { code: "F-15", subject: "Forscher", subcategory: "Forscher", title: "Sinne entdecken", text: "Schreibe zu jedem Sinn ein passendes Beispiel.", symbol: "👁️", researchQuestion: "Wie erforsche ich die Welt?", steps: ["Schreibe die fünf Sinne auf.", "Finde zu jedem Sinn ein Beispiel.", "Notiere oder male dein Beispiel.", "Überlege, welcher Sinn heute besonders wichtig ist."] }
 ];
 
-const DEFAULT_DEUTSCH_ENTDECKER_TASKS = analogTasksFor("Deutsch-Entdecker");
-const DEFAULT_MATHE_ENTDECKER_TASKS = analogTasksFor("Mathe-Entdecker");
-const DEFAULT_FORSCHER_TASKS = analogTasksFor("Forscher");
-
-function analogTasksFor(subcategory) {
-  return ANALOG_TRAINING_TASKS
-    .filter((task) => task.subcategory === subcategory)
-    .map(trainingTaskFromTemplate);
-}
+const ENTDECKER_SUBCATEGORY = "Entdeckeraufgaben";
+const DEFAULT_ENTDECKER_TASKS = ANALOG_TRAINING_TASKS.map(trainingTaskFromTemplate);
 
 function trainingTaskFromTemplate(template) {
   const base = trainingTask(
@@ -582,9 +575,7 @@ function trainingTaskFromTemplate(template) {
 
 const DEFAULT_TRAINING_TASKS = [
   trainingTask("S-01", "Schule", "Schule", "Schule", "Hier kommen später Trainingsaufgaben für die Schule hinzu.", ["Dieser Bereich ist vorbereitet.", "Hier können später Aufgaben für die Schule ergänzt werden."], ["Noch keine Schul-Trainingsaufgaben vorhanden."], ["Lerntagebuch", "Stift"], { area: "Schule", symbol: "🏫", active: false }),
-  ...DEFAULT_DEUTSCH_ENTDECKER_TASKS,
-  ...DEFAULT_MATHE_ENTDECKER_TASKS,
-  ...DEFAULT_FORSCHER_TASKS
+  ...DEFAULT_ENTDECKER_TASKS
 ];
 
 function trainingTask(code, subject, subcategory, title, text, steps, tips = [], material = ["Lerntagebuch", "Stift"], overrides = {}) {
@@ -592,7 +583,7 @@ function trainingTask(code, subject, subcategory, title, text, steps, tips = [],
     id: `training-${code}`,
     area: overrides.area || "OGS/Zuhause",
     trainingArea: overrides.area || "OGS/Zuhause",
-    subcategory,
+    subcategory: normalizeTrainingSubcategory(subcategory, code),
     subject,
     code,
     taskCode: code,
@@ -1301,6 +1292,7 @@ function normalizeTrainingTask(item) {
   const title = item.title || item.titel || code || "Trainingsaufgabe";
   const text = item.text || item.shortText || item.taskText || item.auftrag || "";
   const subject = item.subject || item.fach || defaultTrainingSubject(code);
+  const subcategory = normalizeTrainingSubcategory(item.subcategory || item.unterbereich, code);
   const tips = normalizeStringList(item.tips || item.tip, defaultTrainingTip(code));
   const material = normalizeStringList(item.material || item.materialNeeded, defaultTrainingMaterial(code));
   return {
@@ -1308,7 +1300,7 @@ function normalizeTrainingTask(item) {
     id: item.id || `training-${code}`,
     area: item.area || item.trainingArea || "OGS/Zuhause",
     trainingArea: item.trainingArea || item.area || "OGS/Zuhause",
-    subcategory: item.subcategory || item.unterbereich || defaultTrainingSubcategory(code),
+    subcategory,
     subject,
     code,
     taskCode: item.taskCode || code,
@@ -1336,6 +1328,7 @@ function normalizeTrainingTask(item) {
 }
 
 function normalizeTrainingCompletion(item, fallbackClassId) {
+  const taskCode = item.taskCode || item.code || "";
   return {
     ...item,
     id: item.id || makeId(),
@@ -1343,9 +1336,9 @@ function normalizeTrainingCompletion(item, fallbackClassId) {
     animalId: item.animalId || item.tierID || "",
     tierNameSnapshot: item.tierNameSnapshot || "",
     tierEmojiSnapshot: item.tierEmojiSnapshot || "",
-    taskCode: item.taskCode || item.code || "",
+    taskCode,
     trainingArea: item.trainingArea || item.area || "OGS/Zuhause",
-    subcategory: item.subcategory || item.unterbereich || defaultTrainingSubcategory(item.taskCode || item.code || ""),
+    subcategory: normalizeTrainingSubcategory(item.subcategory || item.unterbereich, taskCode),
     subject: item.subject || item.fach || "",
     taskTitle: item.taskTitle || item.title || "",
     taskText: item.taskText || item.text || "",
@@ -1356,13 +1349,14 @@ function normalizeTrainingCompletion(item, fallbackClassId) {
 }
 
 function normalizeTrainingHistory(item, fallbackClassId) {
+  const taskCode = item.taskCode || item.code || "";
   return {
     ...item,
     id: item.id || makeId(),
     classId: item.classId || item.klasseId || fallbackClassId,
     animalId: item.animalId || item.tierID || "",
-    taskCode: item.taskCode || item.code || "",
-    subcategory: item.subcategory || item.unterbereich || defaultTrainingSubcategory(item.taskCode || item.code || ""),
+    taskCode,
+    subcategory: normalizeTrainingSubcategory(item.subcategory || item.unterbereich, taskCode),
     oldStatus: item.oldStatus || item.urspruenglicherStatus || "",
     newStatus: item.newStatus || item.neuerStatus || "",
     changedAt: item.changedAt || item.resetAt || item.datumUhrzeit || nowIso(),
@@ -1486,10 +1480,14 @@ function defaultTrainingSubject(code) {
 }
 
 function defaultTrainingSubcategory(code) {
-  if (String(code).startsWith("M-")) return "Mathe-Entdecker";
-  if (String(code).startsWith("F-")) return "Forscher";
   if (String(code).startsWith("S-")) return "Schule";
-  return "Deutsch-Entdecker";
+  return ENTDECKER_SUBCATEGORY;
+}
+
+function normalizeTrainingSubcategory(value, code = "") {
+  if (String(code).startsWith("S-") || value === "Schule") return "Schule";
+  if (["Deutsch-Entdecker", "Mathe-Entdecker", "Forscher", ENTDECKER_SUBCATEGORY].includes(value)) return ENTDECKER_SUBCATEGORY;
+  return value || defaultTrainingSubcategory(code);
 }
 
 function formatInputDate(date) {
