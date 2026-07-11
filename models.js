@@ -1205,8 +1205,10 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
     days[day] = {
       deutschId: deutschIds[0] || "",
       deutschIds,
+      deutschTaskNumber: normalizeTaskNumberText(source.deutschTaskNumber || source.deutschNumbers || source.deutschNr || ""),
       matheId: matheIds[0] || "",
       matheIds,
+      matheTaskNumber: normalizeTaskNumberText(source.matheTaskNumber || source.matheNumbers || source.matheNr || ""),
       freeText: source.freeText || source.frei || source.extra || ""
     };
   });
@@ -1234,6 +1236,13 @@ function normalizeIdList(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
   if (typeof value === "string") return value.split(",").map((item) => item.trim()).filter(Boolean);
   return value ? [String(value)] : [];
+}
+
+function normalizeTaskNumberText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*([+,;])\s*/g, " $1 ")
+    .trim();
 }
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {
