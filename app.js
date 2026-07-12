@@ -3,7 +3,7 @@ const app = document.querySelector("#app");
 
 let state = emptyState();
 let screen = "loading";
-let teacherTab = "overview";
+let teacherTab = "teacherHome";
 let childDraft = {};
 let loginError = "";
 let globalMessage = "";
@@ -43,20 +43,20 @@ let hasUnsavedChanges = false;
 
 const TEACHER_GROUPS = [
   {
-    id: "children",
-    label: "Kinder",
-    sections: [
-      ["overview", "Tierübersicht"],
-      ["childrenRegistry", "Tiere verwalten"],
-      ["classes", "Klassen & Gruppen"],
-      ["animalMapping", "Tier-Zuordnung"],
-      ["qrCards", "Tier-QR"]
-    ]
+    id: "teacherHomeGroup",
+    label: "Startseite",
+    sections: [["teacherHome", "Startseite"]]
+  },
+  {
+    id: "weeklyPlansGroup",
+    label: "Wochenplan",
+    sections: [["weeklyPlans", "Wochenplan erstellen"]]
   },
   {
     id: "learning",
-    label: "Lernstand & Entwicklung",
+    label: "Lernübersicht",
     sections: [
+      ["overview", "Klassenübersicht"],
       ["progress", "Fortschritt pro Tier"],
       ["pendingReports", "Von Kindern gemeldet"],
       ["activeMaterials", "Aktives Arbeitsmaterial"],
@@ -69,23 +69,28 @@ const TEACHER_GROUPS = [
     ]
   },
   {
-    id: "weeklyPlansGroup",
-    label: "Wochenplan",
-    sections: [["weeklyPlans", "Wochenplan"]]
-  },
-  {
     id: "trainingGroup",
     label: "Trainingszeit",
     sections: [["training", "Trainingszeit"]]
   },
   {
     id: "assessmentGroup",
-    label: "Lernzielkontrollen",
-    sections: [["assessments", "Lernzielkontrollen"]]
+    label: "Lernzielkontrolle",
+    sections: [["assessments", "Lernzielkontrolle"]]
+  },
+  {
+    id: "children",
+    label: "Klassenverwaltung",
+    sections: [
+      ["childrenRegistry", "Tiere verwalten"],
+      ["classes", "Klassen & Gruppen"],
+      ["animalMapping", "Namen zuordnen"],
+      ["qrCards", "QR-Zugänge"]
+    ]
   },
   {
     id: "materialsGroup",
-    label: "Druck & Material",
+    label: "Druck und Material",
     sections: [
       ["materialPrint", "Material drucken"],
       ["printPdf", "PDF & Druck"],
@@ -94,7 +99,7 @@ const TEACHER_GROUPS = [
   },
   {
     id: "settingsGroup",
-    label: "Geräte, Backup & Einstellungen",
+    label: "Backup und Einstellungen",
     sections: [
       ["backup", "Backup / Wiederherstellung"],
       ["childSettings", "Kinderansicht"],
@@ -107,13 +112,13 @@ const TEACHER_GROUPS = [
 
 const STICKER_SHEETS = [
   {
-    title: "Stickerbogen 1 – Deutsch und Mathe 1",
-    description: "D-01 bis D-15 und M-01 bis M-09",
+    title: "Stickerbogen 1 – Entdeckeraufgaben 1–24",
+    description: "E-01 bis E-24",
     href: "materials/stickerbogen-1-deutsch-mathe-1.png"
   },
   {
-    title: "Stickerbogen 2 – Mathe 2 und Forscher",
-    description: "M-10 bis M-15 und F-01 bis F-15",
+    title: "Stickerbogen 2 – Entdeckeraufgaben 25–48",
+    description: "E-25 bis E-48",
     href: "materials/stickerbogen-2-mathe-forscher.png"
   }
 ];
@@ -129,6 +134,7 @@ let trainingFilters = {
 let pendingTrainingTaskCode = "";
 let weeklyPlanEditorId = "";
 let weeklyPlanSection = "current";
+let weeklyPlanFocusAnimalId = "";
 let weeklyPickRequest = null;
 let weeklyOverrideAnimalId = "";
 let weeklyPlanDraft = null;
@@ -608,34 +614,26 @@ function renderTrainingArea() {
   const subcategory = childDraft.trainingSubcategory || "";
   const tasks = trainingTasksForArea(area)
     .filter((task) => !subcategory || task.subcategory === subcategory);
-  if (area === "Schule") {
-    return `
-      <section class="step-wrap">
-        ${renderBackButton("childTraining")}
-        <h2 class="child-title">Trainingszeit Schule</h2>
-        <div class="empty">Hier kommen später Trainingsaufgaben für die Schule hinzu.</div>
-      </section>
-    `;
-  }
+  const title = area === "Schule" ? "Trainingszeit Schule" : "Entdeckeraufgaben";
   return `
     <section class="step-wrap">
       ${renderBackButton("childTraining")}
-      <h2 class="child-title">Entdeckeraufgaben</h2>
+      <h2 class="child-title">${escapeHtml(title)}</h2>
       <div class="training-task-grid">
         ${tasks.map((task) => {
-          const completed = animal ? isTrainingTaskCompleted(animal.id, task.code) : false;
+          const availability = animal ? trainingTaskAvailability(animal.id, task) : { locked: false, completed: false, actionLabel: "Aufgabe ansehen", statusLabel: task.subject || "" };
           return `
-            <button class="training-task-card ${completed ? "completed" : ""}" type="button" ${completed ? "disabled" : `onclick="openTrainingTaskModal('${escapeAttribute(task.code)}')"`}>
+            <button class="training-task-card ${availability.locked ? "completed" : ""}" type="button" ${availability.locked ? "disabled" : `onclick="openTrainingTaskModal('${escapeAttribute(task.code)}')"`}>
               <span class="training-task-symbol">${escapeHtml(task.symbol || "⭐")}</span>
-              <strong>${escapeHtml(task.code)}</strong>
+              <strong>${escapeHtml(task.title || task.code)}</strong>
               <span>${escapeHtml(task.shortText || task.text || task.title)}</span>
-              <small>${escapeHtml(task.subject)}</small>
-              <em>${completed ? "bearbeitet" : "Aufgabe ansehen"}</em>
+              <small>${escapeHtml(availability.statusLabel || [task.code, task.subject].filter(Boolean).join(" · "))}</small>
+              <em>${escapeHtml(availability.actionLabel)}</em>
             </button>
           `;
         }).join("")}
       </div>
-      ${tasks.length ? "" : `<div class="empty">Keine Entdeckeraufgaben vorhanden.</div>`}
+      ${tasks.length ? "" : `<div class="empty">Keine Trainingsaufgaben vorhanden.</div>`}
       ${renderTrainingTaskModal()}
     </section>
   `;
@@ -654,7 +652,8 @@ function renderTrainingTaskModal() {
       <section class="training-modal-card">
         <button class="modal-close" type="button" aria-label="Schließen" onclick="closeTrainingTaskModal()">×</button>
         <p class="task-code">${escapeHtml(task.code)}</p>
-        <h2 id="trainingModalTitle">${escapeHtml(task.text)}</h2>
+        <h2 id="trainingModalTitle">${escapeHtml(task.title || task.text)}</h2>
+        ${task.text && task.text !== task.title ? `<p class="message">${escapeHtml(task.text)}</p>` : ""}
         ${task.researchQuestion ? `
           <div class="modal-task-section">
             <strong>Forscherfrage:</strong>
@@ -696,7 +695,7 @@ async function startTrainingTask(taskCode) {
 async function completeTrainingTask(taskCode) {
   const animal = selectedAnimal();
   const task = (state.trainingTasks || []).find((item) => item.code === taskCode && item.area === (childDraft.trainingArea || "OGS/Zuhause"));
-  if (!animal || !task || isTrainingTaskCompleted(animal.id, task.code)) return;
+  if (!animal || !task || trainingTaskAvailability(animal.id, task).locked) return;
   const timestamp = nowIso();
   const completion = {
     id: makeId(),
@@ -1315,7 +1314,7 @@ async function checkPin(event) {
   event.preventDefault();
   const pin = document.querySelector("#pinInput").value.trim();
   if ((await hashSecret(pin, "pin")) === state.pinHash) {
-    teacherTab = "overview";
+    teacherTab = "teacherHome";
     loginError = "";
     screen = "teacher";
   } else {
@@ -1562,6 +1561,8 @@ function setTeacherTab(tab) {
 function renderTeacherTab() {
   const group = teacherGroupForTab(teacherTab);
   const activeSection = group.sections.some(([id]) => id === teacherTab) ? teacherTab : group.sections[0][0];
+  if (group.id === "teacherHomeGroup") return renderTeacherHome();
+  if (group.sections.length === 1) return renderTeacherSection(activeSection);
   return `
     <section class="panel teacher-group-panel">
       <h2>${escapeHtml(group.label)}</h2>
@@ -1576,6 +1577,7 @@ function renderTeacherTab() {
 }
 
 function renderTeacherSection(tab) {
+  if (tab === "teacherHome") return renderTeacherHome();
   if (tab === "overview") return renderOverview();
   if (tab === "progress") return renderProgress();
   if (tab === "assessments") return renderAssessments();
@@ -1606,6 +1608,38 @@ function renderTeacherSection(tab) {
   return "";
 }
 
+function renderTeacherHome() {
+  const activeAnimals = animalsForActiveClass().filter((animal) => animal.aktiv).length;
+  const currentPlans = weeklyPlansForActiveClass().filter((plan) => weeklyPlanIsCurrent(plan)).length;
+  const pendingReports = (state.childWorkbookReports || []).filter((report) => report.classId === state.activeClassId && report.status === "offen").length;
+  const openWeeklyStatuses = (state.weeklyPlanStatuses || []).filter((item) => item.classId === state.activeClassId && item.status !== "fertig").length;
+  const cards = [
+    { title: "Startseite", text: "Alle Bereiche im Überblick", icon: "🏠", action: "setTeacherGroup('teacherHomeGroup')" },
+    { title: "Wochenplan", text: currentPlans ? `${currentPlans} aktueller Plan · ${openWeeklyStatuses} offene Markierungen` : "Klassenplan und individuelle Pläne erstellen", icon: "🗓️", action: "setTeacherGroup('weeklyPlansGroup')" },
+    { title: "Lernübersicht", text: pendingReports ? `${pendingReports} Kindmeldungen warten` : "Fortschritt, Lernstände und Bearbeitungen ansehen", icon: "📈", action: "setTeacherGroup('learning')" },
+    { title: "Trainingszeit", text: "Schultraining und Entdeckeraufgaben im Blick", icon: "⭐", action: "setTeacherGroup('trainingGroup')" },
+    { title: "Lernzielkontrolle", text: "Tests anlegen und Ergebnisse erfassen", icon: "✅", action: "setTeacherGroup('assessmentGroup')" },
+    { title: "Klassenverwaltung", text: `${activeAnimals} aktive Tiere · Gruppen, Namen und QR-Zugänge`, icon: "🐾", action: "setTeacherGroup('children')" },
+    { title: "Druck und Material", text: "Wochenpläne, QR-Karten, Material und Exporte", icon: "🖨️", action: "setTeacherGroup('materialsGroup')" },
+    { title: "Backup und Einstellungen", text: "Sichern, zusammenführen und Kinderansicht steuern", icon: "⚙️", action: "setTeacherGroup('settingsGroup')" }
+  ];
+  return `
+    <section class="panel teacher-home-panel">
+      <h2>Startseite</h2>
+      <p class="message">Wähle aus, womit du arbeiten möchtest. Die Kacheln führen direkt in den passenden Bereich.</p>
+      <div class="teacher-home-grid">
+        ${cards.map((card) => `
+          <button class="teacher-home-card" type="button" onclick="${card.action}">
+            <span>${escapeHtml(card.icon)}</span>
+            <strong>${escapeHtml(card.title)}</strong>
+            <small>${escapeHtml(card.text)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderOverview() {
   const rows = animalsForActiveClass().filter((animal) => animal.aktiv).map((animal) => {
     const deutsch = latestEntry(animal.id, "Deutsch");
@@ -1628,7 +1662,7 @@ function renderOverview() {
 
   return `
     <section class="panel">
-      <h2>Übersicht</h2>
+      <h2>Klassenübersicht</h2>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Tier</th><th>Deutsch: letzter Stand</th><th>Mathe: letzter Stand</th><th>letzter Eintrag</th><th>offener Status</th></tr></thead>
@@ -1647,7 +1681,7 @@ function renderProgress() {
   if (selectedAnimal && progressFilters.animalId !== selectedAnimal.id) progressFilters.animalId = selectedAnimal.id;
   return `
     <section class="panel">
-      <h2>Lernstand & Entwicklung</h2>
+      <h2>Fortschritt pro Tier</h2>
       <p class="message">Wähle zuerst ein Tier. Wochenplan, Zuweisungen, bestätigte Kindmeldungen und Direkteingaben werden darunter gemeinsam angezeigt.</p>
       <form class="filters" onsubmit="event.preventDefault();">
         <label class="field">Klasse
@@ -2934,7 +2968,8 @@ function renderAssessments() {
 
 function renderTrainingOverview() {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
-  const tasks = (state.trainingTasks || []).filter((task) => task.active !== false && task.area !== "Schule");
+  const tasks = (state.trainingTasks || []).filter((task) => task.active !== false);
+  const subjects = [...new Set(tasks.map((task) => task.subject).filter(Boolean))];
   const subcategories = [...new Set(tasks.map((task) => task.subcategory).filter(Boolean))];
   const rows = buildTrainingRowsForClass(state.activeClassId)
     .filter((row) => !trainingFilters.animalId || row.animalId === trainingFilters.animalId)
@@ -2962,7 +2997,7 @@ function renderTrainingOverview() {
         <label class="field">Fach
           <select class="select-input" onchange="setTrainingFilter('subject', this.value)">
             <option value="">alle Aufgaben</option>
-            ${["Entdecker"].map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
+            ${subjects.map((subject) => `<option value="${subject}" ${trainingFilters.subject === subject ? "selected" : ""}>${subject}</option>`).join("")}
           </select>
         </label>
         <label class="field">Bereich
@@ -3027,11 +3062,28 @@ function renderWeeklyPlans() {
   const editorPlan = weeklyPlanEditorId ? plans.find((plan) => plan.id === weeklyPlanEditorId) : null;
   const section = weeklyPlanSection || "current";
   const childWeekVisible = childViewSettings().showWeek;
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const focusAnimal = animals.find((animal) => animal.id === weeklyPlanFocusAnimalId) || null;
   return `
     <section class="panel">
       <h2>Wochenpläne</h2>
       <p class="message">Der Wochenplan ist nur für Deutsch- und Mathe-Arbeitshefte/Lehrwerke sowie freie Aufgaben gedacht. Die Entdeckeraufgaben bleiben ein eigener Bereich.</p>
       ${childWeekVisible ? "" : `<p class="message error">Hinweis: „Meine Woche“ ist in der Kinderansicht gerade ausgeblendet. Kinder können gespeicherte Wochenpläne erst sehen, wenn diese Einstellung aktiv ist.</p>`}
+      <div class="weekly-toolbar">
+        <label class="field">Wochenplan-Bereich
+          <select class="select-input" onchange="setWeeklyPlanFocus(this.value)">
+            <option value="" ${focusAnimal ? "" : "selected"}>Klassenwochenplan</option>
+            ${animals.map((animal) => `<option value="${escapeAttribute(animal.id)}" ${focusAnimal?.id === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">Wochenplan öffnen
+          <select class="select-input" onchange="openWeeklyPlanFromDropdown(this.value)">
+            <option value="">Plan auswählen</option>
+            ${plans.map((plan) => `<option value="${escapeAttribute(plan.id)}" ${weeklyPlanEditorId === plan.id ? "selected" : ""}>${escapeHtml(weeklyPlanSelectLabel(plan))}</option>`).join("")}
+          </select>
+        </label>
+        <button class="primary weekly-new-button" type="button" onclick="newWeeklyPlan()">+ Neuer Wochenplan</button>
+      </div>
       <div class="section-tabs weekly-section-tabs">
         ${[
           ["current", "Aktuelle Woche"],
@@ -3041,8 +3093,8 @@ function renderWeeklyPlans() {
         ].map(([id, label]) => `<button class="small-button ${section === id ? "active" : ""}" type="button" onclick="setWeeklyPlanSection('${id}')">${label}</button>`).join("")}
       </div>
     </section>
-    ${section === "current" ? renderWeeklyCurrent(plans) : ""}
-    ${section === "create" ? renderWeeklyPlanEditor(editorPlan) : ""}
+    ${section === "current" ? renderWeeklyCurrent(plans, focusAnimal) : ""}
+    ${section === "create" ? renderWeeklyPlanEditor(editorPlan, focusAnimal) : ""}
     ${section === "templates" ? renderWeeklyTemplates(plans) : ""}
     ${section === "catalog" ? renderWorkbookCatalogManager() : ""}
     ${renderWeeklyCatalogPicker()}
@@ -3050,20 +3102,35 @@ function renderWeeklyPlans() {
   `;
 }
 
+function openWeeklyPlanFromDropdown(planId) {
+  if (!planId) return;
+  editWeeklyPlan(planId);
+}
+
+function setWeeklyPlanFocus(animalId) {
+  if (weeklyPlanSection === "create") weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  weeklyPlanFocusAnimalId = animalId || "";
+  weeklyOverrideAnimalId = animalId || weeklyOverrideAnimalId;
+  render();
+}
+
 function setWeeklyPlanSection(section) {
+  if (weeklyPlanSection === "create") weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
   weeklyPlanSection = section;
   if (section === "create" && !weeklyPlanEditorId) weeklyPlanEditorId = "";
   render();
 }
 
-function renderWeeklyCurrent(plans) {
-  const currentPlans = plans.filter((plan) => weeklyPlanIsCurrent(plan));
+function renderWeeklyCurrent(plans, focusAnimal = null) {
+  const visiblePlans = focusAnimal ? plans.filter((plan) => weeklyPlanAppliesToAnimal(plan, focusAnimal.id)) : plans;
+  const currentPlans = visiblePlans.filter((plan) => weeklyPlanIsCurrent(plan));
+  const title = focusAnimal ? `Aktuelle Woche für ${focusAnimal.tierEmoji} ${focusAnimal.tierName}` : "Aktuelle Woche";
   return `
     <section class="panel">
-      <h2>Aktuelle Woche</h2>
+      <h2>${escapeHtml(title)}</h2>
       ${currentPlans.length ? currentPlans.map((plan) => renderWeeklyPlanSummaryCard(plan)).join("") : `<div class="empty">Für diese Woche ist noch kein Wochenplan aktiv.</div>`}
     </section>
-    ${renderWeeklyPlanStatusOverview(currentPlans.length ? currentPlans : plans)}
+    ${renderWeeklyPlanStatusOverview(currentPlans.length ? currentPlans : visiblePlans)}
   `;
 }
 
@@ -3089,7 +3156,7 @@ function renderWeeklyPlanSummaryCard(plan) {
         <h3>${escapeHtml(plan.title)}</h3>
         ${isOpenInEditor ? `<span class="weekly-editor-badge">Gerade im Editor geöffnet</span>` : ""}
         <span class="weekly-visibility-badge ${visibility.visible ? "visible" : "hidden-state"}">${escapeHtml(visibility.label)}</span>
-        <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "Standard für alle Tiere" : `${plan.animalIds.length} ausgewählte Tiere`} · Abweichungen: ${Object.keys(plan.overrides || {}).length}</p>
+        <p class="message">${escapeHtml(weeklyPlanPeriodLabel(plan))} · ${plan.assignmentMode === "all" ? "Standard für die ganze Klasse" : `${plan.animalIds.length} ausgewählte Tiere`} · Abweichungen: ${Object.keys(plan.overrides || {}).length}</p>
         ${visibility.detail ? `<p class="message">${escapeHtml(visibility.detail)}</p>` : ""}
         ${plan.note ? `<p class="message">${escapeHtml(plan.note)}</p>` : ""}
       </div>
@@ -3231,7 +3298,7 @@ function renderWorkbookAccordion(workbook, items) {
   `;
 }
 
-function renderWeeklyPlanEditor(plan) {
+function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const draft = weeklyPlanDraft || plan || {};
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
   const draftId = draft.id || plan?.id || "";
@@ -3246,8 +3313,9 @@ function renderWeeklyPlanEditor(plan) {
   const selectedAnimals = new Set(draft.animalIds || []);
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   const groups = (state.animalGroups || []).filter((group) => group.classId === state.activeClassId);
-  const overrideAnimal = animals.find((animal) => animal.id === weeklyOverrideAnimalId) || animals[0] || null;
+  const overrideAnimal = focusAnimal || animals.find((animal) => animal.id === weeklyOverrideAnimalId) || animals[0] || null;
   const visibility = weeklyPlanChildVisibility(draft);
+  if (focusAnimal) weeklyOverrideAnimalId = focusAnimal.id;
   if (!weeklyOverrideAnimalId && overrideAnimal) weeklyOverrideAnimalId = overrideAnimal.id;
   return `
     <section class="panel">
@@ -3282,8 +3350,17 @@ function renderWeeklyPlanEditor(plan) {
             <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
           </label>
         </div>
-        <h3>Standard-Wochenplan für alle</h3>
-        ${renderWeeklyPlannerTable(draft.days || {}, "standard")}
+        ${focusAnimal ? `
+          <div class="weekly-focus-note">
+            <h3>Individueller Wochenplan für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</h3>
+            <p class="message">Trage hier nur Aufgaben ein, die vom Klassenwochenplan abweichen. Leere Felder übernehmen automatisch den Klassenwochenplan.</p>
+          </div>
+          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id)}
+          <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichung für dieses Tier leeren</button>
+        ` : `
+          <h3>Standard-Wochenplan für die ganze Klasse</h3>
+          ${renderWeeklyPlannerTable(draft.days || {}, "standard")}
+        `}
         <label class="field">Bemerkung optional
           <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
         </label>
@@ -3293,35 +3370,26 @@ function renderWeeklyPlanEditor(plan) {
             <option value="auto" ${progressMode === "auto" ? "selected" : ""}>Automatisch übernehmen</option>
           </select>
         </label>
-        <div class="weekly-assignment">
-          <strong>Zuordnung</strong>
-          <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="all" ${assignmentMode === "all" ? "checked" : ""}> für alle Tiere</label>
-          <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="selected" ${assignmentMode !== "all" ? "checked" : ""}> für einzelne Tiere / Gruppe</label>
-          ${groups.length ? `
-            <label class="field">Tiergruppe als Auswahlhilfe
-              <select class="select-input" onchange="applyAnimalGroupSelection(this.value, 'weeklyAnimalCheckbox')">
-                <option value="">Gruppe auswählen</option>
-                ${groups.map((group) => `<option value="${escapeAttribute(group.id)}">${escapeHtml(group.name)}</option>`).join("")}
-              </select>
-            </label>
-          ` : ""}
-          <div class="animal-checkbox-grid">
-            ${animals.map((animal) => `
-              <label class="toggle-label"><input class="weeklyAnimalCheckbox" type="checkbox" value="${animal.id}" ${selectedAnimals.has(animal.id) ? "checked" : ""}> ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</label>
-            `).join("")}
+        ${focusAnimal ? "" : `
+          <div class="weekly-assignment">
+            <strong>Zuordnung</strong>
+            <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="all" ${assignmentMode === "all" ? "checked" : ""}> für die ganze Klasse</label>
+            <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="selected" ${assignmentMode !== "all" ? "checked" : ""}> für einzelne Tiere / Gruppe</label>
+            ${groups.length ? `
+              <label class="field">Tiergruppe als Auswahlhilfe
+                <select class="select-input" onchange="applyAnimalGroupSelection(this.value, 'weeklyAnimalCheckbox')">
+                  <option value="">Gruppe auswählen</option>
+                  ${groups.map((group) => `<option value="${escapeAttribute(group.id)}">${escapeHtml(group.name)}</option>`).join("")}
+                </select>
+              </label>
+            ` : ""}
+            <div class="animal-checkbox-grid">
+              ${animals.map((animal) => `
+                <label class="toggle-label"><input class="weeklyAnimalCheckbox" type="checkbox" value="${animal.id}" ${selectedAnimals.has(animal.id) ? "checked" : ""}> ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</label>
+              `).join("")}
+            </div>
           </div>
-        </div>
-        <div class="weekly-assignment">
-          <strong>Individuelle Abweichungen</strong>
-          <p class="message">Wähle ein Tier aus und trage nur dort etwas ein, wo es vom Standardplan abweichen soll.</p>
-          <label class="field">Tier für Abweichung
-            <select class="select-input" id="weeklyOverrideAnimal" onchange="setWeeklyOverrideAnimal(this.value)">
-              ${animals.map((animal) => `<option value="${animal.id}" ${overrideAnimal?.id === animal.id ? "selected" : ""}>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</option>`).join("")}
-            </select>
-          </label>
-          ${overrideAnimal ? renderWeeklyPlannerTable(draft.overrides?.[overrideAnimal.id]?.days || {}, "override", overrideAnimal.id) : `<p class="message">Noch kein Tier vorhanden.</p>`}
-          <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(overrideAnimal?.id || "")}')">Abweichung für dieses Tier leeren</button>
-        </div>
+        `}
         <div class="backup-actions">
           <button class="primary" type="submit">Wochenplan speichern</button>
           <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Wochenplan drucken</button>
@@ -3704,6 +3772,10 @@ function clearWeeklyOverride(animalId) {
 
 function collectWeeklyPlanDraftFromDom() {
   const existing = (state.weeklyPlans || []).find((plan) => plan.id === (document.querySelector("#weeklyPlanId")?.value || "")) || {};
+  const standardVisible = weeklyPlannerInputsVisible("standard");
+  const overrideVisible = weeklyOverrideAnimalId && weeklyPlannerInputsVisible("override", weeklyOverrideAnimalId);
+  const assignmentModeInput = document.querySelector("input[name='weeklyAssignmentMode']:checked");
+  const checkedAnimalInputs = [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")];
   const draft = {
     ...existing,
     id: document.querySelector("#weeklyPlanId")?.value || existing.id || "",
@@ -3712,20 +3784,27 @@ function collectWeeklyPlanDraftFromDom() {
     validFrom: document.querySelector("#weeklyFrom")?.value || "",
     validTo: document.querySelector("#weeklyTo")?.value || "",
     note: document.querySelector("#weeklyNote")?.value.trim() || "",
-    assignmentMode: document.querySelector("input[name='weeklyAssignmentMode']:checked")?.value || existing.assignmentMode || "all",
-    animalIds: [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")].map((item) => item.value),
+    assignmentMode: assignmentModeInput?.value || weeklyPlanDraft?.assignmentMode || existing.assignmentMode || "all",
+    animalIds: checkedAnimalInputs.length || document.querySelector(".weeklyAnimalCheckbox")
+      ? checkedAnimalInputs.map((item) => item.value)
+      : [...(weeklyPlanDraft?.animalIds || existing.animalIds || [])],
     progressMode: document.querySelector("#weeklyProgressMode")?.value || existing.progressMode || "confirm",
     autoCreateEntries: (document.querySelector("#weeklyProgressMode")?.value || existing.progressMode) === "auto",
-    days: readWeeklyDaysFromDom("standard"),
+    days: standardVisible ? readWeeklyDaysFromDom("standard") : { ...(weeklyPlanDraft?.days || existing.days || {}) },
     overrides: { ...(existing.overrides || weeklyPlanDraft?.overrides || {}) }
   };
-  if (weeklyOverrideAnimalId) {
+  if (weeklyOverrideAnimalId && overrideVisible) {
     const overrideDays = readWeeklyDaysFromDom("override", weeklyOverrideAnimalId);
     if (weeklyDaysHaveContent(overrideDays)) {
       draft.overrides[weeklyOverrideAnimalId] = { days: overrideDays };
     }
   }
   return draft;
+}
+
+function weeklyPlannerInputsVisible(scope, animalId = "") {
+  const prefix = weeklyInputPrefix(scope, animalId);
+  return Boolean(document.getElementById(`${prefix}Deutsch0`));
 }
 
 function readWeeklyDaysFromDom(scope, animalId = "") {
@@ -5440,7 +5519,7 @@ async function factoryResetApp() {
   await storage.clear();
   state = emptyState();
   screen = "setup";
-  teacherTab = "overview";
+  teacherTab = "teacherHome";
   childDraft = {};
   pendingBackup = null;
   lastMergeReport = null;
@@ -6071,17 +6150,28 @@ function renderPrintWeeklyPlan(className) {
   return printTargets.map(({ animal }, index) => `
     ${index > 0 ? `<div class="page-break"></div>` : ""}
     <section class="weekly-print-page ${options.variant === "compact" ? "compact" : ""}">
-      ${printHero("Mein Wochenplan", [
-        `Klasse: ${className}`,
-        weeklyPlanPeriodLabel(plan),
-        animal ? `Mein Tier: ${animal.tierEmoji} ${animal.tierName}${options.showFirstNames && animal.firstName ? ` · ${animal.firstName}` : ""}` : ""
-      ].filter(Boolean).join(" · "))}
+      ${printWeeklyPlanHero(className, plan, animal, options)}
+      <div class="weekly-print-name-field"><strong>Name:</strong><span></span></div>
       <div class="weekly-print-days">
         ${(options.days || WEEK_DAYS).map((day) => renderWeeklyPrintDay(plan, day, animal, options)).join("")}
+        ${renderWeeklyPrintInfoBox()}
       </div>
-      <p class="weekly-print-note">Dieser Ausdruck enthält keine Bewertungen, Noten oder internen Bemerkungen.</p>
     </section>
   `).join("");
+}
+
+function printWeeklyPlanHero(className, plan, animal, options) {
+  const subtitle = [
+    `Klasse: ${className}`,
+    weeklyPlanPeriodLabel(plan),
+    animal ? `Mein Tier: ${animal.tierEmoji} ${animal.tierName}${options.showFirstNames && animal.firstName ? ` · ${animal.firstName}` : ""}` : ""
+  ].filter(Boolean).join(" · ");
+  return `
+    <header class="weekly-print-hero">
+      <h1>Mein Wochenplan</h1>
+      <p>${escapeHtml(subtitle)}</p>
+    </header>
+  `;
 }
 
 function renderWeeklyPrintDay(plan, day, animal, options) {
@@ -6101,23 +6191,50 @@ function renderWeeklyPrintDay(plan, day, animal, options) {
   `;
 }
 
-function renderWeeklyPrintSubject(icon, label, items, options) {
-  const checkbox = options.showCheckboxes ? `<span class="weekly-print-checkbox">☐</span>` : "";
+function renderWeeklyPrintInfoBox() {
   return `
-    <div class="weekly-print-subject">
+    <article class="weekly-print-day weekly-print-info">
+      <h2>Info</h2>
+      <div class="weekly-print-info-lines">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+  `;
+}
+
+function renderWeeklyPrintSubject(icon, label, items, options) {
+  const checkbox = `<span class="weekly-print-done"><span class="weekly-print-checkbox" aria-hidden="true"></span></span>`;
+  const subjectClass = label.toLowerCase();
+  return `
+    <div class="weekly-print-subject ${escapeAttribute(subjectClass)}">
       <h3>${icon} ${escapeHtml(label)}</h3>
       ${items.length ? items.map((item) => `
-        <div class="weekly-print-task">
+        <div class="weekly-print-task ${item.catalogItem ? "with-cover" : "no-cover"}">
           ${checkbox}
           ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-print-cover") : ""}
           <div>
-            <strong>${escapeHtml(item.text)}</strong>
-            ${options.variant !== "short" && options.showTheme !== false && item.detail ? `<span>${escapeHtml(item.detail)}</span>` : ""}
+            <strong>${escapeHtml(weeklyPrintTaskTitle(item))}</strong>
+            ${weeklyPrintTaskMeta(item) ? `<span>${escapeHtml(weeklyPrintTaskMeta(item))}</span>` : ""}
           </div>
         </div>
-      `).join("") : `<p>–</p>`}
+      `).join("") : `<p class="weekly-print-free">frei</p>`}
     </div>
   `;
+}
+
+function weeklyPrintTaskTitle(item) {
+  if (!item?.catalogItem) return item?.text || "";
+  const material = item.catalogItem.workbook || (item.catalogItem.subject === "Deutsch" ? "ABC der Tiere" : item.catalogItem.subject === "Mathe" ? "MiniMax" : "Material");
+  const topic = weeklyCatalogTopicLabel(item.catalogItem);
+  return [material, topic].filter(Boolean).join(" – ");
+}
+
+function weeklyPrintTaskMeta(item) {
+  if (!item?.catalogItem) return "";
+  return weeklyPageNumberLabel(item.catalogItem, item.taskNumber);
 }
 
 function renderPrintOverviewSection(rows) {
@@ -6514,137 +6631,252 @@ function printViewCss(landscape = false) {
       page-break-before: always;
       height: 1px;
     }
-    .weekly-print-page .print-hero {
-      margin-bottom: 14px;
-    }
     .print-page.weekly-print-sheet {
       padding: 7mm;
+      background: #fffaf0;
+    }
+    .weekly-print-page {
+      min-height: 265mm;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 7px;
+    }
+    .weekly-print-hero {
+      margin-bottom: 0;
+      padding: 11px 14px 12px;
+      border: 2px solid #b9ddf4;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #e9f7ff 0%, #fff8d9 58%, #f0f8e8 100%);
+      color: #17324d;
+      box-shadow: none;
+      text-align: center;
+    }
+    .weekly-print-hero h1 {
+      margin: 0;
+      color: #17324d;
+      font-size: 1.82rem;
+      line-height: 1.02;
+    }
+    .weekly-print-hero p {
+      margin: 4px 0 0;
+      color: #17324d;
+      font-size: 1rem;
+      font-weight: 850;
+    }
+    .weekly-print-name-field {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: end;
+      padding: 8px 12px;
+      border: 1.5px solid #d9e6f0;
+      border-radius: 14px;
+      background: #ffffff;
+      color: #17324d;
+      font-size: 1.12rem;
+      font-weight: 850;
+    }
+    .weekly-print-name-field span {
+      min-height: 20px;
+      border-bottom: 2px solid #9fb6ca;
     }
     .weekly-print-days {
       display: grid;
-      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: 1fr;
+      gap: 7px;
     }
     .weekly-print-day {
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #fffdf8;
+      display: grid;
+      gap: 5px;
+      padding: 8px;
+      border: 1.5px solid #d9e6f0;
+      border-radius: 16px;
+      background: #ffffff;
+      box-sizing: border-box;
+      min-width: 0;
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .weekly-print-day:nth-child(5) {
+      min-height: 46mm;
+    }
     .weekly-print-day h2 {
-      margin: 0 0 8px;
-      color: var(--aubergine);
-      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      min-height: 34px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #f1edff;
+      color: #452143;
+      font-size: 1.32rem;
+      line-height: 1.1;
+      text-align: center;
     }
     .weekly-print-subject {
       display: grid;
-      grid-template-columns: 110px 1fr;
+      grid-template-columns: 90px minmax(0, 1fr);
       gap: 8px;
-      padding: 8px 0;
-      border-top: 1px solid #eee5d8;
+      align-content: center;
+      align-items: center;
+      padding: 10px 7px 8px;
+      border-radius: 12px;
+      background: #f7fbff;
+    }
+    .weekly-print-subject.deutsch {
+      background: #fff2f2;
+    }
+    .weekly-print-subject.mathe {
+      background: #eef8ff;
+    }
+    .weekly-print-subject.extra {
+      background: #fff8d9;
     }
     .weekly-print-subject h3 {
       margin: 0;
-      font-size: 1rem;
-      color: var(--ink);
+      color: #17324d;
+      font-size: 1.08rem;
+      line-height: 1.15;
+      align-self: center;
     }
     .weekly-print-subject p {
       margin: 0;
-      color: var(--muted);
-      font-weight: 800;
+      color: #7b8795;
+      font-size: 1.05rem;
+      font-weight: 850;
+    }
+    .weekly-print-free {
+      align-self: center;
+      padding: 6px 9px;
+      border: 1px dashed #d8cfc1;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.72);
     }
     .weekly-print-task {
-      display: flex;
-      gap: 8px;
-      align-items: start;
-      margin-bottom: 5px;
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      gap: 7px;
+      align-items: center;
+      margin-bottom: 4px;
+      min-height: 31px;
+      padding: 7px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.82);
+      line-height: 1.2;
+    }
+    .weekly-print-task.no-cover {
+      grid-template-columns: auto minmax(0, 1fr);
     }
     .weekly-print-cover {
-      width: 30px;
-      height: 42px;
+      width: 22px;
+      height: 31px;
       object-fit: cover;
       border: 1px solid #ddd6c8;
       border-radius: 4px;
       background: #fff;
     }
     .weekly-print-task strong,
-    .weekly-print-task span {
+    .weekly-print-task div span {
       display: block;
     }
-    .weekly-print-task span {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 0.9rem;
+    .weekly-print-task strong {
+      color: #17324d;
+      font-size: 1.16rem;
+    }
+    .weekly-print-task div span {
+      margin-top: 1px;
+      color: #5f7186;
+      font-size: 0.98rem;
       font-weight: 750;
     }
     .weekly-print-checkbox {
-      color: var(--aubergine);
-      font-size: 1.2rem;
-      line-height: 1;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #5a71d6;
+      border-radius: 5px;
+      background: #eef3ff;
     }
-    .weekly-print-note {
-      margin: 12px 0 0;
-      color: var(--muted);
-      font-size: 0.85rem;
-      font-weight: 750;
-      text-align: center;
+    .weekly-print-done {
+      display: inline-flex;
+      align-items: center;
+      justify-self: center;
+      align-self: center;
     }
-    .weekly-print-page.compact .print-hero {
-      margin-bottom: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
+    .weekly-print-info-lines {
+      display: grid;
+      gap: 8px;
+      padding: 7px 8px 4px;
     }
-    .weekly-print-page.compact .print-hero h1 {
-      font-size: 1.25rem;
-      line-height: 1.05;
+    .weekly-print-info-lines span {
+      min-height: 20px;
+      border-bottom: 1.5px dashed #b8c9d8;
     }
-    .weekly-print-page.compact .print-hero p {
-      margin-bottom: 2px;
-      font-size: 0.72rem;
+    .weekly-print-page.compact .weekly-print-hero {
+      margin-bottom: 0;
+      padding: 9px 12px;
+      border-radius: 16px;
     }
-    .weekly-print-page.compact .print-hero span {
-      margin-top: 3px;
-      font-size: 0.78rem;
+    .weekly-print-page.compact .weekly-print-hero h1 {
+      font-size: 1.55rem;
+    }
+    .weekly-print-page.compact .weekly-print-hero p {
+      font-size: 0.86rem;
     }
     .weekly-print-page.compact .weekly-print-days {
       gap: 5px;
     }
     .weekly-print-page.compact .weekly-print-day {
-      padding: 5px 7px;
-      border-radius: 9px;
+      gap: 4px;
+      padding: 6px;
+      border-radius: 14px;
     }
     .weekly-print-page.compact .weekly-print-day h2 {
-      margin-bottom: 3px;
-      font-size: 0.98rem;
+      min-height: 28px;
+      padding: 3px 8px;
+      font-size: 1.16rem;
     }
     .weekly-print-page.compact .weekly-print-subject {
-      grid-template-columns: 66px 1fr;
+      grid-template-columns: 76px minmax(0, 1fr);
       gap: 5px;
-      padding: 3px 0;
+      align-content: center;
+      align-items: center;
+      padding: 7px 5px 6px;
+      border-radius: 10px;
     }
     .weekly-print-page.compact .weekly-print-subject h3 {
-      font-size: 0.76rem;
-      line-height: 1.15;
+      font-size: 0.9rem;
+      line-height: 1.1;
     }
     .weekly-print-page.compact .weekly-print-task {
-      gap: 4px;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 5px;
       margin-bottom: 2px;
-      font-size: 0.78rem;
-      line-height: 1.18;
+      min-height: 27px;
+      padding: 5px 6px;
+      font-size: 0.9rem;
+      line-height: 1.14;
     }
     .weekly-print-page.compact .weekly-print-cover {
       display: none;
     }
     .weekly-print-page.compact .weekly-print-checkbox {
-      font-size: 0.9rem;
+      width: 15px;
+      height: 15px;
+      border-width: 1.5px;
     }
-    .weekly-print-page.compact .weekly-print-task span {
-      display: none;
+    .weekly-print-page.compact .weekly-print-task strong {
+      font-size: 0.96rem;
+    }
+    .weekly-print-page.compact .weekly-print-task div span {
+      display: block;
+      font-size: 0.78rem;
+      line-height: 1.12;
     }
     .weekly-print-page.compact .weekly-print-note {
-      margin-top: 5px;
-      font-size: 0.68rem;
+      margin-top: 4px;
+      font-size: 0.62rem;
     }
     @page {
       size: A4 ${landscape ? "landscape" : "portrait"};
@@ -7514,10 +7746,55 @@ function trainingTasksForArea(area) {
     .sort((a, b) => String(a.subcategory || "").localeCompare(String(b.subcategory || ""), "de") || a.subject.localeCompare(b.subject, "de") || a.code.localeCompare(b.code, "de", { numeric: true }));
 }
 
-function isTrainingTaskCompleted(animalId, taskCode) {
-  const latest = (state.trainingCompletions || [])
+function latestTrainingCompletion(animalId, taskCode) {
+  return (state.trainingCompletions || [])
     .filter((item) => item.classId === state.activeClassId && item.animalId === animalId && item.taskCode === taskCode)
-    .sort((a, b) => new Date(b.updatedAt || b.completedAt || 0) - new Date(a.updatedAt || a.completedAt || 0))[0];
+    .sort((a, b) => new Date(b.updatedAt || b.completedAt || 0) - new Date(a.updatedAt || a.completedAt || 0))[0] || null;
+}
+
+function isAntonAppTask(task) {
+  return task?.code === "TS-03" || /antonapp/i.test(`${task?.title || ""} ${task?.text || ""}`);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function trainingTaskAvailability(animalId, task) {
+  const latest = latestTrainingCompletion(animalId, task.code);
+  const completed = latest?.status === "bearbeitet";
+  const defaultStatus = [task.code, task.subject].filter(Boolean).join(" · ");
+  if (task.area === "Schule") {
+    if (isAntonAppTask(task) && completed && latest.completedAt) {
+      const availableAt = addDays(new Date(latest.completedAt), 28);
+      if (availableAt > new Date()) {
+        return {
+          locked: true,
+          completed: true,
+          actionLabel: `wieder ab ${formatGermanDate(availableAt)}`,
+          statusLabel: "1x in 4 Wochen"
+        };
+      }
+    }
+    return {
+      locked: false,
+      completed,
+      actionLabel: completed ? "erneut üben" : "Aufgabe ansehen",
+      statusLabel: isAntonAppTask(task) ? "1x in 4 Wochen" : defaultStatus
+    };
+  }
+  return {
+    locked: completed,
+    completed,
+    actionLabel: completed ? "bearbeitet" : "Aufgabe ansehen",
+    statusLabel: defaultStatus
+  };
+}
+
+function isTrainingTaskCompleted(animalId, taskCode) {
+  const latest = latestTrainingCompletion(animalId, taskCode);
   return latest?.status === "bearbeitet";
 }
 

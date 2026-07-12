@@ -590,7 +590,12 @@ function trainingTaskFromTemplate(template) {
 }
 
 const DEFAULT_TRAINING_TASKS = [
-  trainingTask("S-01", "Schule", "Schule", "Schule", "Hier kommen später Trainingsaufgaben für die Schule hinzu.", ["Dieser Bereich ist vorbereitet.", "Hier können später Aufgaben für die Schule ergänzt werden."], ["Noch keine Schul-Trainingsaufgaben vorhanden."], ["Lerntagebuch", "Stift"], { area: "Schule", symbol: "🏫", active: false }),
+  trainingTask("TS-01", "Schule", "Schule", "Lernwörter", "Übe deine Lernwörter.", ["Nimm deine Lernwörter.", "Lies jedes Wort genau.", "Übe die Wörter so, wie es vereinbart ist.", "Hake ab, wenn du fertig bist."], ["Sprich schwierige Stellen leise mit."], ["Lernwörter", "Stift"], { area: "Schule", symbol: "🔤" }),
+  trainingTask("TS-02", "Schule", "Schule", "Kopfrechnen", "Übe Kopfrechnen.", ["Wähle passende Kopfrechenaufgaben.", "Rechne leise im Kopf.", "Kontrolliere deine Ergebnisse.", "Hake ab, wenn du fertig bist."], ["Nutze erst den Kopf, dann die Kontrolle."], ["Kopfrechenaufgaben", "Stift"], { area: "Schule", symbol: "🧠" }),
+  trainingTask("TS-03", "Schule", "Schule", "AntonApp", "Arbeite in der AntonApp.", ["Öffne die AntonApp.", "Wähle die vereinbarten Aufgaben.", "Arbeite ruhig und konzentriert.", "Hake ab, wenn du fertig bist."], ["Bleibe bei den freigegebenen Aufgaben."], ["iPad oder Tablet", "AntonApp"], { area: "Schule", symbol: "📱" }),
+  trainingTask("TS-04", "Schule", "Schule", "Schön-Schreib-Heft", "Arbeite im Schön-Schreib-Heft.", ["Nimm dein Schön-Schreib-Heft.", "Schreibe langsam und sorgfältig.", "Achte auf Linien und Buchstabenformen.", "Hake ab, wenn du fertig bist."], ["Langsam und sauber ist wichtiger als schnell."], ["Schön-Schreib-Heft", "Stift"], { area: "Schule", symbol: "✍️" }),
+  trainingTask("TS-05", "Schule", "Schule", "Mathe-Kartei", "Arbeite mit der Mathe-Kartei.", ["Wähle eine passende Karte.", "Bearbeite die Aufgabe.", "Kontrolliere dein Ergebnis.", "Hake ab, wenn du fertig bist."], ["Nimm eine Karte, die zu deinem Lernstand passt."], ["Mathe-Kartei", "Stift"], { area: "Schule", symbol: "🔢" }),
+  trainingTask("TS-06", "Schule", "Schule", "Deutsch-Kartei", "Arbeite mit der Deutsch-Kartei.", ["Wähle eine passende Karte.", "Bearbeite die Aufgabe.", "Kontrolliere deine Arbeit.", "Hake ab, wenn du fertig bist."], ["Lies die Aufgabe genau, bevor du beginnst."], ["Deutsch-Kartei", "Stift"], { area: "Schule", symbol: "📚" }),
   ...DEFAULT_ENTDECKER_TASKS
 ];
 

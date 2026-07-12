@@ -307,6 +307,48 @@ button:disabled {
   gap: 18px;
 }
 
+.teacher-home-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.teacher-home-card {
+  display: grid;
+  gap: 8px;
+  min-height: 150px;
+  align-content: start;
+  padding: 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 12px 28px rgba(40, 74, 105, 0.1);
+}
+
+.teacher-home-card:hover,
+.teacher-home-card:focus-visible {
+  border-color: var(--brand);
+  background: #f4fbff;
+}
+
+.teacher-home-card span {
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.teacher-home-card strong {
+  color: var(--brand-dark);
+  font-size: 1.25rem;
+}
+
+.teacher-home-card small {
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 .training-task-card {
   display: grid;
   gap: 10px;
@@ -488,6 +530,19 @@ button:disabled {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   align-items: end;
+}
+
+.weekly-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 14px 0;
+}
+
+.weekly-new-button {
+  min-height: 50px;
+  white-space: nowrap;
 }
 
 .weekly-editor-context {
@@ -1951,6 +2006,10 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .teacher-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .tab-button {
     text-align: center;
   }
@@ -1967,11 +2026,19 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .teacher-home-grid {
+    grid-template-columns: 1fr;
+  }
+
   .weekly-child-item {
     grid-template-columns: 1fr;
   }
 
   .weekly-editor-context {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-toolbar {
     grid-template-columns: 1fr;
   }
 
