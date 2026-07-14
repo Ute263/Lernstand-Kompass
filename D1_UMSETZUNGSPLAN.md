@@ -567,8 +567,8 @@ Wichtig: Die Migration darf nicht automatisch im Hintergrund passieren.
 
 ### Phase 1: Cloudflare-D1-Grundlage
 
-- D1-Datenbank in Cloudflare anlegen
-- Binding in `wrangler.jsonc` eintragen
+- D1-Datenbank in Cloudflare anlegen: erledigt, `lernstand-kompass-db`
+- Binding in `wrangler.jsonc` eintragen: erledigt, Binding `DB`
 - Migration `0001_initial.sql`
 - Test-Endpunkt `/api/health`
 - lokaler/Cloudflare-Test
@@ -650,4 +650,3 @@ Pruefe den aktuellen Lernstand-Kompass-Code und implementiere Phase 1 fuer Cloud
 6. Fuehre Build- und Syntaxpruefungen aus.
 7. Erstelle danach eine neue Upload-ZIP.
 ```
-
