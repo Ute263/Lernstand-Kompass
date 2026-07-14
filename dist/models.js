@@ -1305,10 +1305,12 @@ function mergeDefaultTrainingTasks(tasks) {
     const key = task.code || task.id;
     const existing = byCode.get(key);
     if (!existing) return task;
+    const isDefaultEntdecker = /^E-\d+$/i.test(String(key));
+    const isDefaultSchoolTraining = /^TS-0[1-6]$/i.test(String(key));
     return {
       ...existing,
       ...task,
-      active: existing.active !== false,
+      active: isDefaultEntdecker || isDefaultSchoolTraining ? true : existing.active !== false,
       id: existing.id || task.id
     };
   });
@@ -1329,6 +1331,8 @@ function isRetiredEntdeckerTask(task) {
 
 function normalizeTrainingTask(item) {
   const code = item.code || item.taskCode || item.id || makeId();
+  const isDefaultEntdecker = /^E-\d+$/i.test(String(code));
+  const isDefaultSchoolTraining = /^TS-0[1-6]$/i.test(String(code));
   const title = item.title || item.titel || code || "Trainingsaufgabe";
   const text = item.text || item.shortText || item.taskText || item.auftrag || "";
   const subject = item.subject || item.fach || defaultTrainingSubject(code);
@@ -1338,10 +1342,10 @@ function normalizeTrainingTask(item) {
   return {
     ...item,
     id: item.id || `training-${code}`,
-    area: item.area || item.trainingArea || "OGS/Zuhause",
-    trainingArea: item.trainingArea || item.area || "OGS/Zuhause",
-    subcategory,
-    subject,
+    area: isDefaultSchoolTraining ? "Schule" : isDefaultEntdecker ? "OGS/Zuhause" : item.area || item.trainingArea || "OGS/Zuhause",
+    trainingArea: isDefaultSchoolTraining ? "Schule" : isDefaultEntdecker ? "OGS/Zuhause" : item.trainingArea || item.area || "OGS/Zuhause",
+    subcategory: isDefaultSchoolTraining ? "Schule" : subcategory,
+    subject: isDefaultEntdecker ? "Entdecker" : isDefaultSchoolTraining ? "Schule" : subject,
     code,
     taskCode: item.taskCode || code,
     title,
@@ -1363,7 +1367,7 @@ function normalizeTrainingTask(item) {
     material,
     researchQuestion: item.researchQuestion || item.forscherfrage || "",
     symbol: item.symbol || (subject === "Deutsch" ? "📘" : subject === "Mathe" ? "🔢" : subject === "Forscher" ? "🔎" : "⭐"),
-    active: item.active !== false
+    active: isDefaultEntdecker || isDefaultSchoolTraining ? true : item.active !== false
   };
 }
 

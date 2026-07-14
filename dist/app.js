@@ -4776,7 +4776,7 @@ function renderMaterialPrint() {
     </section>
     <section class="panel">
       <h2>Aufgabenübersicht</h2>
-      <p class="privacy-text">Digitale Liste der 45 aktiven Aufgaben. Diese Texte sind die Grundlage für Kinderbereich, Aufgabenfenster, Druckübersicht und Stickerbögen.</p>
+      <p class="privacy-text">Digitale Liste der 48 aktiven Aufgaben. Diese Texte sind die Grundlage für Kinderbereich, Aufgabenfenster, Druckübersicht und Stickerbögen.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="printTrainingMaterial('all', 'overview')">Aufgabenüberblick drucken</button>
       </div>
