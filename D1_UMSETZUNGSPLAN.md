@@ -149,16 +149,21 @@ Beispiel:
 ```json
 {
   "name": "lernstand-kompass",
+  "main": "./worker.js",
   "compatibility_date": "2026-07-14",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "lernstand-kompass-db",
-      "database_id": "HIER_DIE_CLOUDFLARE_DATABASE_ID"
+      "database_id": "e4d8180a-c481-4834-a497-5ee48dcda69b"
     }
   ]
 }
@@ -569,9 +574,11 @@ Wichtig: Die Migration darf nicht automatisch im Hintergrund passieren.
 
 - D1-Datenbank in Cloudflare anlegen: erledigt, `lernstand-kompass-db`
 - Binding in `wrangler.jsonc` eintragen: erledigt, Binding `DB`
-- Migration `0001_initial.sql`
-- Test-Endpunkt `/api/health`
-- lokaler/Cloudflare-Test
+- Migration `migrations/0001_initial.sql`: vorbereitet
+- Worker-Datei `worker.js`: vorbereitet
+- Test-Endpunkt `/api/health`: vorbereitet
+- lokaler Build-Test: erledigt
+- Cloudflare-Test nach Upload: offen
 
 ### Phase 2: Authentifizierung
 

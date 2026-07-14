@@ -1,9 +1,14 @@
 {
   "name": "lernstand-kompass",
+  "main": "./worker.js",
   "compatibility_date": "2026-07-14",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "d1_databases": [
     {
