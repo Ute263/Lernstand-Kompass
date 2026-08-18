@@ -612,11 +612,12 @@ function randomSyncCode() {
 
 function generateClassSyncCode() {
   const input = document.querySelector("#classSyncCode");
-  if (input) input.value = randomSyncCode();
+  if (!input) return;
+  input.value = randomSyncCode();
   syncRuntime.classStatus = "idle";
   syncRuntime.classMessage = "Neuer Code erzeugt. Bitte noch „Klassen-Sync speichern“ drücken.";
-  const message = document.querySelector(".cloud-sync-card .message");
-  if (message) render();
+  // Wichtig: Hier nicht render() aufrufen. Sonst werden die noch nicht gespeicherten
+  // Formularwerte (Sync-Adresse und neuer Code) wieder aus dem alten State geladen.
 }
 
 async function saveClassSyncSettings() {
