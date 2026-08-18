@@ -1,0 +1,8 @@
+name = "lernstand-kompass-sync"
+main = "worker.js"
+compatibility_date = "2026-08-18"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lernstand-kompass-sync"
+database_id = "DEINE-D1-DATABASE-ID"

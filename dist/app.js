@@ -74,6 +74,11 @@ const TEACHER_GROUPS = [
     sections: [["training", "Trainingszeit"]]
   },
   {
+    id: "learningGamesGroup",
+    label: "Lernspiele",
+    sections: [["learningGames", "Lernspiele & Tests"]]
+  },
+  {
     id: "assessmentGroup",
     label: "Lernzielkontrolle",
     sections: [["assessments", "Lernzielkontrolle"]]
@@ -102,6 +107,7 @@ const TEACHER_GROUPS = [
     label: "Backup und Einstellungen",
     sections: [
       ["backup", "Backup / Wiederherstellung"],
+      ["cloudSync", "Microsoft & Sync"],
       ["childSettings", "Kinderansicht"],
       ["security", "PIN & Sicherheit"],
       ["storageStatus", "Speicherstatus"],
@@ -156,6 +162,7 @@ window.addEventListener("beforeunload", (event) => {
 async function initApp() {
   state = await storage.load();
   await migrateSecurityState();
+  if (typeof initCloudSync === "function") await initCloudSync();
   if (state.setupComplete) {
     await persist(state);
   }
@@ -191,6 +198,7 @@ async function persist(nextState = state) {
   hasUnsavedChanges = true;
   state = await storage.save(nextState);
   hasUnsavedChanges = false;
+  if (typeof scheduleMicrosoftAutoBackup === "function") scheduleMicrosoftAutoBackup();
 }
 
 async function persistAndRender(nextState = state) {
@@ -401,6 +409,7 @@ function openLogin() {
 
 function goHome() {
   stopQrScanner();
+  if (typeof resetNomenRuntime === "function") resetNomenRuntime();
   childDraft = {};
   pendingTrainingTaskCode = "";
   loginError = "";
@@ -438,6 +447,7 @@ function renderChildScreen() {
   if (screen === "childWorkbookTasks") return renderChildWorkbookTasks();
   if (screen === "childSelfReport") return renderChildSelfReport();
   if (screen === "childSelfReportConfirm") return renderChildSelfReportConfirm();
+  if (screen === "childLearningGames" || screen.startsWith("childNomen")) return renderLearningGameChildScreen();
   return "";
 }
 
@@ -515,6 +525,9 @@ function renderSubjectSelection() {
   }
   if (settings.showTraining) {
     cards.push(`<button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>`);
+  }
+  if (settings.showLearningGames) {
+    cards.push(`<button class="subject-button learning-games-subject-button" type="button" onclick="setChildScreen('childLearningGames')"><span class="subject-icon">🎮</span>Lernspiele</button>`);
   }
   const qrGreeting = childDraft.fromQr && animal
     ? `<p class="qr-greeting">Hallo, <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>!</p>`
@@ -1582,6 +1595,7 @@ function renderTeacherSection(tab) {
   if (tab === "progress") return renderProgress();
   if (tab === "assessments") return renderAssessments();
   if (tab === "training") return renderTrainingOverview();
+  if (tab === "learningGames") return renderLearningGamesTeacher();
   if (tab === "weeklyPlans") return renderWeeklyPlans();
   if (tab === "workbookDirect") return renderWorkbookDirectPlanning();
   if (tab === "childrenRegistry") return renderChildrenRegistry();
@@ -1604,6 +1618,7 @@ function renderTeacherSection(tab) {
   if (tab === "excelExport") return renderExcelExport();
   if (tab === "printPdf") return renderPrintPdf();
   if (tab === "backup") return renderBackup();
+  if (tab === "cloudSync") return typeof renderCloudSyncPanel === "function" ? renderCloudSyncPanel() : `<section class="panel"><h2>Microsoft & Sync</h2><p class="message">Sync-Modul konnte nicht geladen werden.</p></section>`;
   if (tab === "privacy") return renderPrivacy();
   return "";
 }
@@ -1618,6 +1633,7 @@ function renderTeacherHome() {
     { title: "Wochenplan", text: currentPlans ? `${currentPlans} aktueller Plan · ${openWeeklyStatuses} offene Markierungen` : "Klassenplan und individuelle Pläne erstellen", icon: "🗓️", action: "setTeacherGroup('weeklyPlansGroup')" },
     { title: "Lernübersicht", text: pendingReports ? `${pendingReports} Kindmeldungen warten` : "Fortschritt, Lernstände und Bearbeitungen ansehen", icon: "📈", action: "setTeacherGroup('learning')" },
     { title: "Trainingszeit", text: "Schultraining und Entdeckeraufgaben im Blick", icon: "⭐", action: "setTeacherGroup('trainingGroup')" },
+    { title: "Lernspiele", text: "Nomen-Probe üben, testen und Ergebnisse auswerten", icon: "🎮", action: "setTeacherGroup('learningGamesGroup')" },
     { title: "Lernzielkontrolle", text: "Tests anlegen und Ergebnisse erfassen", icon: "✅", action: "setTeacherGroup('assessmentGroup')" },
     { title: "Klassenverwaltung", text: `${activeAnimals} aktive Tiere · Gruppen, Namen und QR-Zugänge`, icon: "🐾", action: "setTeacherGroup('children')" },
     { title: "Druck und Material", text: "Wochenpläne, QR-Karten, Material und Exporte", icon: "🖨️", action: "setTeacherGroup('materialsGroup')" },
@@ -1735,6 +1751,10 @@ function renderChildViewSettingsPanel() {
         <label class="check-row">
           <input type="checkbox" id="childSettingShowTraining" ${settings.showTraining ? "checked" : ""}>
           Trainingszeit anzeigen
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="childSettingShowLearningGames" ${settings.showLearningGames ? "checked" : ""}>
+          Lernspiele anzeigen
         </label>
         <div class="field full-width">
           <strong>Erlaubte Materialien für „Das habe ich geschafft“</strong>
@@ -5424,7 +5444,7 @@ function renderBackup() {
   return `
     <section class="panel">
       <h2>Datensicherung</h2>
-      <p class="privacy-text">Die Lernstände werden lokal auf diesem iPad/in diesem Browser gespeichert. Der Webspeicherort enthält nur die App-Dateien, nicht die Einträge. Erstelle regelmäßig ein Backup und speichere es an einem geschützten Ort.</p>
+      <p class="privacy-text">Die Lernstände werden weiterhin lokal auf diesem iPad/in diesem Browser gespeichert. Zusätzlich kannst du im Bereich „Microsoft & Sync“ eine OneDrive-Sicherung aktivieren. Ohne Cloud-Anbindung bleibt der bisherige Datei-Backup-Weg vollständig erhalten.</p>
       <p class="message success">Alle Änderungen gespeichert. Zuletzt gespeichert: ${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="saveCurrentData()">Daten speichern</button>
@@ -5438,8 +5458,8 @@ function renderBackup() {
     </section>
     <section class="panel">
       <h2>Mehrere Geräte verwenden</h2>
-      <p class="privacy-text">Du kannst mehrere iPads verwenden. Die Geräte synchronisieren sich nicht automatisch. Nutze regelmäßig den Backup-Export und die Funktion „Backup zusammenführen“. Beim Zusammenführen werden neue Einträge ergänzt. Vorhandene Einträge bleiben erhalten.</p>
-      <p class="message"><strong>Wichtig:</strong> Die Geräte synchronisieren sich nicht von allein. Der Abgleich funktioniert über Backup-Dateien. Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
+      <p class="privacy-text">Ohne eingerichteten Cloud-Sync kannst du weiterhin mehrere iPads über Backup-Dateien abgleichen. Wenn Microsoft & Sync eingerichtet ist, steht zusätzlich der OneDrive-Abgleich zur Verfügung.</p>
+      <p class="message"><strong>Ohne Cloud-Sync:</strong> Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportFullBackup()">Backup exportieren</button>
         <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Lernpost zusammenführen</button>
@@ -5448,7 +5468,7 @@ function renderBackup() {
         <button class="secondary" type="button" onclick="startMultiDeviceSyncGuide()">Mehrgeräte-Abgleich starten</button>
       </div>
       <input class="visually-hidden" id="backupFile" type="file" accept="application/json,.json" onchange="handleBackupFileSelected(event)">
-      <p class="message">Automatische Erinnerung um ${escapeHtml(settings.time)} Uhr bedeutet: Die App erinnert dich an den Abgleich. Sie kann ohne Cloud-Anbindung keine Dateien von anderen iPads automatisch holen.</p>
+      <p class="message">Automatische Erinnerung um ${escapeHtml(settings.time)} Uhr bedeutet: Die App erinnert dich an den manuellen Abgleich. Für automatischen bzw. direkten Abgleich richte „Microsoft & Sync“ ein.</p>
       ${renderPendingBackupChoice()}
       ${renderMergeReport()}
       ${renderSyncGuide()}
@@ -7542,7 +7562,7 @@ function renderPrivacy() {
         <li>freie Leistungs- oder Verhaltenskommentare</li>
         <li>KI-Auswertungen</li>
       </ul>
-      <p>Die Daten werden lokal auf diesem iPad/in diesem Browser gespeichert. Backups sollen nur an einem geschützten Speicherort abgelegt werden.</p>
+      <p>Die Daten werden grundsätzlich lokal auf diesem iPad/in diesem Browser gespeichert. Wenn die Lehrkraft Microsoft & Sync bewusst aktiviert, kann zusätzlich ein Gesamtbackup im privaten OneDrive-Appordner gespeichert werden. Beim optionalen Klassen-Sync werden Lernspiel-Daten ohne Vornamen vor dem Versand im Browser verschlüsselt.</p>
     </section>
   `;
 }
@@ -8649,6 +8669,7 @@ async function saveChildViewSettings(event) {
     minimaxVisibility: document.querySelector("#childSettingMinimaxVisibility")?.value || "assigned",
     showSelfReports: document.querySelector("#childSettingShowReports")?.checked === true,
     showTraining: document.querySelector("#childSettingShowTraining")?.checked === true,
+    showLearningGames: document.querySelector("#childSettingShowLearningGames")?.checked === true,
     allowSelfReports: document.querySelector("#childSettingAllowReports")?.checked === true,
     allowedSelfReportMaterials: {
       abc: document.querySelector("#childAllowedAbc")?.checked === true,

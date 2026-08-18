@@ -15,9 +15,11 @@ Diese Dateien müssen gemeinsam im App-Ordner liegen:
 - `export.js`
 - `qrcode.js`
 - `app.js`
+- `nomen-probe.js`
 - `pwa.js`
 - `manifest.json`
 - `service-worker.js`
+- `materials/toni-nomen.png`
 - `icons/icon-180.png`
 - `icons/icon-192.png`
 - `icons/icon-512.png`
@@ -76,6 +78,13 @@ Im geschützten Bereich `Material drucken` sind die fertigen Stickerbögen als f
 ## Werkseinstellung
 
 Unter `Geräte, Backup & Einstellungen` -> `Backup / Wiederherstellung` gibt es im geschützten Lehrkraftbereich den Abschnitt `App zurücksetzen`. Vor dem Zurücksetzen werden Backup-Hinweis, Lehrkraft-PIN, eine Warnung und das Bestätigungswort `ZURÜCKSETZEN` verlangt. Erst danach werden die lokalen App-Daten auf diesem Gerät gelöscht und die Einrichtung startet neu.
+
+
+## Lernspiele und Nomen-Probe
+
+Unter `Meine Lernreise` gibt es den Bereich `Lernspiele`. Paket 1 enthält die `Nomen-Probe` mit zwei Modi: `Üben` und `Test`. Eine Runde umfasst 10 zufällige Wörter aus einem Pool mit 50 Wörtern (35 Nomen, 15 Nicht-Nomen). Jedes Wort wird über Namensprobe, Artikelprobe, Mehrzahlprobe mit Artikel und die abschließende Nomen-Entscheidung geprüft. Im Übungsmodus gibt es Rückmeldungen und weitere Versuche; im Testmodus wird pro Schritt genau eine Antwort gespeichert und während der Aufgabe keine Lösung gezeigt.
+
+Die Ergebnisse werden lokal mit der vorhandenen Tier-ID gespeichert. Erfasst werden je Wort und Prüfschritt unter anderem Antwort, richtig/falsch, erster Versuch, Anzahl der Versuche und Bearbeitungszeit. Im geschützten Lehrkraftbereich `Lernspiele` zeigt die App die letzten Ergebnisse je Tier, Prozentwerte pro Prüfschritt, `sofort richtig`, eine Wort-für-Wort-Auswertung sowie den Verlauf mehrerer Runden.
 
 ## Lernzielkontrollen
 

@@ -48,7 +48,8 @@ function makeActiveClassBackup(state, classId) {
     activeWorkbookMaterials: (state.activeWorkbookMaterials || []).filter((item) => item.classId === classId),
     childViewSettings: state.childViewSettings || {},
     weeklyPlans: (state.weeklyPlans || []).filter((item) => item.classId === classId),
-    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId)
+    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.classId === classId),
+    learningGameSessions: (state.learningGameSessions || []).filter((item) => item.classId === classId)
   };
 }
 
@@ -1008,6 +1009,7 @@ function stateFromBackup(backup) {
       childViewSettings: backup.childViewSettings || {},
       weeklyPlans: backup.weeklyPlans || [],
       weeklyPlanStatuses: backup.weeklyPlanStatuses || [],
+      learningGameSessions: backup.learningGameSessions || [],
       sprachweltTasks: backup.sprachweltTasks || []
     });
   }
@@ -1064,6 +1066,7 @@ function mergeBackupData(currentState, importedBackup) {
     addedActiveWorkbookMaterials: 0,
     addedWeeklyPlans: 0,
     addedWeeklyPlanStatuses: 0,
+    addedLearningGameSessions: 0,
     skippedDuplicateTrainingCompletions: 0,
     skippedDuplicateAssessments: 0,
     skippedDuplicateAssessmentTasks: 0,
@@ -1076,6 +1079,7 @@ function mergeBackupData(currentState, importedBackup) {
     skippedDuplicateActiveWorkbookMaterials: 0,
     skippedDuplicateWeeklyPlans: 0,
     skippedDuplicateWeeklyPlanStatuses: 0,
+    skippedDuplicateLearningGameSessions: 0,
     skippedDuplicateEntries: 0,
     conflicts: [],
     mergedAt: nowIso()
@@ -1100,6 +1104,7 @@ function mergeBackupData(currentState, importedBackup) {
   const activeWorkbookMaterialIds = new Set((current.activeWorkbookMaterials || []).map((item) => item.id));
   const weeklyPlanIds = new Set((current.weeklyPlans || []).map((item) => item.id));
   const weeklyPlanStatusIds = new Set((current.weeklyPlanStatuses || []).map((item) => item.id));
+  const learningGameSessionIds = new Set((current.learningGameSessions || []).map((item) => item.id));
   const existingEntryFingerprints = new Set(current.entries.map(entryFingerprint));
   const qrTokens = new Map(current.animals.filter((animal) => animal.qrToken).map((animal) => [animal.qrToken, animal.id]));
 
@@ -1123,7 +1128,8 @@ function mergeBackupData(currentState, importedBackup) {
     childWorkbookReports: [...(current.childWorkbookReports || [])],
     activeWorkbookMaterials: [...(current.activeWorkbookMaterials || [])],
     weeklyPlans: [...(current.weeklyPlans || [])],
-    weeklyPlanStatuses: [...(current.weeklyPlanStatuses || [])]
+    weeklyPlanStatuses: [...(current.weeklyPlanStatuses || [])],
+    learningGameSessions: [...(current.learningGameSessions || [])]
   };
 
   imported.classes.forEach((item) => {
@@ -1322,6 +1328,15 @@ function mergeBackupData(currentState, importedBackup) {
     next.weeklyPlanStatuses.push(item);
     weeklyPlanStatusIds.add(item.id);
     report.addedWeeklyPlanStatuses += 1;
+  });
+  (imported.learningGameSessions || []).forEach((item) => {
+    if (!item?.id || learningGameSessionIds.has(item.id)) {
+      report.skippedDuplicateLearningGameSessions += 1;
+      return;
+    }
+    next.learningGameSessions.push(item);
+    learningGameSessionIds.add(item.id);
+    report.addedLearningGameSessions += 1;
   });
 
   return { state: normalizeState(next), report };

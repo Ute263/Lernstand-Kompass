@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v80";
+const CACHE_NAME = "lernstand-kompass-cache-v82";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -9,7 +9,9 @@ const APP_FILES = [
   "./exceljs-LICENSE.txt",
   "./export.js",
   "./qrcode.js",
+  "./sync.js",
   "./app.js",
+  "./nomen-probe.js",
   "./pwa.js",
   "./manifest.json",
   "./icons/icon-180.png",
@@ -22,6 +24,7 @@ const APP_FILES = [
   "./materials/cover-minimax-2.svg",
   "./materials/stickerbogen-1-deutsch-mathe-1.png",
   "./materials/stickerbogen-2-mathe-forscher.png",
+  "./materials/toni-nomen.png",
   "./icons/icon-192.svg",
   "./icons/icon-512.svg"
 ];

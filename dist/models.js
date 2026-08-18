@@ -1,5 +1,5 @@
-const APP_VERSION = 2;
-const DATA_VERSION = "1.0";
+const APP_VERSION = 4;
+const DATA_VERSION = "1.2";
 const STORE_KEY = "arbeitsheftKompass_v1";
 const LEGACY_STORE_KEYS = ["arbeitsheft-kompass-state-v2"];
 const APP_NAME = "Lernstand-Kompass";
@@ -490,6 +490,7 @@ const DEFAULT_CHILD_VIEW_SETTINGS = {
   minimaxVisibility: "assigned",
   showSelfReports: false,
   showTraining: true,
+  showLearningGames: true,
   allowSelfReports: false,
   allowedSelfReportMaterials: {
     abc: true,
@@ -684,6 +685,9 @@ function emptyState() {
     activeWorkbookMaterials: [],
     weeklyPlans: [],
     weeklyPlanStatuses: [],
+    learningGameSessions: [],
+    microsoftSync: { clientId: "", authority: "consumers", redirectUri: "", autoBackup: false, connectedAccount: "", connectedName: "", lastSyncAt: "", lastSyncStatus: "" },
+    classSync: { enabled: false, endpoint: "", syncCode: "", lastPushAt: "", lastPullAt: "", lastError: "" },
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     childViewSettings: { ...DEFAULT_CHILD_VIEW_SETTINGS },
     teacherShowFirstNames: false,
@@ -796,6 +800,9 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     activeWorkbookMaterials: [],
     weeklyPlans: [],
     weeklyPlanStatuses: [],
+    learningGameSessions: [],
+    microsoftSync: { clientId: "", authority: "consumers", redirectUri: "", autoBackup: false, connectedAccount: "", connectedName: "", lastSyncAt: "", lastSyncStatus: "" },
+    classSync: { enabled: false, endpoint: "", syncCode: "", lastPushAt: "", lastPullAt: "", lastError: "" },
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
     childViewSettings: { ...DEFAULT_CHILD_VIEW_SETTINGS },
     teacherShowFirstNames: false,
@@ -842,6 +849,25 @@ function normalizeState(candidate) {
     activeWorkbookMaterials: Array.isArray(candidate.activeWorkbookMaterials) ? candidate.activeWorkbookMaterials : [],
     weeklyPlans: Array.isArray(candidate.weeklyPlans) ? candidate.weeklyPlans : [],
     weeklyPlanStatuses: Array.isArray(candidate.weeklyPlanStatuses) ? candidate.weeklyPlanStatuses : [],
+    learningGameSessions: Array.isArray(candidate.learningGameSessions) ? candidate.learningGameSessions : [],
+    microsoftSync: {
+      clientId: candidate.microsoftSync?.clientId || "",
+      authority: candidate.microsoftSync?.authority || "consumers",
+      redirectUri: candidate.microsoftSync?.redirectUri || "",
+      autoBackup: candidate.microsoftSync?.autoBackup === true,
+      connectedAccount: candidate.microsoftSync?.connectedAccount || "",
+      connectedName: candidate.microsoftSync?.connectedName || "",
+      lastSyncAt: candidate.microsoftSync?.lastSyncAt || "",
+      lastSyncStatus: candidate.microsoftSync?.lastSyncStatus || ""
+    },
+    classSync: {
+      enabled: candidate.classSync?.enabled === true,
+      endpoint: candidate.classSync?.endpoint || "",
+      syncCode: candidate.classSync?.syncCode || "",
+      lastPushAt: candidate.classSync?.lastPushAt || "",
+      lastPullAt: candidate.classSync?.lastPullAt || "",
+      lastError: candidate.classSync?.lastError || ""
+    },
     progressSettings: {
       ...DEFAULT_PROGRESS_SETTINGS,
       ...(candidate.progressSettings && typeof candidate.progressSettings === "object" ? candidate.progressSettings : {})
@@ -892,6 +918,18 @@ function normalizeState(candidate) {
   state.activeWorkbookMaterials = state.activeWorkbookMaterials.map((item) => normalizeActiveWorkbookMaterial(item, state.activeClassId, state.workbookCatalog));
   state.weeklyPlans = state.weeklyPlans.map((item) => normalizeWeeklyPlan(item, state.activeClassId));
   state.weeklyPlanStatuses = state.weeklyPlanStatuses.map((item) => normalizeWeeklyPlanStatus(item, state.activeClassId));
+  state.learningGameSessions = state.learningGameSessions.map((item) => ({
+    ...item,
+    id: item.id || makeId(),
+    classId: item.classId || state.activeClassId,
+    animalId: item.animalId || item.tierID || "",
+    gameId: item.gameId || "",
+    mode: item.mode === "test" ? "test" : "practice",
+    items: Array.isArray(item.items) ? item.items : [],
+    summary: item.summary && typeof item.summary === "object" ? item.summary : {},
+    startedAt: item.startedAt || item.createdAt || nowIso(),
+    finishedAt: item.finishedAt || item.updatedAt || ""
+  }));
 
   const usedTokens = new Set();
   state.animals = state.animals.map((animal) => ({
