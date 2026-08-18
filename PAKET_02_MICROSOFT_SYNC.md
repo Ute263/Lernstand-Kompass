@@ -4,7 +4,7 @@
 
 - neuer Bereich **Backup und Einstellungen → Microsoft & Sync**
 - Microsoft-Anmeldung für ein persönliches Microsoft-Konto
-- OneDrive-Sicherung im eigenen Appordner des Lernstand-Kompass
+- OneDrive-Sicherung im Ordner `OneDrive/Lernstand-Kompass`
 - manueller OneDrive-Abgleich (Cloud holen → zusammenführen → wieder sichern)
 - optionale automatische OneDrive-Sicherung nach Änderungen
 - verschlüsselter Klassen-Sync für Lernspiel-Ergebnisse
@@ -20,11 +20,11 @@ Für die Web-App wird **kein Client-Secret** benötigt und keines darf in die Br
 2. Eine App für den Lernstand-Kompass verwenden oder neu anlegen.
 3. Unter **Authentication** eine Plattform **Single-page application (SPA)** hinzufügen.
 4. Als Redirect-URI exakt die Adresse eintragen, die der Lernstand-Kompass im Bereich „Microsoft & Sync“ anzeigt.
-5. Unter **API permissions** die delegierte Microsoft-Graph-Berechtigung `Files.ReadWrite.AppFolder` hinzufügen.
+5. Unter **API permissions** die delegierte Microsoft-Graph-Berechtigung `Files.ReadWrite` hinzufügen.
 6. Die **Application (client) ID** im Lernstand-Kompass eintragen.
 7. Im Lernstand-Kompass „Mit Microsoft verbinden“ wählen.
 
-Die OneDrive-Datei heißt `lernstand-kompass-sync.json` und liegt im Appordner des Lernstand-Kompass.
+Die OneDrive-Datei heißt `lernstand-kompass-sync.json` und liegt im Ordner `OneDrive/Lernstand-Kompass`. Die App greift ausschließlich auf diesen Ordner zu, auch wenn die Microsoft-Berechtigung `Files.ReadWrite` technisch weiter reicht.
 
 ## Klassen-Sync / Cloudflare
 

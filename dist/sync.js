@@ -1,6 +1,6 @@
 /* Paket 2: Microsoft/OneDrive-Sicherung + Klassen-Sync-Grundlage
  * - Microsoft-Anmeldung über MSAL (Authorization Code Flow + PKCE)
- * - OneDrive-Appordner via Microsoft Graph (Files.ReadWrite.AppFolder)
+ * - OneDrive-Ordner /Lernstand-Kompass via Microsoft Graph (Files.ReadWrite)
  * - verschlüsselter Klassen-Sync für Lernspiel-Sitzungen über einen optionalen Cloudflare-Worker
  *
  * WICHTIG: In einer Browser-App wird KEIN Client-Secret verwendet.
@@ -8,8 +8,9 @@
 
 const LK_MSAL_CDN = "https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js";
 const LK_GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+const LK_ONEDRIVE_FOLDER = "Lernstand-Kompass";
 const LK_ONEDRIVE_FILENAME = "lernstand-kompass-sync.json";
-const LK_GRAPH_SCOPES = ["openid", "profile", "Files.ReadWrite.AppFolder"];
+const LK_GRAPH_SCOPES = ["openid", "profile", "User.Read", "Files.ReadWrite"];
 
 const syncRuntime = {
   msalPromise: null,
@@ -182,7 +183,7 @@ function renderCloudSyncPanel() {
 
     <section class="panel cloud-sync-card">
       <h2>1. OneDrive für deine Geräte</h2>
-      <p class="privacy-text">Der Lernstand-Kompass nutzt nur seinen eigenen OneDrive-Appordner. Es wird kein Client-Secret in der App gespeichert.</p>
+      <p class="privacy-text">Der Lernstand-Kompass speichert seine Sicherung ausschließlich im Ordner <strong>OneDrive/Lernstand-Kompass</strong>. Die Microsoft-Berechtigung <code>Files.ReadWrite</code> erlaubt technisch Dateizugriff im angemeldeten OneDrive; die App verwendet ihn nur für diesen Ordner. Es wird kein Client-Secret in der App gespeichert.</p>
       <div class="cloud-sync-form-grid">
         <label class="field">Microsoft Client-ID
           <input id="microsoftClientId" class="text-input" autocomplete="off" spellcheck="false" value="${escapeAttribute(ms.clientId || "")}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
@@ -244,7 +245,7 @@ function renderCloudSyncPanel() {
     <section class="panel cloud-sync-card">
       <h2>Was Paket 2 bereits kann</h2>
       <div class="cloud-capability-grid">
-        <article><span>☁️</span><strong>OneDrive-Sicherung</strong><small>Gesamtstand in deinem privaten Appordner</small></article>
+        <article><span>☁️</span><strong>OneDrive-Sicherung</strong><small>Gesamtstand in OneDrive/Lernstand-Kompass</small></article>
         <article><span>🔄</span><strong>Geräte-Abgleich</strong><small>Backups zusammenführen statt überschreiben</small></article>
         <article><span>🧒</span><strong>Kinder-Sync</strong><small>Nomen-Tests automatisch einsammeln</small></article>
         <article><span>🔐</span><strong>Verschlüsselt</strong><small>Klassen-Sync-Nutzdaten vor dem Upload verschlüsselt</small></article>
@@ -397,29 +398,55 @@ async function graphFetch(path, options = {}) {
   return response;
 }
 
-async function getOneDriveAppRoot() {
-  const response = await graphFetch("/me/drive/special/approot");
-  return response.json();
+function oneDrivePath(...parts) {
+  return parts.map((part) => encodeURIComponent(String(part || ""))).join("/");
+}
+
+async function ensureOneDriveFolder() {
+  const folderPath = oneDrivePath(LK_ONEDRIVE_FOLDER);
+  try {
+    const response = await graphFetch(`/me/drive/root:/${folderPath}`);
+    return response.json();
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+
+  try {
+    const response = await graphFetch("/me/drive/root/children", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        name: LK_ONEDRIVE_FOLDER,
+        folder: {},
+        "@microsoft.graph.conflictBehavior": "fail"
+      })
+    });
+    return response.json();
+  } catch (error) {
+    // Falls zwei Geräte den Ordner praktisch gleichzeitig anlegen, ist ein 409 unkritisch.
+    if (error.status !== 409) throw error;
+    const response = await graphFetch(`/me/drive/root:/${folderPath}`);
+    return response.json();
+  }
 }
 
 async function getOneDriveBackup() {
-  const root = await getOneDriveAppRoot();
-  let metaResponse;
+  await ensureOneDriveFolder();
+  const backupPath = oneDrivePath(LK_ONEDRIVE_FOLDER, LK_ONEDRIVE_FILENAME);
   try {
-    metaResponse = await graphFetch(`/me/drive/items/${encodeURIComponent(root.id)}:/${encodeURIComponent(LK_ONEDRIVE_FILENAME)}`);
+    const response = await graphFetch(`/me/drive/root:/${backupPath}:/content`);
+    const text = await response.text();
+    return JSON.parse(text);
   } catch (error) {
     if (error.status === 404) return null;
     throw error;
   }
-  const meta = await metaResponse.json();
-  const contentResponse = await graphFetch(`/me/drive/items/${encodeURIComponent(meta.id)}/content`);
-  const text = await contentResponse.text();
-  return JSON.parse(text);
 }
 
 async function putOneDriveBackup(backup) {
-  const root = await getOneDriveAppRoot();
-  const response = await graphFetch(`/me/drive/items/${encodeURIComponent(root.id)}:/${encodeURIComponent(LK_ONEDRIVE_FILENAME)}:/content`, {
+  await ensureOneDriveFolder();
+  const backupPath = oneDrivePath(LK_ONEDRIVE_FOLDER, LK_ONEDRIVE_FILENAME);
+  const response = await graphFetch(`/me/drive/root:/${backupPath}:/content`, {
     method: "PUT",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(backup)
@@ -569,7 +596,7 @@ function scheduleMicrosoftAutoBackup() {
 function friendlySyncError(error) {
   const message = String(error?.message || error || "Unbekannter Fehler");
   if (/popup_window_error|popup/i.test(message)) return "Das Microsoft-Anmeldefenster wurde blockiert oder geschlossen.";
-  if (/consent|permission|privilege|403/i.test(message)) return "Microsoft hat den Zugriff nicht erlaubt. Prüfe in der Appregistrierung die Berechtigung Files.ReadWrite.AppFolder.";
+  if (/consent|permission|privilege|403/i.test(message)) return "Microsoft hat den Zugriff nicht erlaubt. Prüfe in der Appregistrierung die delegierte Berechtigung Files.ReadWrite und melde dich anschließend neu an.";
   if (/network|fetch|internet|Failed to fetch/i.test(message)) return "Keine Verbindung. Prüfe Internet, Cloudflare-Adresse oder Microsoft-Anmeldung.";
   if (/client-id|client id|AADSTS700016/i.test(message)) return "Die Microsoft-Client-ID oder Appregistrierung stimmt noch nicht.";
   return message.length > 160 ? `${message.slice(0, 157)}…` : message;
