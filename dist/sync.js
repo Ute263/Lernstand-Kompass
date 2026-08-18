@@ -218,14 +218,14 @@ function renderCloudSyncPanel() {
       <p class="privacy-text">Für Lernspiele werden nur Tier-ID, Testdaten und Zeitpunkte übertragen – keine Vornamen. Die Nutzdaten werden im Browser verschlüsselt, bevor sie an den Sync-Dienst gehen.</p>
       <div class="cloud-sync-form-grid">
         <label class="field">Cloudflare-Sync-Adresse
-          <input id="classSyncEndpoint" class="text-input" autocomplete="off" spellcheck="false" value="${escapeAttribute(classSync.endpoint || "")}" placeholder="https://lernstand-sync.DEINNAME.workers.dev">
+          <input id="classSyncEndpoint" class="text-input" autocomplete="off" spellcheck="false" value="${escapeAttribute(classSync.endpoint || "")}" placeholder="https://lernstand-sync.DEINNAME.workers.dev" onchange="rememberClassSyncForm()">
         </label>
         <label class="field">Klassen-Sync-Code
-          <input id="classSyncCode" class="text-input" autocomplete="off" spellcheck="false" value="${escapeAttribute(classSync.syncCode || "")}" placeholder="Sync-Code erzeugen">
+          <input id="classSyncCode" class="text-input" autocomplete="off" spellcheck="false" value="${escapeAttribute(classSync.syncCode || "")}" placeholder="Sync-Code erzeugen" onchange="rememberClassSyncForm()">
         </label>
       </div>
       <p class="message">Aktueller Code: <strong>${escapeHtml(codeDisplay)}</strong>. Der Code ist der Schlüssel für diese Klasse. Behandle ihn wie ein Passwort.</p>
-      <label class="toggle-label"><input id="classSyncEnabled" type="checkbox" ${classSync.enabled ? "checked" : ""}> Klassen-Sync aktivieren</label>
+      <label class="toggle-label"><input id="classSyncEnabled" type="checkbox" ${classSync.enabled ? "checked" : ""} onchange="rememberClassSyncForm()"> Klassen-Sync aktivieren</label>
       <div class="backup-actions">
         <button class="secondary" type="button" onclick="generateClassSyncCode()">Neuen Sync-Code erzeugen</button>
         <button class="primary" type="button" onclick="saveClassSyncSettings()">Klassen-Sync speichern</button>
@@ -610,26 +610,13 @@ function randomSyncCode() {
   return `LK-${base64UrlEncode(bytes)}`;
 }
 
-function generateClassSyncCode() {
-  const input = document.querySelector("#classSyncCode");
-  if (!input) return;
-  input.value = randomSyncCode();
-  syncRuntime.classStatus = "idle";
-  syncRuntime.classMessage = "Neuer Code erzeugt. Bitte noch „Klassen-Sync speichern“ drücken.";
-  // Wichtig: Hier nicht render() aufrufen. Sonst werden die noch nicht gespeicherten
-  // Formularwerte (Sync-Adresse und neuer Code) wieder aus dem alten State geladen.
-}
+async function rememberClassSyncForm() {
+  const endpoint = normalizeEndpoint(document.querySelector("#classSyncEndpoint")?.value || currentClassSyncSettings().endpoint || "");
+  const syncCode = String(document.querySelector("#classSyncCode")?.value || currentClassSyncSettings().syncCode || "").trim();
+  const requestedEnabled = !!document.querySelector("#classSyncEnabled")?.checked;
+  const ready = /^https:\/\//i.test(endpoint) && syncCode.length >= 20;
+  const enabled = requestedEnabled && ready;
 
-async function saveClassSyncSettings() {
-  const endpoint = normalizeEndpoint(document.querySelector("#classSyncEndpoint")?.value || "");
-  const syncCode = String(document.querySelector("#classSyncCode")?.value || "").trim();
-  const enabled = !!document.querySelector("#classSyncEnabled")?.checked;
-  if (enabled && (!/^https:\/\//i.test(endpoint) || syncCode.length < 20)) {
-    syncRuntime.classStatus = "error";
-    syncRuntime.classMessage = "Für den Klassen-Sync brauchst du eine https://-Cloudflare-Adresse und einen ausreichend langen Sync-Code.";
-    render();
-    return;
-  }
   syncRuntime.suppressAuto = true;
   try {
     await persist({
@@ -645,17 +632,51 @@ async function saveClassSyncSettings() {
   } finally {
     syncRuntime.suppressAuto = false;
   }
-  syncRuntime.classStatus = "success";
-  syncRuntime.classMessage = enabled ? "Klassen-Sync gespeichert." : "Klassen-Sync ist ausgeschaltet.";
+
+  if (requestedEnabled && !ready) {
+    const checkbox = document.querySelector("#classSyncEnabled");
+    if (checkbox) checkbox.checked = false;
+    syncRuntime.classStatus = "error";
+    syncRuntime.classMessage = "Für die Aktivierung brauchst du zuerst die vollständige https://-Adresse und einen Sync-Code.";
+    return false;
+  }
+  return true;
+}
+
+async function generateClassSyncCode() {
+  const input = document.querySelector("#classSyncCode");
+  if (!input) return;
+  input.value = randomSyncCode();
+  syncRuntime.classStatus = "idle";
+  syncRuntime.classMessage = "Neuer Code erzeugt und gespeichert.";
+  await rememberClassSyncForm();
+  const classSync = currentClassSyncSettings();
+  const codeLine = document.querySelector(".cloud-sync-card:nth-of-type(3) .message");
+  if (codeLine && classSync.syncCode) {
+    codeLine.innerHTML = `Aktueller Code: <strong>${escapeHtml(`${classSync.syncCode.slice(0, 5)}••••••••${classSync.syncCode.slice(-4)}`)}</strong>. Der Code ist der Schlüssel für diese Klasse. Behandle ihn wie ein Passwort.`;
+  }
+}
+
+async function saveClassSyncSettings() {
+  const ok = await rememberClassSyncForm();
+  const settings = currentClassSyncSettings();
+  syncRuntime.classStatus = ok ? "success" : "error";
+  syncRuntime.classMessage = ok
+    ? (settings.enabled ? "Klassen-Sync ist gespeichert und aktiv." : "Klassen-Sync-Einstellungen gespeichert.")
+    : syncRuntime.classMessage;
   render();
-  if (enabled) syncPendingLearningGameSessions().catch(() => {});
+  if (settings.enabled) syncPendingLearningGameSessions().catch(() => {});
 }
 
 async function testClassSyncConnection() {
-  const endpoint = normalizeEndpoint(document.querySelector("#classSyncEndpoint")?.value || currentClassSyncSettings().endpoint);
-  if (!endpoint) {
+  // Zuerst alle aktuell sichtbaren Formularwerte sichern. Dadurch gehen Adresse,
+  // Code und Aktivierungs-Haken beim anschließenden Rendern nicht mehr verloren.
+  const ok = await rememberClassSyncForm();
+  const settings = currentClassSyncSettings();
+  const endpoint = normalizeEndpoint(settings.endpoint);
+  if (!ok || !endpoint) {
     syncRuntime.classStatus = "error";
-    syncRuntime.classMessage = "Bitte zuerst die Cloudflare-Sync-Adresse eintragen.";
+    syncRuntime.classMessage = syncRuntime.classMessage || "Bitte zuerst die Cloudflare-Sync-Adresse eintragen.";
     render();
     return;
   }
@@ -666,7 +687,9 @@ async function testClassSyncConnection() {
     const response = await fetch(`${endpoint}/health`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Cloudflare antwortet mit ${response.status}.`);
     syncRuntime.classStatus = "success";
-    syncRuntime.classMessage = "Cloudflare-Sync ist erreichbar.";
+    syncRuntime.classMessage = settings.enabled
+      ? "Cloudflare-Sync ist erreichbar und aktiv."
+      : "Cloudflare-Sync ist erreichbar. Zum Senden noch aktivieren.";
   } catch (error) {
     syncRuntime.classStatus = "error";
     syncRuntime.classMessage = friendlySyncError(error);
