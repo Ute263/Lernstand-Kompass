@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v87";
+const CACHE_NAME = "lernstand-kompass-cache-v92";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -11,8 +11,12 @@ const APP_FILES = [
   "./qrcode.js",
   "./sync.js",
   "./app.js",
-  "./nomen-probe.js",
   "./child-sync.js",
+  "./child-qr-fix.js",
+  "./nomen-probe.js",
+  "./nomen-plural-flex.js",
+  "./nomen-activity.js",
+  "./nomen-feedback.js",
   "./pwa.js",
   "./manifest.json",
   "./icons/icon-180.png",
@@ -31,9 +35,7 @@ const APP_FILES = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)));
   self.skipWaiting();
 });
 
