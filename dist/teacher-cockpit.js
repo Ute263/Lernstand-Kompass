@@ -4,7 +4,7 @@
  * - neue Posteingangsmeldungen
  * - offene Hilfe- und Kontrollwünsche
  * - Aktivität heute in der App
- * - laufende / abgebrochene / beendete Nomen-Proben
+ * - laufende / abgebrochene / beendete Lernspiele
  * - offene fachliche Bestätigungen
  *
  * Die vorhandenen Startseiten-Kacheln bleiben darunter vollständig erhalten.
@@ -164,23 +164,41 @@
     return ids;
   }
 
-  function nomenActivitiesToday() {
+  function learningGameActivitiesToday() {
     return (state.learningGameSessions || [])
       .filter((item) => (
         item.classId === state.activeClassId &&
-        item.gameId === "nomen-probe-activity" &&
+        (item.gameId === "nomen-probe-activity" || item.gameId === "learning-game-activity") &&
         isToday(item.startedAt || item.updatedAt)
       ))
       .sort((a, b) => timeValue(b.updatedAt || b.startedAt) - timeValue(a.updatedAt || a.startedAt));
   }
 
-  function nomenResultsToday() {
+  function learningGameResultsToday() {
     return (state.learningGameSessions || [])
       .filter((item) => (
         item.classId === state.activeClassId &&
-        item.gameId === "nomen-probe" &&
+        item.finishedAt &&
+        item.gameId !== "nomen-probe-activity" &&
+        item.gameId !== "learning-game-activity" &&
         isToday(item.finishedAt)
       ));
+  }
+
+  function activityGameTitle(item) {
+    return item.gameTitle || (item.gameId === "nomen-probe-activity" ? "Nomen-Probe" : "Lernspiel");
+  }
+
+  function activityProgressText(item) {
+    const processed = Number(item.processedWords ?? item.processedItems ?? 0);
+    const total = Number(item.totalWords ?? item.totalItems ?? 0);
+    if (Number(item.timeLimitSeconds || 0) > 0 || item.mode === "challenge") {
+      return `${processed} Aufgaben bearbeitet`;
+    }
+    const unit = item.gameId === "nomen-probe-activity" || String(item.activityGameId || "").includes("probe")
+      ? "Wörtern"
+      : "Aufgaben";
+    return `${processed} von ${total || 10} ${unit}`;
   }
 
   function activityStatus(item) {
@@ -240,12 +258,10 @@
       .slice(0, 3)
       .forEach((item) => {
         const animal = activeAnimals().find((entry) => entry.id === item.animalId);
-        const processed = Number(item.processedWords || 0);
-        const total = Number(item.totalWords || 10);
         rows.push(`
           <button class="lk-cockpit-row attention" type="button" onclick="setTeacherTab('learningGames')">
             <span class="lk-cockpit-row-icon">❌</span>
-            <span><strong>${escapeHtml(animalLabel(animal))} hat die Nomen-Probe abgebrochen</strong><small>${processed} von ${total} Wörtern bearbeitet</small></span>
+            <span><strong>${escapeHtml(animalLabel(animal))} hat ${escapeHtml(activityGameTitle(item))} abgebrochen</strong><small>${escapeHtml(activityProgressText(item))}</small></span>
             <em>${escapeHtml(formatMoment(item.abortedAt || item.updatedAt))}</em>
           </button>
         `);
@@ -282,20 +298,19 @@
 
   function renderLearningGameRows(activities) {
     if (!activities.length) {
-      return `<div class="lk-cockpit-empty-block">Heute wurde noch keine Nomen-Probe gestartet.</div>`;
+      return `<div class="lk-cockpit-empty-block">Heute wurde noch kein Lernspiel gestartet.</div>`;
     }
 
     return activities.slice(0, 8).map((item) => {
       const animal = activeAnimals().find((entry) => entry.id === item.animalId);
       const status = activityStatus(item);
-      const processed = Number(item.processedWords || 0);
-      const total = Number(item.totalWords || 10);
+      const modeLabel = item.mode === "challenge" ? "10-Minuten-Challenge" : item.mode === "test" ? "Test" : "Üben";
       return `
         <button class="lk-game-row ${status.className}" type="button" onclick="setTeacherTab('learningGames')">
           <span>${status.icon}</span>
           <span>
-            <strong>${escapeHtml(animalLabel(animal))}</strong>
-            <small>${escapeHtml(item.mode === "test" ? "Test" : "Üben")} · ${processed} von ${total} Wörtern</small>
+            <strong>${escapeHtml(animalLabel(animal))} · ${escapeHtml(activityGameTitle(item))}</strong>
+            <small>${escapeHtml([item.variantLabel || "", modeLabel, activityProgressText(item)].filter(Boolean).join(" · "))}</small>
           </span>
           <em>${escapeHtml(status.label)}</em>
         </button>
@@ -310,8 +325,8 @@
     const quietToday = animals.filter((animal) => !activeIds.has(animal.id));
     const helpEntries = unresolvedEntries("brauche Hilfe");
     const controlEntries = unresolvedEntries("bitte kontrollieren");
-    const activities = nomenActivitiesToday();
-    const results = nomenResultsToday();
+    const activities = learningGameActivitiesToday();
+    const results = learningGameResultsToday();
     const runningNow = activities.filter((item) => activityStatus(item).className === "live").length;
     const abortedToday = activities.filter((item) => item.status === "aborted").length;
     const pendingReviews = pendingReviewCount();

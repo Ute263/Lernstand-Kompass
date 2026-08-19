@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v94";
+const CACHE_NAME = "lernstand-kompass-cache-v95";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const APP_FILES = [
   "./nomen-feedback.js",
   "./teacher-inbox.js",
   "./teacher-cockpit.js",
+  "./learning-games-plus.js",
   "./pwa.js",
   "./manifest.json",
   "./icons/icon-180.png",

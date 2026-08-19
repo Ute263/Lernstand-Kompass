@@ -5,8 +5,8 @@
  * - Kindmeldungen zu Arbeitsmaterial
  * - Wochenplan-Markierungen
  * - Zuweisungs-Markierungen
- * - Nomen-Probe beendet
- * - Nomen-Probe gestartet / Fortschritt / abgebrochen
+ * - Lernspiele beendet
+ * - Lernspiele gestartet / Fortschritt / abgebrochen
  *
  * "Gesehen" ist bewusst getrennt von "bestätigt":
  * Eine Meldung kann gelesen sein, aber weiterhin auf fachliche Bestätigung warten.
@@ -209,55 +209,90 @@
       });
   }
 
-  function nomenResultEvents() {
+  function learningGameIcon(session) {
+    if (session.gameId === "kopfrechnen-10-min") return "🧠";
+    if (session.gameId === "einmaleins-grundreihen") return "✖️";
+    if (session.gameId === "verb-probe") return "🏃";
+    if (session.gameId === "adjektiv-probe") return "🎨";
+    if (session.gameId === "wortarten-mix") return "🔤";
+    if (session.gameId === "nomen-probe") return session.mode === "test" ? "🎯" : "🌱";
+    return "🎮";
+  }
+
+  function learningGameResultDetail(session) {
+    const summary = session.summary || {};
+    if (session.gameId === "nomen-probe") {
+      const words = Array.isArray(session.items) ? session.items.length : 0;
+      const total = Number(summary.totalInteractions || 0);
+      const first = Number(summary.firstTryCorrect || 0);
+      const pct = total ? Math.round((first / total) * 100) : null;
+      return [
+        session.mode === "test" ? "Test" : "Üben",
+        `${words || 10} Wörter`,
+        pct !== null ? `${pct}% Prüfschritte direkt richtig` : ""
+      ].filter(Boolean).join(" · ");
+    }
+    if (session.gameId === "kopfrechnen-10-min") {
+      return [
+        session.variantLabel || "Kopfrechnen",
+        `${Number(summary.attemptedItems || 0)} bearbeitet`,
+        `${Number(summary.correctItems || 0)} richtig`,
+        `${Number(summary.accuracy || 0)}%`
+      ].filter(Boolean).join(" · ");
+    }
+    const total = Number(summary.totalItems || (session.items || []).length || 10);
+    const score = Number(summary.scoreItems ?? summary.correctItems ?? 0);
+    return [
+      session.variantLabel || "",
+      session.mode === "test" ? "Test" : "Üben",
+      `${score} von ${total} ${session.mode === "practice" ? "direkt richtig" : "richtig"}`
+    ].filter(Boolean).join(" · ");
+  }
+
+  function learningGameResultEvents() {
     return (state.learningGameSessions || [])
       .filter((session) => (
         session.classId === state.activeClassId &&
-        session.gameId === "nomen-probe" &&
-        session.finishedAt
+        session.finishedAt &&
+        session.gameId !== "nomen-probe-activity" &&
+        session.gameId !== "learning-game-activity"
       ))
-      .map((session) => {
-        const words = Array.isArray(session.items) ? session.items.length : 0;
-        const summary = session.summary || {};
-        const total = Number(summary.totalInteractions || 0);
-        const first = Number(summary.firstTryCorrect || 0);
-        const pct = total ? Math.round((first / total) * 100) : null;
-        return makeEvent({
-          key: `nomen-result:${session.id}`,
-          type: "Lernspiel",
-          animalId: session.animalId,
-          timestamp: session.finishedAt,
-          title: "Nomen-Probe beendet",
-          detail: [
-            session.mode === "test" ? "Test" : "Üben",
-            `${words || 10} Wörter`,
-            pct !== null ? `${pct}% Prüfschritte direkt richtig` : ""
-          ].filter(Boolean).join(" · "),
-          meta: `gestartet ${safeDate(session.startedAt)} · beendet ${safeDate(session.finishedAt)}`,
-          icon: session.mode === "test" ? "🎯" : "🌱",
-          target: "learningGames"
-        });
-      });
+      .map((session) => makeEvent({
+        key: `learning-result:${session.id}`,
+        type: "Lernspiel",
+        animalId: session.animalId,
+        timestamp: session.finishedAt,
+        title: `${session.gameTitle || "Lernspiel"} beendet`,
+        detail: learningGameResultDetail(session),
+        meta: `gestartet ${safeDate(session.startedAt)} · beendet ${safeDate(session.finishedAt)}`,
+        icon: learningGameIcon(session),
+        target: "learningGames"
+      }));
   }
 
-  function nomenActivityEvents() {
+  function learningGameActivityEvents() {
     return (state.learningGameSessions || [])
       .filter((item) => (
         item.classId === state.activeClassId &&
-        item.gameId === "nomen-probe-activity" &&
+        (item.gameId === "nomen-probe-activity" || item.gameId === "learning-game-activity") &&
         item.status !== "completed"
       ))
       .map((item) => {
-        const processed = Math.max(0, Number(item.processedWords || 0));
-        const total = Math.max(1, Number(item.totalWords || 10));
         const aborted = item.status === "aborted";
+        const gameTitle = item.gameTitle || (item.gameId === "nomen-probe-activity" ? "Nomen-Probe" : "Lernspiel");
+        const processed = Math.max(0, Number(item.processedWords ?? item.processedItems ?? 0));
+        const total = Math.max(0, Number(item.totalWords ?? item.totalItems ?? 0));
+        const challenge = Number(item.timeLimitSeconds || 0) > 0 || item.mode === "challenge";
+        const progress = challenge
+          ? `${processed} Aufgaben bearbeitet · 10-Minuten-Challenge`
+          : `${processed} von ${total || 10} ${item.activityGameId?.includes("probe") || item.gameId === "nomen-probe-activity" ? "Wörtern" : "Aufgaben"} bearbeitet`;
         return makeEvent({
-          key: `nomen-activity:${item.id}:${item.status || "in_progress"}`,
+          key: `learning-activity:${item.id}:${item.status || "in_progress"}`,
           type: "Aktivität",
           animalId: item.animalId,
           timestamp: item.updatedAt || item.abortedAt || item.lastActivityAt || item.startedAt,
-          title: aborted ? "Nomen-Probe abgebrochen" : "Nomen-Probe gestartet / läuft",
-          detail: `${processed} von ${total} Wörtern bearbeitet · ${item.mode === "test" ? "Test" : "Üben"}`,
+          title: aborted ? `${gameTitle} abgebrochen` : `${gameTitle} gestartet / läuft`,
+          detail: [item.variantLabel || "", progress].filter(Boolean).join(" · "),
           meta: aborted
             ? `Start ${safeDate(item.startedAt)} · Abbruch ${safeDate(item.abortedAt || item.updatedAt)}`
             : `Start ${safeDate(item.startedAt)} · letzte Aktivität ${safeDate(item.lastActivityAt || item.updatedAt)}`,
@@ -273,8 +308,8 @@
       ...childReportEvents(),
       ...assignmentStatusEvents(),
       ...weeklyPlanStatusEvents(),
-      ...nomenResultEvents(),
-      ...nomenActivityEvents()
+      ...learningGameResultEvents(),
+      ...learningGameActivityEvents()
     ];
 
     const deduped = new Map();
