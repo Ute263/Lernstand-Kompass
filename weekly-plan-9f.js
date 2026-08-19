@@ -355,7 +355,6 @@
             <b class="lk-wp-subject">${icon} ${escapeHtml(label || "")}</b>
             <span>${escapeHtml(pageText(item))}</span>
           </span>
-          ${detailText(item) ? `<small>${escapeHtml(detailText(item))}</small>` : ""}
         </div>
         <span class="lk-wp-circle"></span>
       </div>
@@ -467,7 +466,7 @@
           margin: 0 auto;
           background: #fff;
           color: #232323;
-          font-family: "Comic Sans MS", "Chalkboard SE", "Bradley Hand", "Segoe Print", cursive;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
           break-after: page;
           page-break-after: always;
         }
@@ -490,7 +489,7 @@
         }
         .lk-wp-title-wrap h1 {
           margin: 0;
-          font-size: 24pt;
+          font-size: 26pt;
           font-weight: 500;
           line-height: 1;
           letter-spacing: .2mm;
@@ -522,7 +521,7 @@
           grid-template-columns: 1fr 1.15fr;
           gap: 8mm;
           align-items: end;
-          font-size: 10pt;
+          font-size: 11pt;
         }
         .lk-wp-meta > div {
           display: flex;
@@ -543,7 +542,7 @@
           text-align: center;
           border-bottom: .3mm solid #555;
           font-family: Arial, sans-serif;
-          font-size: 9pt;
+          font-size: 9.5pt;
           padding-bottom: .5mm;
         }
         .lk-wp-small-meta {
@@ -552,7 +551,7 @@
           justify-content: center;
           gap: 5mm;
           font-family: Arial, sans-serif;
-          font-size: 7.5pt;
+          font-size: 8.3pt;
           color: #666;
           min-height: 3mm;
         }
@@ -564,7 +563,7 @@
           border-radius: 4mm 4mm 0 0;
           overflow: hidden;
           background: #eef6fb;
-          font-size: 10pt;
+          font-size: 11pt;
           text-align: center;
         }
         .lk-wp-table-head span {
@@ -592,14 +591,15 @@
           place-items: center;
           padding: 2mm;
           border-right: .3mm solid #555;
-          font-size: 12pt;
+          font-size: 13.5pt;
+          font-weight: 500;
           text-align: center;
         }
         .lk-wp-day-tasks { min-width: 0; }
         .lk-wp-task-row {
           display: grid;
           grid-template-columns: minmax(0,1fr) 22mm;
-          min-height: 5.8mm;
+          min-height: 6.3mm;
           border-bottom: .2mm solid #b9b9b9;
         }
         .lk-wp-task-row:last-child { border-bottom: 0; }
@@ -618,8 +618,9 @@
           align-items: baseline;
           gap: 1.5mm;
           min-width: 0;
-          font-family: Arial, sans-serif;
-          font-size: 8.2pt;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
+          font-size: 10.4pt;
+          line-height: 1.12;
         }
         .lk-wp-task-main > span:last-child {
           min-width: 0;
@@ -627,11 +628,11 @@
         }
         .lk-wp-subject {
           flex: none;
-          font-size: 7.6pt;
+          font-size: 9.2pt;
         }
         .lk-wp-star {
           color: #d2a318;
-          font-size: 9pt;
+          font-size: 10.5pt;
         }
         .lk-wp-task-text small {
           display: block;
@@ -688,7 +689,7 @@
           padding: 1.8mm 2mm;
           border-bottom: .25mm solid #888;
           text-align: center;
-          font-size: 9pt;
+          font-size: 10.5pt;
           font-weight: 500;
         }
         .lk-wp-footer-box.remember h3 { background: #edf8f3; }
