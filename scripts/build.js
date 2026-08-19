@@ -24,6 +24,7 @@ const files = [
   "teacher-inbox.js",
   "teacher-cockpit.js",
   "learning-games-plus.js",
+  "safety-tools.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
