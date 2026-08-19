@@ -26,7 +26,7 @@
 
   function makeQrMatrix(text) {
     const bytes = Array.from(new TextEncoder().encode(text));
-    if (bytes.length > 100) throw new Error("Tier-Code ist zu lang.");
+    if (bytes.length > 106) throw new Error("Tier-Code ist zu lang.");
     const data = makeDataCodewords(bytes);
     const ecc = reedSolomonRemainder(data, reedSolomonGenerator(ECC_CODEWORDS));
     const codewords = [...data, ...ecc];
@@ -66,16 +66,21 @@
     drawFinder(modules, isFunction, SIZE - 4, 3);
     drawFinder(modules, isFunction, 3, SIZE - 4);
     drawAlignment(modules, isFunction, 30, 30);
-    for (let i = 0; i < SIZE; i += 1) {
+    // Timing-Muster dürfen die Finder-Muster nicht überschreiben.
+    for (let i = 8; i < SIZE - 8; i += 1) {
       setFunction(modules, isFunction, 6, i, i % 2 === 0);
       setFunction(modules, isFunction, i, 6, i % 2 === 0);
     }
-    for (let i = 0; i < 9; i += 1) {
+    // Exakt die 15 Formatbits plus das feste dunkle Modul reservieren.
+    for (let i = 0; i < 6; i += 1) {
       setReserved(isFunction, 8, i);
       setReserved(isFunction, i, 8);
-      setReserved(isFunction, SIZE - 1 - i, 8);
-      setReserved(isFunction, 8, SIZE - 1 - i);
     }
+    setReserved(isFunction, 8, 7);
+    setReserved(isFunction, 8, 8);
+    setReserved(isFunction, 7, 8);
+    for (let i = 0; i < 8; i += 1) setReserved(isFunction, SIZE - 1 - i, 8);
+    for (let i = 8; i < 15; i += 1) setReserved(isFunction, 8, SIZE - 15 + i);
     setFunction(modules, isFunction, 8, SIZE - 8, true);
   }
 
@@ -179,8 +184,8 @@
     for (let i = 0; i < degree; i += 1) {
       const next = Array(result.length + 1).fill(0);
       result.forEach((coef, index) => {
-        next[index] ^= gfMultiply(coef, exp[i]);
-        next[index + 1] ^= coef;
+        next[index] ^= coef;
+        next[index + 1] ^= gfMultiply(coef, exp[i]);
       });
       result = next;
     }
@@ -192,7 +197,7 @@
     data.forEach((byte) => {
       const factor = byte ^ result.shift();
       result.push(0);
-      generator.slice(0, -1).forEach((coef, index) => {
+      generator.slice(1).forEach((coef, index) => {
         result[index] ^= gfMultiply(coef, factor);
       });
     });

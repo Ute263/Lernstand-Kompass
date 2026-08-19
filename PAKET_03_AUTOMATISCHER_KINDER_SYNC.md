@@ -27,3 +27,6 @@
 5. Auf dem Lehrkraftgerät erscheint die Meldung automatisch; spätestens nach etwa 30 Sekunden bzw. beim Zurückkehren in die App.
 
 Der bestehende Lernpost-Export bleibt als Fallback erhalten, ist auf automatisch eingerichteten Kindergeräten aber nicht mehr nötig.
+
+## QR-Fix 3b
+Die lokale QR-Erzeugung wurde korrigiert und mit der vollständigen Kinder-URL getestet.
