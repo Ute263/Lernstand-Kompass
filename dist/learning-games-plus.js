@@ -276,52 +276,101 @@
     return `
       <section class="step-wrap learning-games-child-home lg-game-home">
         ${renderBackButton("childSubject")}
-        <div class="learning-games-title-row">
-          <div>
-            <p class="learning-games-kicker">Lernspiele</p>
-            <h2 class="child-title">Was möchtest du üben?</h2>
-            <p class="message">${animal ? `Hallo ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}! ` : ""}Wähle Deutsch oder Mathe.</p>
+
+        <div class="lg-home-hero">
+          <div class="lg-home-hero-copy">
+            <span class="lg-home-pill">Lernspiele</span>
+            <h2 class="child-title">${animal ? `Hallo ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}!` : "Hallo!"}<br>Was möchtest du heute üben?</h2>
+            <p class="message">Wähle ein Spiel aus. Toni begleitet dich dabei.</p>
+            <div class="lg-home-mini-chips">
+              <span>📘 Deutsch</span>
+              <span>🔢 Mathe</span>
+              <span>🎯 kleine Spiele</span>
+            </div>
           </div>
-          <img class="nomen-toni-small" src="materials/toni-nomen.png" alt="Toni" />
+          <div class="lg-home-hero-figure">
+            <img class="lg-home-toni" src="materials/toni-nomen.png" alt="Toni" />
+            <div class="lg-home-speech">Los geht's!</div>
+          </div>
         </div>
 
-        <div class="lg-subject-heading"><span>📘</span><div><strong>Deutsch</strong><small>Wörter und Wortarten sicher erkennen</small></div></div>
-        <div class="learning-game-card-grid lg-card-grid">
-          <button class="learning-game-card" type="button" onclick="openNomenProbe()">
-            <span class="learning-game-icon">⭐</span>
-            <strong>Nomen-Probe</strong>
-            <small>Name – Artikel – Mehrzahl – entscheiden</small>
-          </button>
-          <button class="learning-game-card" type="button" onclick="lgOpenLanguage('verb')">
-            <span class="learning-game-icon">🏃</span>
-            <strong>Verb-Probe</strong>
-            <small>Tun-Wort – Grundform – Verb erkennen</small>
-          </button>
-          <button class="learning-game-card" type="button" onclick="lgOpenLanguage('adjective')">
-            <span class="learning-game-icon">🎨</span>
-            <strong>Adjektiv-Probe</strong>
-            <small>Eigenschaft – Steigerung – Adjektiv erkennen</small>
-          </button>
-          <button class="learning-game-card" type="button" onclick="lgOpenLanguage('mix')">
-            <span class="learning-game-icon">🔤</span>
-            <strong>Wortarten-Mix</strong>
-            <small>Nomen · Verb · Adjektiv</small>
-          </button>
-        </div>
+        <section class="lg-home-subject-card deutsch">
+          <div class="lg-home-subject-top">
+            <div class="lg-home-subject-icon">📘</div>
+            <div>
+              <strong>Deutsch</strong>
+              <small>Wörter und Wortarten sicher erkennen</small>
+            </div>
+          </div>
+          <div class="lg-home-grid">
+            <button class="lg-home-card" type="button" onclick="openNomenProbe()">
+              <span class="lg-home-card-icon">⭐</span>
+              <div class="lg-home-card-text">
+                <strong>Nomen-Probe</strong>
+                <small>Name · Artikel · Mehrzahl · entscheiden</small>
+              </div>
+              <div class="lg-home-card-tags"><span>Person</span><span>Tier</span><span>Pflanze</span><span>Ding</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('verb')">
+              <span class="lg-home-card-icon">🏃</span>
+              <div class="lg-home-card-text">
+                <strong>Verb-Probe</strong>
+                <small>Tun-Wort · Grundform · Verb erkennen</small>
+              </div>
+              <div class="lg-home-card-tags"><span>tun</span><span>Grundform</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('adjective')">
+              <span class="lg-home-card-icon">🎨</span>
+              <div class="lg-home-card-text">
+                <strong>Adjektiv-Probe</strong>
+                <small>Eigenschaft · steigern · Adjektiv erkennen</small>
+              </div>
+              <div class="lg-home-card-tags"><span>wie ist etwas?</span><span>steigern</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('mix')">
+              <span class="lg-home-card-icon">🔤</span>
+              <div class="lg-home-card-text">
+                <strong>Wortarten-Mix</strong>
+                <small>Nomen · Verb · Adjektiv bunt gemischt</small>
+              </div>
+              <div class="lg-home-card-tags"><span>mischen</span><span>erkennen</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+          </div>
+        </section>
 
-        <div class="lg-subject-heading math"><span>🔢</span><div><strong>Mathe</strong><small>Grundreihen und Kopfrechnen</small></div></div>
-        <div class="learning-game-card-grid lg-card-grid">
-          <button class="learning-game-card" type="button" onclick="lgOpenMultiplication()">
-            <span class="learning-game-icon">✖️</span>
-            <strong>Einmaleins</strong>
-            <small>1er · 2er · 5er · 10er · gemischt</small>
-          </button>
-          <button class="learning-game-card lg-mental-card" type="button" onclick="lgOpenMentalMath()">
-            <span class="learning-game-icon">🧠</span>
-            <strong>Kopfrechnen-Challenge</strong>
-            <small>5 oder 10 Minuten – wie viele schaffst du?</small>
-          </button>
-        </div>
+        <section class="lg-home-subject-card mathe">
+          <div class="lg-home-subject-top">
+            <div class="lg-home-subject-icon">🔢</div>
+            <div>
+              <strong>Mathe</strong>
+              <small>Grundreihen und Kopfrechnen trainieren</small>
+            </div>
+          </div>
+          <div class="lg-home-grid lg-home-grid-math">
+            <button class="lg-home-card" type="button" onclick="lgOpenMultiplication()">
+              <span class="lg-home-card-icon">✖️</span>
+              <div class="lg-home-card-text">
+                <strong>Einmaleins</strong>
+                <small>1er · 2er · 5er · 10er · gemischt</small>
+              </div>
+              <div class="lg-home-card-tags"><span>Grundreihen</span><span>üben</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+            <button class="lg-home-card lg-home-card-wide" type="button" onclick="lgOpenMentalMath()">
+              <span class="lg-home-card-icon">🧠</span>
+              <div class="lg-home-card-text">
+                <strong>Kopfrechnen-Challenge</strong>
+                <small>5 oder 10 Minuten – wie viele Aufgaben schaffst du?</small>
+              </div>
+              <div class="lg-home-card-tags"><span>Plus</span><span>Minus</span><span>bis 20</span><span>bis 100</span></div>
+              <div class="lg-home-card-cta">Spiel starten →</div>
+            </button>
+          </div>
+        </section>
       </section>
     `;
   };
@@ -1734,13 +1783,111 @@
   style.id = "lk-learning-games-plus-style";
   style.textContent = `
     .lg-game-home { display:grid; gap:18px; }
-    .lg-subject-heading { display:flex; gap:10px; align-items:center; margin-top:4px; padding:10px 12px; border-radius:14px; background:rgba(90,140,190,.08); }
-    .lg-subject-heading.math { background:rgba(230,160,70,.09); }
-    .lg-subject-heading > span { font-size:1.35rem; }
-    .lg-subject-heading > div { display:grid; gap:2px; }
-    .lg-subject-heading small { opacity:.65; }
-    .lg-card-grid { margin-top:-6px; }
-    .lg-mental-card { grid-column:span 2; }
+    .lg-home-hero {
+      display:grid;
+      grid-template-columns:minmax(0,1.3fr) auto;
+      gap:18px;
+      align-items:center;
+      padding:22px 22px 18px;
+      border-radius:28px;
+      background:linear-gradient(135deg, rgba(255,240,197,.95), rgba(223,243,255,.95));
+      box-shadow:0 10px 28px rgba(0,0,0,.08);
+      overflow:hidden;
+    }
+    .lg-home-pill {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.78);
+      font-size:.82rem;
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      margin-bottom:10px;
+    }
+    .lg-home-hero-copy .child-title { margin:0 0 10px; line-height:1.12; }
+    .lg-home-mini-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .lg-home-mini-chips span {
+      padding:7px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.72);
+      font-size:.9rem;
+      font-weight:700;
+    }
+    .lg-home-hero-figure { position:relative; display:grid; justify-items:center; }
+    .lg-home-toni { width:min(180px, 28vw); min-width:118px; height:auto; filter:drop-shadow(0 8px 12px rgba(0,0,0,.12)); }
+    .lg-home-speech {
+      position:absolute;
+      right:-4px;
+      top:4px;
+      padding:9px 12px;
+      border-radius:18px 18px 18px 4px;
+      background:#fff;
+      font-weight:800;
+      box-shadow:0 8px 18px rgba(0,0,0,.08);
+      white-space:nowrap;
+    }
+    .lg-home-subject-card {
+      display:grid;
+      gap:14px;
+      padding:18px;
+      border-radius:24px;
+      background:rgba(255,255,255,.78);
+      box-shadow:0 8px 22px rgba(0,0,0,.05);
+    }
+    .lg-home-subject-card.deutsch { border:2px solid rgba(90,140,190,.18); }
+    .lg-home-subject-card.mathe { border:2px solid rgba(230,160,70,.18); }
+    .lg-home-subject-top { display:flex; gap:12px; align-items:center; }
+    .lg-home-subject-icon {
+      width:48px; height:48px; border-radius:16px; display:grid; place-items:center;
+      background:rgba(90,140,190,.12); font-size:1.4rem;
+    }
+    .lg-home-subject-card.mathe .lg-home-subject-icon { background:rgba(230,160,70,.14); }
+    .lg-home-subject-top > div { display:grid; gap:2px; }
+    .lg-home-subject-top strong { font-size:1.15rem; }
+    .lg-home-subject-top small { opacity:.68; }
+    .lg-home-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .lg-home-grid-math { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .lg-home-card {
+      position:relative;
+      padding:16px;
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:20px;
+      background:linear-gradient(180deg, rgba(255,255,255,.94), rgba(245,249,252,.95));
+      display:grid;
+      gap:10px;
+      text-align:left;
+      font:inherit;
+      cursor:pointer;
+      transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      min-height:185px;
+    }
+    .lg-home-card:hover, .lg-home-card:focus-visible {
+      transform:translateY(-2px);
+      box-shadow:0 10px 20px rgba(0,0,0,.08);
+      border-color:rgba(47,111,145,.25);
+      outline:none;
+    }
+    .lg-home-card-wide { grid-column:span 1; }
+    .lg-home-card-icon {
+      width:52px; height:52px; border-radius:18px; display:grid; place-items:center;
+      background:rgba(47,111,145,.11); font-size:1.5rem;
+    }
+    .lg-home-card-text { display:grid; gap:4px; }
+    .lg-home-card-text strong { font-size:1.12rem; }
+    .lg-home-card-text small { opacity:.72; line-height:1.35; }
+    .lg-home-card-tags { display:flex; gap:7px; flex-wrap:wrap; }
+    .lg-home-card-tags span {
+      padding:5px 8px; border-radius:999px; background:rgba(47,111,145,.09); font-size:.77rem; font-weight:700;
+    }
+    .lg-home-subject-card.mathe .lg-home-card-tags span { background:rgba(230,160,70,.13); }
+    .lg-home-card-cta {
+      margin-top:auto;
+      font-weight:800;
+      color:#2f6f91;
+    }
 
     .lg-start-shell, .lg-play-shell, .lg-final-shell { max-width:920px; margin:0 auto; }
     .lg-simple-hero { display:flex; gap:18px; align-items:center; padding:18px; border-radius:20px; background:rgba(255,255,255,.7); margin:16px 0; }
