@@ -288,6 +288,15 @@
     const ms = currentMicrosoftSettings();
     const connected = microsoftConnected();
     const label = accountLabel();
+    let liveStatus = "idle";
+    let liveMessage = "";
+    try {
+      liveStatus = syncRuntime?.msStatus || "idle";
+      liveMessage = syncRuntime?.msMessage || ms.lastSyncStatus || "";
+    } catch {
+      liveMessage = ms.lastSyncStatus || "";
+    }
+    const isWorking = liveStatus === "working";
 
     return `
       <section class="panel colleague-sync-card">
@@ -318,10 +327,38 @@
           </label>
 
           <div class="backup-actions">
-            <button class="primary" type="button" onclick="syncWithOneDriveNow()">Jetzt abgleichen</button>
-            <button class="secondary" type="button" onclick="uploadOneDriveBackupNow()">Nur sichern</button>
-            <button class="secondary" type="button" onclick="disconnectMicrosoft()">Konto trennen</button>
+            <button class="primary" type="button" ${isWorking ? "disabled" : ""} onclick="syncWithOneDriveNow()">
+              ${isWorking ? "⏳ Abgleich läuft …" : "Jetzt abgleichen"}
+            </button>
+            <button class="secondary" type="button" ${isWorking ? "disabled" : ""} onclick="uploadOneDriveBackupNow()">
+              ${isWorking ? "Bitte warten …" : "Nur sichern"}
+            </button>
+            <button class="secondary" type="button" ${isWorking ? "disabled" : ""} onclick="disconnectMicrosoft()">Konto trennen</button>
           </div>
+
+          ${liveMessage ? `
+            <div class="colleague-sync-feedback ${
+              liveStatus === "error"
+                ? "error"
+                : liveStatus === "success"
+                  ? "success"
+                  : liveStatus === "working"
+                    ? "working"
+                    : ""
+            }">
+              <span>${liveStatus === "working" ? "⏳" : liveStatus === "error" ? "❌" : "✅"}</span>
+              <div>
+                <strong>${
+                  liveStatus === "working"
+                    ? "OneDrive arbeitet"
+                    : liveStatus === "error"
+                      ? "OneDrive-Fehler"
+                      : "OneDrive"
+                }</strong>
+                <small>${escapeHtml(liveMessage)}</small>
+              </div>
+            </div>
+          ` : ""}
         ` : `
           <div class="colleague-connect-box">
             <div>
@@ -630,6 +667,32 @@
     .colleague-tech-grid code {
       overflow-wrap:anywhere;
       white-space:normal;
+    }
+    .colleague-sync-feedback {
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr);
+      gap:9px;
+      align-items:start;
+      padding:11px 12px;
+      border-radius:14px;
+      background:rgba(47,111,145,.07);
+    }
+    .colleague-sync-feedback.success {
+      background:rgba(75,150,95,.10);
+    }
+    .colleague-sync-feedback.error {
+      background:rgba(184,75,75,.10);
+    }
+    .colleague-sync-feedback.working {
+      background:rgba(230,160,70,.12);
+    }
+    .colleague-sync-feedback > div {
+      display:grid;
+      gap:2px;
+    }
+    .colleague-sync-feedback small {
+      opacity:.76;
+      line-height:1.35;
     }
 
     @media (max-width:900px) {
