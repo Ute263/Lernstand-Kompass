@@ -375,7 +375,7 @@
       <div class="lk-wp-task-row ${item.isExtraTask ? "starred" : ""}">
         <div class="lk-wp-task-text">
           <span class="lk-wp-task-main">
-            ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+            ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
             <b class="lk-wp-subject" title="${escapeAttribute(subject || "Aufgabe")}">${icon}</b>
             <span>${escapeHtml(pageText(item))}</span>
           </span>
@@ -655,8 +655,10 @@
           font-size: 9.2pt;
         }
         .lk-wp-star {
-          color: #d2a318;
-          font-size: 10.5pt;
+          color: #c89400;
+          font-size: 13pt;
+          line-height: 1;
+          margin-right: .4mm;
         }
         .lk-wp-task-text small {
           display: block;

@@ -521,16 +521,35 @@
 
     const subjectIndexes = { Deutsch: 0, Mathe: 0 };
     items = items.map((item) => {
-      if (!["Deutsch", "Mathe"].includes(item.subject)) return item;
-      const subject = item.subject;
+      // Je nach Ursprung des Wochenplans steht das Fach in `subject`
+      // oder nur in `label`. Beides muss für die Sternzuordnung gelten.
+      const rawSubject = stripStar(item?.subject || item?.label || "").trim();
+      const subject = /deutsch/i.test(rawSubject)
+        ? "Deutsch"
+        : /mathe/i.test(rawSubject)
+          ? "Mathe"
+          : "";
+
+      if (!subject) return item;
+
       const index = subjectIndexes[subject]++;
       const source = effectiveSubjectDay(plan, day, animalId, subject);
       const keys = taskKeys(subject);
       const ids = normalizeIdArray(source[keys.ids] || source[keys.legacyId]);
-      const stars = boolList(source[keys.stars], ids.length, duplicateDefaults(ids));
+
+      // Gespeicherte Sternwerte haben Vorrang.
+      // Bei älteren Plänen ohne Stern-Array gilt weiterhin:
+      // zweite Auswahl derselben Seite = ⭐ Zusatzaufgabe.
+      const stars = boolList(
+        source[keys.stars],
+        ids.length,
+        duplicateDefaults(ids)
+      );
       const starred = Boolean(stars[index]);
+
       return {
         ...item,
+        subject,
         text: `${starred ? "⭐ " : ""}${stripStar(item.text)}`,
         label: `${starred ? "⭐ " : ""}${stripStar(item.label || subject)}`,
         isExtraTask: starred
