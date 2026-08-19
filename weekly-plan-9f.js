@@ -307,10 +307,34 @@
     return normalizeCode(options?.codes?.[animal.id] || animal.weeklyCode || "");
   }
 
+  function printSubject(item) {
+    const raw = String(item?.subject || item?.label || "")
+      .replace(/^⭐\s*/, "")
+      .trim();
+    if (/deutsch/i.test(raw)) return "Deutsch";
+    if (/mathe/i.test(raw)) return "Mathe";
+    if (/extra|freie aufgabe|sonstig/i.test(raw)) return "Extra";
+
+    const catalogSubject = String(item?.catalogItem?.subject || "").trim();
+    if (/deutsch/i.test(catalogSubject)) return "Deutsch";
+    if (/mathe/i.test(catalogSubject)) return "Mathe";
+    return item?.isFreeTask ? "Extra" : raw;
+  }
+
   function printableItems(plan, day, animal, options) {
     let items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
     if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
-    return items;
+
+    // Für Kinder immer die gleiche, leicht erkennbare Reihenfolge:
+    // Deutsch → Mathe → freie/sonstige Aufgaben.
+    const rank = { Deutsch: 1, Mathe: 2, Extra: 3 };
+    return items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => (
+        (rank[printSubject(a.item)] || 9) - (rank[printSubject(b.item)] || 9)
+        || a.index - b.index
+      ))
+      .map(({ item }) => item);
   }
 
   function pageText(item) {
@@ -345,14 +369,14 @@
       `;
     }
 
-    const icon = item.subject === "Deutsch" ? "📘" : item.subject === "Mathe" ? "🔢" : "✏️";
-    const label = item.subject === "Extra" ? "Aufgabe" : item.subject;
+    const subject = printSubject(item);
+    const icon = subject === "Deutsch" ? "📘" : subject === "Mathe" ? "🔢" : "✏️";
     return `
       <div class="lk-wp-task-row ${item.isExtraTask ? "starred" : ""}">
         <div class="lk-wp-task-text">
           <span class="lk-wp-task-main">
             ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
-            <b class="lk-wp-subject">${icon} ${escapeHtml(label || "")}</b>
+            <b class="lk-wp-subject" title="${escapeAttribute(subject || "Aufgabe")}">${icon}</b>
             <span>${escapeHtml(pageText(item))}</span>
           </span>
         </div>

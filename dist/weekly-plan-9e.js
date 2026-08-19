@@ -567,6 +567,26 @@
         items = items.filter((item) => !item.isExtraTask);
       }
     } catch {}
+
+    // Alte Wochenpläne können dieselbe Heftaufgabe gleichzeitig im früheren
+    // Einzel-Feld und im neuen Mehrfach-Feld enthalten. Das führte dazu,
+    // dass eine Aufgabe im Kinderplan/Druck doppelt erschien.
+    // Bewusst doppelt gewählte Aufgaben bleiben erhalten, sobald sich
+    // Sternstatus, Nummer oder Freitext unterscheiden.
+    const seenWeeklyItems = new Set();
+    items = items.filter((item) => {
+      const subject = stripStar(item?.subject || item?.label || "").trim().toLowerCase();
+      const catalogId = String(item?.catalogItem?.id || item?.workbookCatalogId || "");
+      const taskNumber = String(item?.taskNumber || "").trim();
+      const freeText = String(item?.freeText || "").trim();
+      const text = stripStar(item?.text || "").trim();
+      const star = item?.isExtraTask === true ? "star" : "normal";
+      const signature = [subject, catalogId, taskNumber, freeText, text, star].join("|");
+      if (seenWeeklyItems.has(signature)) return false;
+      seenWeeklyItems.add(signature);
+      return true;
+    });
+
     return items;
   };
 
