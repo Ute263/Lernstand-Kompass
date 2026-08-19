@@ -16,7 +16,7 @@ const files = [
   "sync.js",
   "app.js",
   "nomen-probe.js",
-  "child-sync.js",
+  "nomen-feedback.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
