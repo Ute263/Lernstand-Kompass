@@ -1,6 +1,6 @@
-/* Paket 3c: Konkrete Rückmeldung nach jedem vollständig geprüften Wort.
- * Die Prüfschritte im Test bleiben neutral. Erst nach der kompletten Nomen-Probe
- * für ein Wort wird die richtige Lösung gezeigt.
+/* Paket 3d: Eindeutige Richtig/Falsch-Rückmeldung nach jedem Wort.
+ * Die Prüfschritte im Test bleiben neutral. Nach dem vollständig geprüften Wort
+ * sieht das Kind eindeutig, ob alles richtig war oder ob mindestens ein Fehler vorkam.
  */
 (() => {
   if (typeof renderNomenWordResult !== "function") return;
@@ -11,7 +11,7 @@
     renderNomenStart = function renderNomenStartWithWordFeedbackInfo() {
       return originalRenderNomenStart().replace(
         "Du antwortest einmal. Die Lösungen siehst du während des Tests nicht.",
-        "Du antwortest einmal. Nach jedem vollständig geprüften Wort siehst du die richtige Lösung."
+        "Du antwortest einmal. Nach jedem vollständig geprüften Wort siehst du, ob es richtig war, und die richtige Lösung."
       );
     };
   }
@@ -52,9 +52,25 @@
 
     const isLast = runtime.roundIndex === runtime.rounds.length - 1;
     const stepResults = Object.values(runtime.currentItemResult?.steps || {});
-    const successful = runtime.mode === "test"
-      ? stepResults.length === 4 && stepResults.every((result) => result.correct)
-      : stepResults.length === 4 && stepResults.every((result) => result.firstTry);
+    const allCorrect = stepResults.length === 4 && stepResults.every((result) => result.correct);
+    const allFirstTry = stepResults.length === 4 && stepResults.every((result) => result.firstTry);
+    const correctCount = stepResults.filter((result) => result.correct).length;
+
+    let feedbackIcon = "✅";
+    let feedbackTitle = "Alles richtig!";
+    let feedbackText = "Du hast alle Prüfschritte richtig beantwortet.";
+
+    if (runtime.mode === "test" && !allCorrect) {
+      feedbackIcon = "❌";
+      feedbackTitle = "Da war etwas falsch.";
+      feedbackText = `${correctCount} von 4 Prüfschritten waren richtig. Schau dir jetzt die richtige Lösung an.`;
+    } else if (runtime.mode === "practice" && !allFirstTry) {
+      feedbackIcon = "❌";
+      feedbackTitle = "Da war zuerst etwas falsch.";
+      feedbackText = "Jetzt stimmt die Probe. Schau dir die richtige Lösung noch einmal genau an.";
+    } else if (runtime.mode === "practice") {
+      feedbackText = "Du hast alle Prüfschritte direkt richtig beantwortet.";
+    }
 
     const rows = correctWordRows(item);
     const displayWord = item.isNoun
@@ -67,16 +83,14 @@
 
     return `
       <section class="nomen-word-result">
-        <div class="nomen-result-stamp ${item.isNoun ? "noun" : "not-noun"}">
-          ${item.isNoun ? "NOMEN" : "KEIN NOMEN"}
+        <div class="nomen-result-stamp ${allCorrect && (runtime.mode !== "practice" || allFirstTry) ? "noun" : "not-noun"}">
+          ${feedbackIcon} ${escapeHtml(feedbackTitle)}
         </div>
 
-        <h3>${successful
-          ? (runtime.mode === "test" ? "Alles richtig!" : "Alles direkt richtig!")
-          : "So ist die richtige Probe:"}</h3>
+        <h3>${escapeHtml(feedbackText)}</h3>
 
         <div class="nomen-final-word ${item.isNoun ? "noun" : "not-noun"}">
-          <small>${item.isNoun ? "So schreiben wir das Wort:" : "Das Wort bleibt klein:"}</small>
+          <small>${item.isNoun ? "So lautet die richtige Lösung:" : "So lautet die richtige Lösung:"}</small>
           <strong>${escapeHtml(displayWord)}</strong>
           <span>${subline}</span>
         </div>
