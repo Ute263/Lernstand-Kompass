@@ -26,6 +26,7 @@ const files = [
   "learning-games-plus.js",
   "safety-tools.js",
   "school-year-archive.js",
+  "colleague-mode.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
