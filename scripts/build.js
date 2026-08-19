@@ -30,6 +30,7 @@ const files = [
   "weekly-extra-tasks.js",
   "weekly-ui-cleanup.js",
   "weekly-plan-9e.js",
+  "weekly-plan-9f.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
