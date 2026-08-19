@@ -19,6 +19,7 @@ const files = [
   "child-qr-fix.js",
   "nomen-probe.js",
   "nomen-plural-flex.js",
+  "nomen-activity.js",
   "nomen-feedback.js",
   "pwa.js",
   "manifest.json",

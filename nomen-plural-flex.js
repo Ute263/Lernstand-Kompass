@@ -1,4 +1,4 @@
-/* Paket 3g: Mehrzahl mit ODER ohne Artikel als richtig werten.
+/* Paket 3g/3h: Mehrzahl mit ODER ohne Artikel als richtig werten.
  * Beispiel: "Jungen" und "die Jungen" sind beide richtig.
  * Groß-/Kleinschreibung wird bei dieser Probe nicht bewertet.
  */
