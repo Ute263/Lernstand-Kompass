@@ -18,6 +18,7 @@ const files = [
   "child-sync.js",
   "child-qr-fix.js",
   "nomen-probe.js",
+  "nomen-plural-flex.js",
   "nomen-feedback.js",
   "pwa.js",
   "manifest.json",
