@@ -21,6 +21,7 @@ const files = [
   "nomen-plural-flex.js",
   "nomen-activity.js",
   "nomen-feedback.js",
+  "teacher-inbox.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
