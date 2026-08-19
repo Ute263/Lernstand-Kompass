@@ -35,6 +35,15 @@
   const LG_ACTIVITY_PUSH_EVERY = 5;
   const LG_ACTIVITY_PUSH_MS = 15_000;
 
+  const LG_CATALOG = [
+    { id: "nomen-probe", label: "Nomen", fullLabel: "Nomen-Probe", icon: "⭐" },
+    { id: "verb-probe", label: "Verben", fullLabel: "Verb-Probe", icon: "🏃" },
+    { id: "adjektiv-probe", label: "Adjektive", fullLabel: "Adjektiv-Probe", icon: "🎨" },
+    { id: "wortarten-mix", label: "Wortarten-Mix", fullLabel: "Wortarten-Mix", icon: "🔤" },
+    { id: "einmaleins-grundreihen", label: "Einmaleins", fullLabel: "Einmaleins", icon: "✖️" },
+    { id: "kopfrechnen-10-min", label: "Kopfrechnen", fullLabel: "Kopfrechnen-Challenge", icon: "🧠" }
+  ];
+
   const VERB_WORDS = [
     ["läuft", "laufen"], ["spielt", "spielen"], ["malt", "malen"], ["springt", "springen"],
     ["lacht", "lachen"], ["schläft", "schlafen"], ["schreibt", "schreiben"], ["liest", "lesen"],
@@ -85,6 +94,8 @@
 
   let lgRuntime = null;
   let lgTeacherFilter = "all";
+  let lgTeacherGameId = "nomen-probe";
+  let lgNomenTeacherView = "results";
   let lgTeacherDetailId = "";
   let lgTimerHandle = null;
 
@@ -269,10 +280,59 @@
     }
   }
 
+  function lgReleaseMap() {
+    const stored = state?.childViewSettings?.learningGames;
+    const result = {};
+    LG_CATALOG.forEach((game) => {
+      result[game.id] = stored && Object.prototype.hasOwnProperty.call(stored, game.id)
+        ? stored[game.id] !== false
+        : true;
+    });
+    return result;
+  }
+
+  function lgGameReleased(gameId) {
+    return lgReleaseMap()[gameId] !== false;
+  }
+
+  function lgReleasedCount() {
+    const map = lgReleaseMap();
+    return LG_CATALOG.filter((game) => map[game.id]).length;
+  }
+
+  window.lgToggleGameRelease = async function lgToggleGameRelease(gameId, checked) {
+    if (!LG_CATALOG.some((game) => game.id === gameId)) return;
+    const nextGames = { ...lgReleaseMap(), [gameId]: !!checked };
+    await persist({
+      ...state,
+      childViewSettings: {
+        ...(state.childViewSettings || {}),
+        learningGames: nextGames
+      }
+    });
+    render();
+  };
+
+  function lgReleaseToggle(game) {
+    const released = lgGameReleased(game.id);
+    return `
+      <label class="lg-release-item ${released ? "released" : "locked"}">
+        <span class="lg-release-icon">${game.icon}</span>
+        <span><strong>${escapeHtml(game.fullLabel)}</strong><small>${released ? "für Kinder sichtbar" : "gesperrt"}</small></span>
+        <input type="checkbox" ${released ? "checked" : ""} onchange="lgToggleGameRelease('${game.id}', this.checked)">
+      </label>
+    `;
+  }
+
   /* --------------------- Lernspiel-Startseite --------------------- */
 
   renderLearningGamesChildHome = function renderLearningGamesChildHomePlus() {
     const animal = lgAnimal();
+    const released = lgReleaseMap();
+    const deutschVisible = ["nomen-probe", "verb-probe", "adjektiv-probe", "wortarten-mix"].some((id) => released[id]);
+    const matheVisible = ["einmaleins-grundreihen", "kopfrechnen-10-min"].some((id) => released[id]);
+    const anyVisible = deutschVisible || matheVisible;
+
     return `
       <section class="step-wrap learning-games-child-home lg-game-home">
         ${renderBackButton("childSubject")}
@@ -282,11 +342,6 @@
             <span class="lg-home-pill">Lernspiele</span>
             <h2 class="child-title">${animal ? `Hallo ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}!` : "Hallo!"}<br>Was möchtest du heute üben?</h2>
             <p class="message">Wähle ein Spiel aus. Toni begleitet dich dabei.</p>
-            <div class="lg-home-mini-chips">
-              <span>📘 Deutsch</span>
-              <span>🔢 Mathe</span>
-              <span>🎯 kleine Spiele</span>
-            </div>
           </div>
           <div class="lg-home-hero-figure">
             <img class="lg-home-toni" src="materials/toni-nomen.png" alt="Toni" />
@@ -294,83 +349,75 @@
           </div>
         </div>
 
-        <section class="lg-home-subject-card deutsch">
-          <div class="lg-home-subject-top">
-            <div class="lg-home-subject-icon">📘</div>
-            <div>
-              <strong>Deutsch</strong>
-              <small>Wörter und Wortarten sicher erkennen</small>
-            </div>
+        ${!anyVisible ? `
+          <div class="lg-no-games">
+            <span>🧭</span>
+            <strong>Heute ist noch kein Lernspiel freigeschaltet.</strong>
+            <small>Deine Lehrkraft stellt dir später wieder Spiele bereit.</small>
           </div>
-          <div class="lg-home-grid">
-            <button class="lg-home-card" type="button" onclick="openNomenProbe()">
-              <span class="lg-home-card-icon">⭐</span>
-              <div class="lg-home-card-text">
-                <strong>Nomen-Probe</strong>
-                <small>Name · Artikel · Mehrzahl · entscheiden</small>
-              </div>
-              <div class="lg-home-card-tags"><span>Person</span><span>Tier</span><span>Pflanze</span><span>Ding</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('verb')">
-              <span class="lg-home-card-icon">🏃</span>
-              <div class="lg-home-card-text">
-                <strong>Verb-Probe</strong>
-                <small>Tun-Wort · Grundform · Verb erkennen</small>
-              </div>
-              <div class="lg-home-card-tags"><span>tun</span><span>Grundform</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('adjective')">
-              <span class="lg-home-card-icon">🎨</span>
-              <div class="lg-home-card-text">
-                <strong>Adjektiv-Probe</strong>
-                <small>Eigenschaft · steigern · Adjektiv erkennen</small>
-              </div>
-              <div class="lg-home-card-tags"><span>wie ist etwas?</span><span>steigern</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-            <button class="lg-home-card" type="button" onclick="lgOpenLanguage('mix')">
-              <span class="lg-home-card-icon">🔤</span>
-              <div class="lg-home-card-text">
-                <strong>Wortarten-Mix</strong>
-                <small>Nomen · Verb · Adjektiv bunt gemischt</small>
-              </div>
-              <div class="lg-home-card-tags"><span>mischen</span><span>erkennen</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-          </div>
-        </section>
+        ` : ""}
 
-        <section class="lg-home-subject-card mathe">
-          <div class="lg-home-subject-top">
-            <div class="lg-home-subject-icon">🔢</div>
-            <div>
-              <strong>Mathe</strong>
-              <small>Grundreihen und Kopfrechnen trainieren</small>
+        ${deutschVisible ? `
+          <section class="lg-home-subject-card deutsch">
+            <div class="lg-home-subject-top">
+              <div class="lg-home-subject-icon">📘</div>
+              <div><strong>Deutsch</strong><small>Wörter und Wortarten sicher erkennen</small></div>
             </div>
-          </div>
-          <div class="lg-home-grid lg-home-grid-math">
-            <button class="lg-home-card" type="button" onclick="lgOpenMultiplication()">
-              <span class="lg-home-card-icon">✖️</span>
-              <div class="lg-home-card-text">
-                <strong>Einmaleins</strong>
-                <small>1er · 2er · 5er · 10er · gemischt</small>
-              </div>
-              <div class="lg-home-card-tags"><span>Grundreihen</span><span>üben</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-            <button class="lg-home-card lg-home-card-wide" type="button" onclick="lgOpenMentalMath()">
-              <span class="lg-home-card-icon">🧠</span>
-              <div class="lg-home-card-text">
-                <strong>Kopfrechnen-Challenge</strong>
-                <small>5 oder 10 Minuten – wie viele Aufgaben schaffst du?</small>
-              </div>
-              <div class="lg-home-card-tags"><span>Plus</span><span>Minus</span><span>bis 20</span><span>bis 100</span></div>
-              <div class="lg-home-card-cta">Spiel starten →</div>
-            </button>
-          </div>
-        </section>
+            <div class="lg-home-grid">
+              ${released["nomen-probe"] ? `
+                <button class="lg-home-card" type="button" onclick="openNomenProbe()">
+                  <span class="lg-home-card-icon">⭐</span>
+                  <div class="lg-home-card-text"><strong>Nomen-Probe</strong><small>Name · Artikel · Mehrzahl · entscheiden</small></div>
+                  <div class="lg-home-card-tags"><span>Person</span><span>Tier</span><span>Pflanze</span><span>Ding</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+              ${released["verb-probe"] ? `
+                <button class="lg-home-card" type="button" onclick="lgOpenLanguage('verb')">
+                  <span class="lg-home-card-icon">🏃</span>
+                  <div class="lg-home-card-text"><strong>Verb-Probe</strong><small>Tun-Wort · Grundform · Verb erkennen</small></div>
+                  <div class="lg-home-card-tags"><span>tun</span><span>Grundform</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+              ${released["adjektiv-probe"] ? `
+                <button class="lg-home-card" type="button" onclick="lgOpenLanguage('adjective')">
+                  <span class="lg-home-card-icon">🎨</span>
+                  <div class="lg-home-card-text"><strong>Adjektiv-Probe</strong><small>Eigenschaft · steigern · Adjektiv erkennen</small></div>
+                  <div class="lg-home-card-tags"><span>wie ist etwas?</span><span>steigern</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+              ${released["wortarten-mix"] ? `
+                <button class="lg-home-card" type="button" onclick="lgOpenLanguage('mix')">
+                  <span class="lg-home-card-icon">🔤</span>
+                  <div class="lg-home-card-text"><strong>Wortarten-Mix</strong><small>Nomen · Verb · Adjektiv bunt gemischt</small></div>
+                  <div class="lg-home-card-tags"><span>mischen</span><span>erkennen</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+            </div>
+          </section>` : ""}
+
+        ${matheVisible ? `
+          <section class="lg-home-subject-card mathe">
+            <div class="lg-home-subject-top">
+              <div class="lg-home-subject-icon">🔢</div>
+              <div><strong>Mathe</strong><small>Grundreihen und Kopfrechnen trainieren</small></div>
+            </div>
+            <div class="lg-home-grid lg-home-grid-math">
+              ${released["einmaleins-grundreihen"] ? `
+                <button class="lg-home-card" type="button" onclick="lgOpenMultiplication()">
+                  <span class="lg-home-card-icon">✖️</span>
+                  <div class="lg-home-card-text"><strong>Einmaleins</strong><small>1er · 2er · 5er · 10er · gemischt</small></div>
+                  <div class="lg-home-card-tags"><span>Grundreihen</span><span>üben</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+              ${released["kopfrechnen-10-min"] ? `
+                <button class="lg-home-card" type="button" onclick="lgOpenMentalMath()">
+                  <span class="lg-home-card-icon">🧠</span>
+                  <div class="lg-home-card-text"><strong>Kopfrechnen-Challenge</strong><small>5 oder 10 Minuten – wie viele Aufgaben schaffst du?</small></div>
+                  <div class="lg-home-card-tags"><span>Plus</span><span>Minus</span><span>bis 20</span><span>bis 100</span></div>
+                  <div class="lg-home-card-cta">Spiel starten →</div>
+                </button>` : ""}
+            </div>
+          </section>` : ""}
       </section>
     `;
   };
@@ -1602,8 +1649,21 @@
     return session.mode === "test" ? "Test" : "Üben";
   }
 
+  window.setLGTeacherGame = function setLGTeacherGame(gameId) {
+    if (!LG_CATALOG.some((game) => game.id === gameId)) return;
+    lgTeacherGameId = gameId;
+    lgTeacherFilter = gameId;
+    lgTeacherDetailId = "";
+    render();
+  };
+
+  window.setLGNomenTeacherView = function setLGNomenTeacherView(value) {
+    lgNomenTeacherView = value === "activity" ? "activity" : "results";
+    render();
+  };
+
   window.setLGTeacherFilter = function setLGTeacherFilter(value) {
-    lgTeacherFilter = value || "all";
+    lgTeacherFilter = value || lgTeacherGameId || "all";
     lgTeacherDetailId = "";
     render();
   };
@@ -1710,61 +1770,45 @@
     `;
   }
 
-  function lgRenderTeacherPanel() {
-    const sessions = lgTeacherSessions();
-    const activities = lgTeacherActivities();
-    const filters = [
-      ["all", "Alle"],
-      ["verb-probe", "Verben"],
-      ["adjektiv-probe", "Adjektive"],
-      ["wortarten-mix", "Wortarten-Mix"],
-      ["einmaleins-grundreihen", "Einmaleins"],
-      ["kopfrechnen-10-min", "Kopfrechnen"]
-    ];
-    const filtered = lgTeacherFilter === "all"
-      ? sessions
-      : sessions.filter((item) => item.gameId === lgTeacherFilter);
-
+  function lgRenderTeacherPanel(gameId) {
+    const sessions = lgTeacherSessions().filter((item) => item.gameId === gameId);
+    const activities = lgTeacherActivities().filter((item) => item.activityGameId === gameId);
+    const game = LG_CATALOG.find((item) => item.id === gameId) || LG_CATALOG[1];
     const running = activities.filter((item) => item.status === "in_progress").length;
     const aborted = activities.filter((item) => item.status === "aborted").length;
     const detail = lgTeacherDetailId ? sessions.find((item) => item.id === lgTeacherDetailId) : null;
 
     return `
       <section class="panel lg-teacher-panel">
-        <div class="learning-games-teacher-title">
+        <div class="learning-games-teacher-title compact">
           <div>
-            <h2>Weitere Lernspiele</h2>
-            <p class="message">Verb, Adjektiv, Wortarten, Einmaleins und Kopfrechnen mit 5 oder 10 Minuten. Klicke bei einer Runde auf „Auswertung“, um jede einzelne Aufgabe zu sehen.</p>
+            <h2>${game.icon} ${escapeHtml(game.fullLabel)}</h2>
+            <p class="message">${sessions.length ? "Die letzten Runden dieser Klasse." : "Noch keine beendete Runde in diesem Lernspiel."}</p>
           </div>
         </div>
 
-        <div class="nomen-stat-grid">
-          <article><strong>${sessions.length}</strong><span>beendete Runden</span></article>
-          <article><strong>${running}</strong><span>gestartet / läuft</span></article>
-          <article><strong>${aborted}</strong><span>abgebrochen</span></article>
+        <div class="lg-compact-stats">
+          <span><strong>${sessions.length}</strong> beendet</span>
+          <span><strong>${running}</strong> läuft</span>
+          <span><strong>${aborted}</strong> abgebrochen</span>
         </div>
 
-        <div class="section-tabs lg-filter-tabs">
-          ${filters.map(([value, label]) => `<button class="small-button ${lgTeacherFilter === value ? "active" : ""}" type="button" onclick="setLGTeacherFilter('${value}')">${escapeHtml(label)}</button>`).join("")}
-        </div>
-
-        <div class="table-scroll">
+        <div class="table-scroll lg-result-scroll">
           <table>
-            <thead><tr><th>Tier</th><th>Lernspiel</th><th>Modus</th><th>Ergebnis</th><th>Zeitpunkt</th><th></th></tr></thead>
+            <thead><tr><th>Tier</th><th>Runde</th><th>Ergebnis</th><th>Zeitpunkt</th><th></th></tr></thead>
             <tbody>
-              ${filtered.slice(0, 50).map((session) => {
+              ${sessions.slice(0, 12).map((session) => {
                 const animal = lgTeacherAnimal(session);
                 return `
                   <tr>
                     <td><strong>${animal ? teacherAnimalLabel(animal) : "Tier"}</strong></td>
-                    <td>${escapeHtml(lgTeacherGameLabel(session))}</td>
-                    <td>${escapeHtml(lgTeacherModeLabel(session))}</td>
+                    <td>${escapeHtml([session.variantLabel || "", lgTeacherModeLabel(session)].filter(Boolean).join(" · "))}</td>
                     <td>${escapeHtml(lgTeacherResultText(session))}</td>
                     <td>${escapeHtml(typeof formatDateTime === "function" ? formatDateTime(session.finishedAt) : session.finishedAt)}</td>
                     <td><button class="small-button" type="button" onclick='openLGTeacherDetails(${JSON.stringify(session.id)})'>Auswertung</button></td>
                   </tr>
                 `;
-              }).join("") || `<tr><td colspan="6">Noch keine Ergebnisse aus diesen Lernspielen.</td></tr>`}
+              }).join("") || `<tr><td colspan="5">Noch keine Ergebnisse.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1773,8 +1817,64 @@
     `;
   }
 
-  renderLearningGamesTeacher = function renderLearningGamesTeacherPlus() {
-    return `${lgRenderTeacherPanel()}${baseRenderLearningGamesTeacher()}`;
+  function lgRenderReleasePanel() {
+    const releasedCount = lgReleasedCount();
+    return `
+      <details class="panel lg-release-panel">
+        <summary>
+          <span><strong>🔓 Spiele freischalten</strong><small>${releasedCount} von ${LG_CATALOG.length} für Kinder sichtbar</small></span>
+          <span class="lg-release-summary-hint">ändern</span>
+        </summary>
+        <p class="message">Nur freigeschaltete Spiele erscheinen auf den Kindergeräten. Ergebnisse aus früheren Runden bleiben erhalten.</p>
+        <div class="lg-release-grid">${LG_CATALOG.map(lgReleaseToggle).join("")}</div>
+      </details>
+    `;
+  }
+
+  function lgRenderTeacherGameTabs() {
+    return `
+      <section class="panel lg-game-tabs-panel">
+        <div class="lg-teacher-heading-row">
+          <div><h2>Lernspiele</h2><p class="message">Wähle ein Spiel. Es wird immer nur die passende Auswertung angezeigt.</p></div>
+        </div>
+        <div class="lg-game-tabs">
+          ${LG_CATALOG.map((game) => `
+            <button class="lg-game-tab ${lgTeacherGameId === game.id ? "active" : ""}" type="button" onclick="setLGTeacherGame('${game.id}')">
+              <span>${game.icon}</span><strong>${escapeHtml(game.label)}</strong>${lgGameReleased(game.id) ? "" : `<small>🔒</small>`}
+            </button>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function lgRenderNomenTeacher() {
+    const content = baseRenderLearningGamesTeacher();
+    return `
+      <div class="lg-nomen-wrap ${lgNomenTeacherView === "activity" ? "show-activity" : "show-results"}">
+        <div class="section-tabs lg-nomen-subtabs">
+          <button class="small-button ${lgNomenTeacherView === "results" ? "active" : ""}" type="button" onclick="setLGNomenTeacherView('results')">Ergebnisse</button>
+          <button class="small-button ${lgNomenTeacherView === "activity" ? "active" : ""}" type="button" onclick="setLGNomenTeacherView('activity')">Aktivität / Abbrüche</button>
+        </div>
+        ${content}
+      </div>
+    `;
+  }
+
+  // Der große leere Nomen-Detailplatzhalter erzeugt unnötigen Scrollraum.
+  // Eine Detailansicht erscheint erst, wenn wirklich eine Runde gewählt wurde.
+  if (typeof renderNomenTeacherEmptyDetail === "function") {
+    renderNomenTeacherEmptyDetail = function renderNomenTeacherEmptyDetailCompact() { return ""; };
+  }
+
+  renderLearningGamesTeacher = function renderLearningGamesTeacherUnified() {
+    return `
+      ${lgRenderReleasePanel()}
+      ${lgRenderTeacherGameTabs()}
+      ${lgTeacherGameId === "nomen-probe"
+        ? lgRenderNomenTeacher()
+        : lgRenderTeacherPanel(lgTeacherGameId)}
+    `;
   };
 
   /* --------------------- Styles --------------------- */
@@ -1966,6 +2066,45 @@
     .lg-child-wrong-list span { padding:6px 8px; border-radius:9px; background:rgba(255,255,255,.75); }
     .lg-perfect-note { max-width:560px; margin:18px auto; padding:14px; border-radius:16px; background:rgba(75,150,95,.09); }
 
+    .lg-no-games { display:grid; justify-items:center; gap:7px; padding:28px; text-align:center; border-radius:22px; background:rgba(255,255,255,.72); }
+    .lg-no-games > span { font-size:2.2rem; }
+
+    .lg-release-panel { margin-bottom:14px; }
+    .lg-release-panel > summary { cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:14px; align-items:center; }
+    .lg-release-panel > summary::-webkit-details-marker { display:none; }
+    .lg-release-panel > summary > span:first-child { display:grid; gap:3px; }
+    .lg-release-panel summary small { opacity:.62; font-weight:400; }
+    .lg-release-summary-hint { opacity:.6; font-size:.82rem; }
+    .lg-release-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
+    .lg-release-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:9px; align-items:center; padding:10px 11px; border-radius:14px; border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.72); }
+    .lg-release-item.locked { opacity:.7; background:rgba(0,0,0,.025); }
+    .lg-release-item > span:nth-child(2) { display:grid; gap:1px; }
+    .lg-release-item small { opacity:.62; }
+    .lg-release-icon { font-size:1.2rem; }
+    .lg-release-item input { width:20px; height:20px; }
+
+    .lg-game-tabs-panel { margin-bottom:14px; }
+    .lg-teacher-heading-row h2 { margin:0 0 3px; }
+    .lg-teacher-heading-row .message { margin:0; }
+    .lg-game-tabs { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin-top:12px; }
+    .lg-game-tab { min-width:0; padding:10px 7px; border:1px solid rgba(0,0,0,.08); border-radius:14px; background:rgba(255,255,255,.75); display:grid; justify-items:center; gap:3px; font:inherit; cursor:pointer; }
+    .lg-game-tab > span { font-size:1.25rem; }
+    .lg-game-tab strong { font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+    .lg-game-tab small { position:absolute; }
+    .lg-game-tab.active { background:#eef2ff; border-color:rgba(75,100,220,.34); box-shadow:inset 0 0 0 1px rgba(75,100,220,.16); }
+
+    .lg-compact-stats { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+    .lg-compact-stats span { padding:7px 10px; border-radius:999px; background:rgba(47,111,145,.07); font-size:.85rem; }
+    .lg-result-scroll { max-height:390px; overflow:auto; }
+    .lg-nomen-subtabs { margin:0 0 10px; }
+    .lg-nomen-wrap.show-results .nomen-activity-panel { display:none; }
+    .lg-nomen-wrap.show-activity .learning-games-teacher-panel,
+    .lg-nomen-wrap.show-activity .nomen-teacher-detail { display:none; }
+    .lg-nomen-wrap .nomen-activity-panel .table-scroll,
+    .lg-nomen-wrap .learning-games-teacher-panel .table-scroll { max-height:390px; overflow:auto; }
+    .lg-nomen-wrap .nomen-activity-panel,
+    .lg-nomen-wrap .learning-games-teacher-panel { margin-bottom:0; }
+
     .lg-teacher-panel { margin-bottom:14px; }
     .lg-filter-tabs { margin:14px 0; flex-wrap:wrap; }
     .lg-row-wrong { background:#fff8eb; }
@@ -1982,6 +2121,8 @@
     .lg-error-summary.success { background:rgba(75,150,95,.09); }
 
     @media (max-width:760px) {
+      .lg-release-grid { grid-template-columns:1fr; }
+      .lg-game-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
       .lg-mental-card { grid-column:auto; }
       .lg-probe-steps, .lg-variant-grid, .lg-mental-grid { grid-template-columns:1fr; }
       .lg-choice-grid.three { grid-template-columns:1fr; }
