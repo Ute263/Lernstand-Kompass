@@ -304,7 +304,7 @@
     return activities.slice(0, 8).map((item) => {
       const animal = activeAnimals().find((entry) => entry.id === item.animalId);
       const status = activityStatus(item);
-      const modeLabel = item.mode === "challenge" ? "10-Minuten-Challenge" : item.mode === "test" ? "Test" : "Üben";
+      const modeLabel = item.mode === "challenge" ? `${Math.round(Number(item.timeLimitSeconds || 600) / 60)}-Minuten-Challenge` : item.mode === "test" ? "Test" : "Üben";
       return `
         <button class="lk-game-row ${status.className}" type="button" onclick="setTeacherTab('learningGames')">
           <span>${status.icon}</span>

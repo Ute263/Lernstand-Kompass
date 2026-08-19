@@ -235,6 +235,7 @@
     if (session.gameId === "kopfrechnen-10-min") {
       return [
         session.variantLabel || "Kopfrechnen",
+        `${Math.round(Number(session.timeLimitSeconds || 600) / 60)} Min`,
         `${Number(summary.attemptedItems || 0)} bearbeitet`,
         `${Number(summary.correctItems || 0)} richtig`,
         `${Number(summary.accuracy || 0)}%`
@@ -284,7 +285,7 @@
         const total = Math.max(0, Number(item.totalWords ?? item.totalItems ?? 0));
         const challenge = Number(item.timeLimitSeconds || 0) > 0 || item.mode === "challenge";
         const progress = challenge
-          ? `${processed} Aufgaben bearbeitet · 10-Minuten-Challenge`
+          ? `${processed} Aufgaben bearbeitet · ${Math.round(Number(item.timeLimitSeconds || 600) / 60)}-Minuten-Challenge`
           : `${processed} von ${total || 10} ${item.activityGameId?.includes("probe") || item.gameId === "nomen-probe-activity" ? "Wörtern" : "Aufgaben"} bearbeitet`;
         return makeEvent({
           key: `learning-activity:${item.id}:${item.status || "in_progress"}`,

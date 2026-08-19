@@ -7,7 +7,7 @@
  *
  * Mathe:
  * - Einmaleins: 1er, 2er, 5er, 10er, Grundreihen gemischt
- * - 10-Minuten-Kopfrechnen:
+ * - Kopfrechen-Challenge (5 oder 10 Minuten):
  *   + / - / gemischt bis 20
  *   + / - / gemischt bis 100 ohne Zehnerübergang
  *   + / - / gemischt bis 100 mit Zehnerübergang
@@ -34,7 +34,6 @@
   ]);
   const LG_ACTIVITY_PUSH_EVERY = 5;
   const LG_ACTIVITY_PUSH_MS = 15_000;
-  const LG_MENTAL_SECONDS = 10 * 60;
 
   const VERB_WORDS = [
     ["läuft", "laufen"], ["spielt", "spielen"], ["malt", "malen"], ["springt", "springen"],
@@ -319,8 +318,8 @@
           </button>
           <button class="learning-game-card lg-mental-card" type="button" onclick="lgOpenMentalMath()">
             <span class="learning-game-icon">🧠</span>
-            <strong>10-Minuten-Kopfrechnen</strong>
-            <small>Wie viele Aufgaben schaffst du in 10 Minuten?</small>
+            <strong>Kopfrechnen-Challenge</strong>
+            <small>5 oder 10 Minuten – wie viele schaffst du?</small>
           </button>
         </div>
       </section>
@@ -1055,13 +1054,15 @@
     render();
   };
 
-  function lgMentalBest(categoryKey) {
+  function lgMentalBest(categoryKey, minutes) {
     const animal = lgAnimal();
     if (!animal) return null;
+    const seconds = Number(minutes) * 60;
     const sessions = lgSessionList().filter((item) => (
       item.gameId === "kopfrechnen-10-min" &&
       item.animalId === animal.id &&
       item.variant === categoryKey &&
+      Number(item.timeLimitSeconds || 600) === seconds &&
       item.finishedAt
     ));
     if (!sessions.length) return null;
@@ -1075,13 +1076,22 @@
         <h3>${escapeHtml(groupName)}</h3>
         <div class="lg-mental-grid">
           ${entries.map(([key, item]) => {
-            const best = lgMentalBest(key);
+            const best5 = lgMentalBest(key, 5);
+            const best10 = lgMentalBest(key, 10);
             return `
-              <button class="lg-mental-choice" type="button" onclick="lgStartMental('${key}')">
+              <article class="lg-mental-choice">
                 <span>${escapeHtml(item.icon)}</span>
                 <strong>${escapeHtml(item.label)}</strong>
-                <small>${best === null ? "10 Minuten" : `Bestwert: ${best} richtig`}</small>
-              </button>
+                <small>Wähle deine Zeit.</small>
+                <div class="lg-time-choice-row">
+                  <button class="small-button" type="button" onclick="lgStartMental('${key}',5)">⏱️ 5 Min</button>
+                  <button class="small-button" type="button" onclick="lgStartMental('${key}',10)">⏱️ 10 Min</button>
+                </div>
+                <div class="lg-best-row">
+                  <span>5 Min: ${best5 === null ? '–' : `${best5} richtig`}</span>
+                  <span>10 Min: ${best10 === null ? '–' : `${best10} richtig`}</span>
+                </div>
+              </article>
             `;
           }).join("")}
         </div>
@@ -1100,13 +1110,13 @@
         <div class="lg-simple-hero">
           <span>🧠</span>
           <div>
-            <h2>10-Minuten-Kopfrechnen</h2>
-            <p>Du hast <strong>10 Minuten Zeit</strong>. Wie viele Aufgaben schaffst du – und wie viele davon sind richtig?</p>
+            <h2>Kopfrechnen-Challenge</h2>
+            <p>Wähle einen Rechenbereich und danach <strong>5 oder 10 Minuten</strong>. Wie viele Aufgaben schaffst du – und wie viele davon sind richtig?</p>
           </div>
         </div>
         <div class="lg-challenge-note">
           <strong>⏱️ Es zählt beides:</strong>
-          <span>Wie viele Aufgaben du bearbeitest <b>und</b> wie genau du rechnest.</span>
+          <span>Wie viele Aufgaben du bearbeitest <b>und</b> wie genau du rechnest. Bestwerte für 5 und 10 Minuten werden getrennt gespeichert.</span>
         </div>
         ${groups.map(lgRenderMentalGroup).join("")}
       </section>
@@ -1209,23 +1219,27 @@
     }, 500);
   }
 
-  window.lgStartMental = async function lgStartMental(categoryKey) {
+  window.lgStartMental = async function lgStartMental(categoryKey, minutes = 10) {
     const animal = lgAnimal();
     const category = MENTAL_CATEGORIES[categoryKey];
+    const durationMinutes = Number(minutes) === 5 ? 5 : 10;
+    const durationSeconds = durationMinutes * 60;
     if (!animal || !category) return;
     const now = Date.now();
     lgRuntime = {
       kind: "mental",
       gameId: "kopfrechnen-10-min",
-      gameTitle: "10-Minuten-Kopfrechnen",
+      gameTitle: `${durationMinutes}-Minuten-Kopfrechnen`,
       variant: categoryKey,
       variantLabel: category.label,
       mode: "challenge",
+      timeLimitMinutes: durationMinutes,
+      timeLimitSeconds: durationSeconds,
       animalId: animal.id,
       classId: state.activeClassId,
       startedAt: lgNow(),
       startedMs: now,
-      endsAtMs: now + LG_MENTAL_SECONDS * 1000,
+      endsAtMs: now + durationSeconds * 1000,
       items: [],
       current: lgGenerateMentalQuestion(categoryKey),
       questionStartedMs: now,
@@ -1242,7 +1256,7 @@
       variantLabel: category.label,
       mode: "challenge",
       totalItems: 0,
-      timeLimitSeconds: LG_MENTAL_SECONDS
+      timeLimitSeconds: durationSeconds
     });
     screen = "childLGMentalPlay";
     render();
@@ -1327,10 +1341,10 @@
       variant: runtime.variant,
       variantLabel: runtime.variantLabel,
       mode: "challenge",
-      timeLimitSeconds: LG_MENTAL_SECONDS,
+      timeLimitSeconds: runtime.timeLimitSeconds,
       startedAt: runtime.startedAt,
       finishedAt,
-      durationSeconds: Math.min(LG_MENTAL_SECONDS, lgDurationSeconds(runtime.startedMs)),
+      durationSeconds: Math.min(runtime.timeLimitSeconds, lgDurationSeconds(runtime.startedMs)),
       items: runtime.items,
       summary: {
         attemptedItems: attempted,
@@ -1395,6 +1409,7 @@
           item.gameId === session.gameId &&
           item.animalId === session.animalId &&
           item.variant === session.variant &&
+          Number(item.timeLimitSeconds || 600) === Number(session.timeLimitSeconds || 600) &&
           item.finishedAt
         ))
         .map((item) => Number(item.summary?.correctItems || 0))
@@ -1410,7 +1425,7 @@
     return `
       <section class="nomen-shell lg-final-shell">
         <div class="lg-final-icon">🧠</div>
-        <h2>10 Minuten geschafft!</h2>
+        <h2>${Math.round(Number(session.timeLimitSeconds || 600) / 60)} Minuten geschafft!</h2>
         <p class="lg-final-score"><strong>${summary.attemptedItems}</strong> Aufgaben bearbeitet · <strong>${summary.correctItems}</strong> richtig.</p>
         <div class="lg-final-stat-grid">
           <article><strong>${summary.accuracy}%</strong><small>richtig</small></article>
@@ -1434,10 +1449,11 @@
 
   window.lgReplayMental = function lgReplayMental() {
     const variant = lgRuntime?.variant;
+    const minutes = Math.round(Number(lgRuntime?.savedSession?.timeLimitSeconds || lgRuntime?.timeLimitSeconds || 600) / 60);
     lgRuntime = null;
     lgClearTimer();
     if (variant) {
-      lgStartMental(variant);
+      lgStartMental(variant, minutes);
       return;
     }
     screen = "childLGMentalStart";
@@ -1520,7 +1536,7 @@
   function lgTeacherResultText(session) {
     const s = session.summary || {};
     if (session.gameId === "kopfrechnen-10-min") {
-      return `${Number(s.correctItems || 0)} von ${Number(s.attemptedItems || 0)} richtig · ${Number(s.accuracy || 0)} % · Ø ${String(Number(s.avgSeconds || 0)).replace(".", ",")} s`;
+      return `${Math.round(Number(session.timeLimitSeconds || 600) / 60)} Min · ${Number(s.correctItems || 0)} von ${Number(s.attemptedItems || 0)} richtig · ${Number(s.accuracy || 0)} % · Ø ${String(Number(s.avgSeconds || 0)).replace(".", ",")} s`;
     }
     if (session.gameId === "einmaleins-grundreihen") {
       return `${Number(s.scoreItems || 0)} von ${Number(s.totalItems || 10)} ${session.mode === "practice" ? "direkt richtig" : "richtig"}`;
@@ -1533,7 +1549,7 @@
   }
 
   function lgTeacherModeLabel(session) {
-    if (session.mode === "challenge") return "10-Minuten-Challenge";
+    if (session.mode === "challenge") return `${Math.round(Number(session.timeLimitSeconds || 600) / 60)}-Minuten-Challenge`;
     return session.mode === "test" ? "Test" : "Üben";
   }
 
@@ -1549,51 +1565,98 @@
     setTimeout(() => document.querySelector("#lgTeacherDetails")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
+  function lgTeacherStepCell(step, correctValue = "", mode = "test") {
+    if (!step) return `<span class="muted">–</span>`;
+    const okay = mode === "practice" ? step.firstTry === true : step.correct === true;
+    const answer = step.answer === "yes" ? "Ja" : step.answer === "no" ? "Nein" : step.answer === "not" ? "Nein" : step.answer || "–";
+    return `<span class="lg-step-result ${okay ? "ok" : "bad"}">${okay ? "✅" : "❌"} ${escapeHtml(String(answer))}${!okay && correctValue ? `<small> → ${escapeHtml(String(correctValue))}</small>` : ""}</span>`;
+  }
+
+  function lgTeacherSummaryCards(session) {
+    const s = session.summary || {};
+    if (session.gameId === "kopfrechnen-10-min") {
+      const minutes = Math.round(Number(session.timeLimitSeconds || 600) / 60);
+      return `
+        <div class="lg-detail-stat-grid">
+          <article><strong>${minutes} Min</strong><small>Dauer</small></article>
+          <article><strong>${Number(s.attemptedItems || 0)}</strong><small>bearbeitet</small></article>
+          <article><strong>${Number(s.correctItems || 0)}</strong><small>richtig</small></article>
+          <article><strong>${Number(s.wrongItems || 0)}</strong><small>falsch</small></article>
+          <article><strong>${Number(s.accuracy || 0)} %</strong><small>Genauigkeit</small></article>
+          <article><strong>${String(Number(s.avgSeconds || 0)).replace(".", ",")} s</strong><small>Ø pro Aufgabe</small></article>
+        </div>`;
+    }
+    return `
+      <div class="lg-detail-stat-grid">
+        <article><strong>${Number(s.scoreItems || 0)}/${Number(s.totalItems || 10)}</strong><small>${session.mode === "practice" ? "direkt richtig" : "richtig"}</small></article>
+        <article><strong>${Number(s.accuracy || 0)} %</strong><small>Trefferquote</small></article>
+        ${session.gameId === "einmaleins-grundreihen" ? `<article><strong>${String(Number(s.avgSeconds || 0)).replace(".", ",")} s</strong><small>Ø pro Aufgabe</small></article>` : ""}
+        <article><strong>${escapeHtml(lgTeacherModeLabel(session))}</strong><small>Modus</small></article>
+      </div>`;
+  }
+
+  function lgRenderLanguageTeacherRows(session) {
+    return (session.items || []).map((item, index) => {
+      if (session.gameId === "wortarten-mix") {
+        const step = item.steps?.class;
+        const answer = step?.answer || "–";
+        const okay = session.mode === "practice" ? step?.firstTry === true : step?.correct === true;
+        return `<tr class="${okay ? "" : "lg-row-wrong"}"><td>${index + 1}</td><td><strong>${escapeHtml(item.word)}</strong></td><td>${escapeHtml(answer)}</td><td>${escapeHtml(item.type || "–")}</td><td>${okay ? "✅" : "❌"}</td></tr>`;
+      }
+      if (session.gameId === "verb-probe") {
+        const isVerb = item.type === "Verb";
+        return `<tr><td>${index + 1}</td><td><strong>${escapeHtml(item.word)}</strong></td><td>${lgTeacherStepCell(item.steps?.action, isVerb ? "Ja" : "Nein", session.mode)}</td><td>${lgTeacherStepCell(item.steps?.base, isVerb ? item.infinitive : "Keine Grundform", session.mode)}</td><td>${lgTeacherStepCell(item.steps?.decision, isVerb ? "Verb" : "kein Verb", session.mode)}</td></tr>`;
+      }
+      const isAdj = item.type === "Adjektiv";
+      return `<tr><td>${index + 1}</td><td><strong>${escapeHtml(item.word)}</strong></td><td>${lgTeacherStepCell(item.steps?.property, isAdj ? "Ja" : "Nein", session.mode)}</td><td>${lgTeacherStepCell(item.steps?.comparative, isAdj ? item.comparative : "Nicht steigern", session.mode)}</td><td>${lgTeacherStepCell(item.steps?.decision, isAdj ? "Adjektiv" : "kein Adjektiv", session.mode)}</td></tr>`;
+    }).join("");
+  }
+
   function lgRenderTeacherDetails(session) {
     if (!session) return "";
     const animal = lgTeacherAnimal(session);
-    const wrong = (session.items || []).filter((item) => !item.correct && !item.firstTry);
-    const rows = (session.items || []).slice(0, 100).map((item, index) => {
-      let task = item.prompt || item.word || `Aufgabe ${index + 1}`;
-      let answer = item.answer ?? "";
-      let solution = item.correctAnswer ?? "";
-      let okay = item.correct === true || item.firstTry === true;
+    const isLanguage = ["verb-probe", "adjektiv-probe", "wortarten-mix"].includes(session.gameId);
+    const isMental = session.gameId === "kopfrechnen-10-min";
+    const isMultiplication = session.gameId === "einmaleins-grundreihen";
 
-      if (item.word && item.steps) {
-        const stepValues = Object.values(item.steps);
-        okay = session.mode === "practice"
-          ? stepValues.every((entry) => entry.firstTry)
-          : stepValues.every((entry) => entry.correct);
-        answer = okay ? "richtig erkannt" : "Fehler in der Probe";
-        solution = item.type;
+    let table = "";
+    if (isLanguage) {
+      const headers = session.gameId === "verb-probe"
+        ? ["#", "Wort", "Tun-Probe", "Grundform", "Verb?"]
+        : session.gameId === "adjektiv-probe"
+          ? ["#", "Wort", "Eigenschaft?", "Steigerung", "Adjektiv?"]
+          : ["#", "Wort", "Antwort", "richtige Wortart", ""];
+      table = `<div class="table-scroll"><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${lgRenderLanguageTeacherRows(session)}</tbody></table></div>`;
+    } else {
+      const rows = (session.items || []).slice(0, 200).map((item, index) => {
+        const okay = session.mode === "practice" ? item.firstTry === true : item.correct === true;
+        const duration = Number(item.durationMs || 0) ? `${(Number(item.durationMs) / 1000).toFixed(1).replace(".", ",")} s` : "–";
+        return `<tr class="${okay ? "" : "lg-row-wrong"}"><td>${index + 1}</td><td><strong>${escapeHtml(item.prompt || "Aufgabe")}</strong></td><td>${escapeHtml(String(item.answer ?? "–"))}</td><td>${escapeHtml(String(item.correctAnswer ?? "–"))}</td><td>${duration}</td><td>${okay ? "✅" : "❌"}</td></tr>`;
+      }).join("");
+      table = `<div class="table-scroll"><table><thead><tr><th>#</th><th>Aufgabe</th><th>Antwort</th><th>richtige Lösung</th><th>Zeit</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6">Keine Einzeldaten.</td></tr>`}</tbody></table></div>`;
+    }
+
+    const wrongItems = (session.items || []).filter((item) => {
+      if (isLanguage) {
+        const steps = Object.values(item.steps || {});
+        return session.mode === "practice" ? steps.some((step) => !step.firstTry) : steps.some((step) => !step.correct);
       }
-
-      return `
-        <tr class="${okay ? "" : "lg-row-wrong"}">
-          <td>${index + 1}</td>
-          <td><strong>${escapeHtml(task)}</strong></td>
-          <td>${escapeHtml(String(answer))}</td>
-          <td>${escapeHtml(String(solution || "–"))}</td>
-          <td>${okay ? "✅" : "❌"}</td>
-        </tr>
-      `;
-    }).join("");
+      return item.correct !== true || (session.mode === "practice" && item.firstTry !== true);
+    });
 
     return `
       <section class="panel lg-teacher-detail" id="lgTeacherDetails">
         <div class="lg-teacher-detail-head">
           <div>
-            <h3>${animal ? teacherAnimalLabel(animal) : "Tier"} · ${escapeHtml(lgTeacherGameLabel(session))}</h3>
-            <p class="message">${escapeHtml(lgTeacherModeLabel(session))} · ${escapeHtml(lgTeacherResultText(session))}</p>
+            <p class="lg-detail-kicker">Detaillierte Auswertung</p>
+            <h2>${animal ? teacherAnimalLabel(animal) : "Tier"} · ${escapeHtml(lgTeacherGameLabel(session))}</h2>
+            <p class="message">${escapeHtml(lgTeacherModeLabel(session))} · ${escapeHtml(typeof formatDateTime === "function" ? formatDateTime(session.finishedAt) : session.finishedAt)}</p>
           </div>
           <button class="secondary" type="button" onclick="openLGTeacherDetails('')">Schließen</button>
         </div>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>#</th><th>Aufgabe/Wort</th><th>Antwort</th><th>richtig</th><th></th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5">Keine Einzeldaten.</td></tr>`}</tbody>
-          </table>
-        </div>
+        ${lgTeacherSummaryCards(session)}
+        ${wrongItems.length ? `<div class="lg-error-summary"><strong>🔎 Auffällig:</strong> ${wrongItems.length} Aufgabe${wrongItems.length === 1 ? "" : "n"}/Wort${wrongItems.length === 1 ? "" : "e"} mit Fehler beim ersten Versuch.</div>` : `<div class="lg-error-summary success"><strong>✅ Keine Fehler in dieser Runde.</strong></div>`}
+        ${table}
       </section>
     `;
   }
@@ -1622,7 +1685,7 @@
         <div class="learning-games-teacher-title">
           <div>
             <h2>Weitere Lernspiele</h2>
-            <p class="message">Verb, Adjektiv, Wortarten, Einmaleins und 10-Minuten-Kopfrechnen.</p>
+            <p class="message">Verb, Adjektiv, Wortarten, Einmaleins und Kopfrechnen mit 5 oder 10 Minuten. Klicke bei einer Runde auf „Auswertung“, um jede einzelne Aufgabe zu sehen.</p>
           </div>
         </div>
 
@@ -1649,7 +1712,7 @@
                     <td>${escapeHtml(lgTeacherModeLabel(session))}</td>
                     <td>${escapeHtml(lgTeacherResultText(session))}</td>
                     <td>${escapeHtml(typeof formatDateTime === "function" ? formatDateTime(session.finishedAt) : session.finishedAt)}</td>
-                    <td><button class="small-button" type="button" onclick='openLGTeacherDetails(${JSON.stringify(session.id)})'>Details</button></td>
+                    <td><button class="small-button" type="button" onclick='openLGTeacherDetails(${JSON.stringify(session.id)})'>Auswertung</button></td>
                   </tr>
                 `;
               }).join("") || `<tr><td colspan="6">Noch keine Ergebnisse aus diesen Lernspielen.</td></tr>`}
@@ -1742,6 +1805,8 @@
     .lg-mental-choice { min-height:104px; padding:14px; border:1px solid rgba(0,0,0,.08); border-radius:17px; background:rgba(255,255,255,.72); display:grid; justify-items:start; gap:4px; text-align:left; font:inherit; cursor:pointer; }
     .lg-mental-choice > span { font-size:1.45rem; }
     .lg-mental-choice small { opacity:.65; }
+    .lg-time-choice-row { display:flex; gap:7px; flex-wrap:wrap; margin-top:6px; }
+    .lg-best-row { display:grid; gap:2px; font-size:.76rem; opacity:.65; margin-top:4px; }
 
     .lg-timer { justify-self:center; min-width:110px; padding:8px 12px; border-radius:999px; text-align:center; font-size:1.35rem; font-weight:850; background:#fff4d8; }
     .lg-live-stats { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
@@ -1758,12 +1823,23 @@
     .lg-filter-tabs { margin:14px 0; flex-wrap:wrap; }
     .lg-row-wrong { background:#fff8eb; }
     .lg-teacher-detail-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .lg-detail-kicker { margin:0 0 3px; text-transform:uppercase; letter-spacing:.07em; font-size:.75rem; font-weight:800; opacity:.55; }
+    .lg-detail-stat-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; margin:14px 0; }
+    .lg-detail-stat-grid article { padding:12px; border-radius:14px; background:rgba(47,111,145,.07); display:grid; gap:3px; }
+    .lg-detail-stat-grid strong { font-size:1.05rem; }
+    .lg-detail-stat-grid small { opacity:.64; }
+    .lg-step-result { display:inline-flex; gap:4px; align-items:center; flex-wrap:wrap; }
+    .lg-step-result.bad { font-weight:700; }
+    .lg-step-result small { opacity:.65; font-weight:400; }
+    .lg-error-summary { margin:12px 0; padding:10px 12px; border-radius:12px; background:#fff4d8; }
+    .lg-error-summary.success { background:rgba(75,150,95,.09); }
 
     @media (max-width:760px) {
       .lg-mental-card { grid-column:auto; }
       .lg-probe-steps, .lg-variant-grid, .lg-mental-grid { grid-template-columns:1fr; }
       .lg-choice-grid.three { grid-template-columns:1fr; }
       .lg-final-stat-grid { grid-template-columns:repeat(2,1fr); }
+      .lg-detail-stat-grid { grid-template-columns:repeat(2,1fr); }
       .lg-game-top { grid-template-columns:auto 1fr; }
       .lg-game-top .nomen-player-badge { grid-column:2; justify-self:end; }
       .lg-timer { justify-self:end; }
