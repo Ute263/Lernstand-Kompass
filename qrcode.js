@@ -1,9 +1,9 @@
 /* Lokale QR-Code-Erzeugung für kurze Tier-Codes. Keine externen Dienste. */
 (function () {
-  const VERSION = 4;
+  const VERSION = 5;
   const SIZE = 17 + VERSION * 4;
-  const DATA_CODEWORDS = 80;
-  const ECC_CODEWORDS = 20;
+  const DATA_CODEWORDS = 108;
+  const ECC_CODEWORDS = 26;
 
   function makeQrSvg(text, options = {}) {
     const scale = Number(options.scale || 5);
@@ -26,7 +26,7 @@
 
   function makeQrMatrix(text) {
     const bytes = Array.from(new TextEncoder().encode(text));
-    if (bytes.length > 60) throw new Error("Tier-Code ist zu lang.");
+    if (bytes.length > 100) throw new Error("Tier-Code ist zu lang.");
     const data = makeDataCodewords(bytes);
     const ecc = reedSolomonRemainder(data, reedSolomonGenerator(ECC_CODEWORDS));
     const codewords = [...data, ...ecc];
@@ -65,7 +65,7 @@
     drawFinder(modules, isFunction, 3, 3);
     drawFinder(modules, isFunction, SIZE - 4, 3);
     drawFinder(modules, isFunction, 3, SIZE - 4);
-    drawAlignment(modules, isFunction, 26, 26);
+    drawAlignment(modules, isFunction, 30, 30);
     for (let i = 0; i < SIZE; i += 1) {
       setFunction(modules, isFunction, 6, i, i % 2 === 0);
       setFunction(modules, isFunction, i, 6, i % 2 === 0);
