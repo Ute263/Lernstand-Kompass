@@ -15,6 +15,8 @@ const files = [
   "qrcode.js",
   "sync.js",
   "app.js",
+  "child-sync.js",
+  "child-qr-fix.js",
   "nomen-probe.js",
   "nomen-feedback.js",
   "pwa.js",
