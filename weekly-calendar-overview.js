@@ -1,4 +1,4 @@
-/* Paket 9k: Wochenplan – Schuljahreskalender nach Kalenderwochen
+/* Paket 9l: Wochenplan – Schuljahreskalender nach Kalenderwochen
  *
  * Ziele:
  * - "Diese Woche" und "Vorlagen" als eigene Bereiche entfernen
@@ -18,7 +18,7 @@
     typeof weeklyPlansForActiveClass !== "function" ||
     typeof openWeeklyPrintDialog !== "function"
   ) {
-    console.warn("Paket 9k konnte nicht initialisiert werden.");
+    console.warn("Paket 9l konnte nicht initialisiert werden.");
     return;
   }
 
@@ -86,6 +86,9 @@
   }
 
   function schoolYearStartFromClass() {
+    const stored = Number(state?.weeklyCalendarStartYear);
+    if (Number.isFinite(stored) && stored >= 2000 && stored <= 2200) return stored;
+
     const classItem = typeof activeClass === "function" ? activeClass() : null;
     const label = String(classItem?.schoolYearLabel || classItem?.archiveSchoolYearLabel || "");
     const match = label.match(/(20\d{2})\s*\/\s*(\d{2,4})/);
@@ -101,25 +104,60 @@
     return lkCalendarStartYear;
   }
 
+  function schoolYearForDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+    return date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  }
+
+  function schoolYearOptionYears() {
+    const selected = calendarStartYear();
+    const today = new Date();
+    const current = today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1;
+    const years = new Set();
+
+    // Die Liste wird bei jedem Öffnen dynamisch berechnet. Dadurch muss
+    // für ein neues Schuljahr nie wieder Code ergänzt werden.
+    for (let year = Math.min(selected, current) - 4; year <= Math.max(selected, current) + 8; year += 1) {
+      years.add(year);
+    }
+
+    // Schuljahre, zu denen bereits Wochenpläne vorhanden sind, immer mit anbieten.
+    try {
+      weeklyPlansForActiveClass().forEach((plan) => {
+        const date = fromDateKey(plan.validFrom || plan.validTo || "");
+        const year = schoolYearForDate(date);
+        if (Number.isFinite(year)) years.add(year);
+      });
+    } catch {}
+
+    return [...years].sort((a, b) => a - b);
+  }
+
   function schoolYearWeeks(startYear) {
     const firstDay = new Date(startYear, 7, 1, 12, 0, 0, 0);      // 1. August
     const lastDay = new Date(startYear + 1, 6, 31, 12, 0, 0, 0); // 31. Juli
     let monday = startOfWeek(firstDay);
-    if (monday < firstDay) monday = addDays(monday, 7);
-
     const weeks = [];
-    while (monday <= lastDay) {
-      const friday = addDays(monday, 4);
-      const info = isoWeekInfo(monday);
-      weeks.push({
-        key: localDateKey(monday),
-        monday: new Date(monday),
-        friday,
-        week: info.week,
-        isoYear: info.year,
-        month: monday.getMonth(),
-        monthYear: monday.getFullYear()
-      });
+
+    // Eine ISO-Woche wird eindeutig dem Schuljahr zugeordnet, in dem ihr
+    // Donnerstag liegt. So gibt es am Juli/August-Übergang keine doppelte
+    // oder fehlende Kalenderwoche.
+    while (monday <= addDays(lastDay, 7)) {
+      const thursday = addDays(monday, 3);
+      if (thursday >= firstDay && thursday <= lastDay) {
+        const friday = addDays(monday, 4);
+        const info = isoWeekInfo(monday);
+        weeks.push({
+          key: localDateKey(monday),
+          monday: new Date(monday),
+          friday,
+          thursday,
+          week: info.week,
+          isoYear: info.year,
+          month: thursday.getMonth(),
+          monthYear: thursday.getFullYear()
+        });
+      }
       monday = addDays(monday, 7);
     }
     return weeks;
@@ -294,15 +332,34 @@
       acc[weekPlanningState(week)] += 1;
       return acc;
     }, { ready: 0, draft: 0, open: 0 });
+    const startYear = calendarStartYear();
+    const years = schoolYearOptionYears();
 
     return `
       <section class="panel lk-cal-hero">
-        <div>
+        <div class="lk-cal-hero-main">
           <p class="lk-cal-kicker">Wochenplan</p>
-          <h2>Wochenübersicht ${escapeHtml(schoolYearLabel(calendarStartYear()))}</h2>
-          <p class="privacy-text">
-            Wähle eine Kalenderwoche. Du siehst sofort, was fertig geplant ist und welche Wochen noch offen sind.
-          </p>
+          <div class="lk-cal-title-line">
+            <div>
+              <h2>Wochenübersicht</h2>
+              <p class="privacy-text">
+                Wähle eine Kalenderwoche. Du siehst sofort, was fertig geplant ist und welche Wochen noch offen sind.
+              </p>
+            </div>
+            <div class="lk-cal-year-picker" aria-label="Schuljahr auswählen">
+              <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(-1)" aria-label="Vorheriges Schuljahr">←</button>
+              <label>
+                <span>Schuljahr</span>
+                <select class="select-input" onchange="lkSetCalendarSchoolYear(Number(this.value))">
+                  ${years.map((year) => `
+                    <option value="${year}" ${year === startYear ? "selected" : ""}>${escapeHtml(schoolYearLabel(year))}</option>
+                  `).join("")}
+                </select>
+              </label>
+              <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(1)" aria-label="Nächstes Schuljahr">→</button>
+            </div>
+          </div>
+          <p class="lk-cal-year-range">August ${startYear} bis Juli ${startYear + 1}</p>
         </div>
         <div class="lk-cal-summary" aria-label="Planungsstand">
           <span class="ready">✓ ${counts.ready} fertig</span>
@@ -447,6 +504,25 @@
     render();
   };
 
+  window.lkSetCalendarSchoolYear = async function lkSetCalendarSchoolYear(startYear) {
+    const year = Number(startYear);
+    if (!Number.isFinite(year) || year < 2000 || year > 2200) return;
+
+    lkCalendarStartYear = year;
+    lkCalendarSelectedMonday = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+
+    await persist({ ...state, weeklyCalendarStartYear: year });
+    render();
+  };
+
+  window.lkShiftCalendarSchoolYear = function lkShiftCalendarSchoolYear(direction) {
+    const delta = Number(direction) < 0 ? -1 : 1;
+    return lkSetCalendarSchoolYear(calendarStartYear() + delta);
+  };
+
   window.lkSelectCalendarWeek = function lkSelectCalendarWeek(key) {
     lkCalendarSelectedMonday = key;
     weeklyPlanSection = "current";
@@ -560,7 +636,37 @@
       border:2px solid rgba(47,111,145,.10);
       background:linear-gradient(135deg,rgba(223,243,255,.78),rgba(255,250,231,.75));
     }
+    .lk-cal-hero-main { min-width:0; flex:1; }
+    .lk-cal-title-line {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+    }
+    .lk-cal-title-line > div:first-child { min-width:0; }
     .lk-cal-hero h2 { margin:.15rem 0 .35rem; }
+    .lk-cal-year-picker {
+      display:grid;
+      grid-template-columns:auto minmax(126px,auto) auto;
+      align-items:end;
+      gap:6px;
+      flex:none;
+    }
+    .lk-cal-year-picker label {
+      display:grid;
+      gap:3px;
+      font-size:.7rem;
+      font-weight:800;
+      opacity:.85;
+    }
+    .lk-cal-year-picker .select-input {
+      min-width:126px;
+      padding:7px 9px;
+      font-weight:800;
+      background:#fff;
+    }
+    .lk-cal-year-arrow { min-width:38px; padding:7px 9px; font-size:1rem; }
+    .lk-cal-year-range { margin:6px 0 0; font-size:.76rem; opacity:.58; font-weight:700; }
     .lk-cal-kicker {
       margin:0 0 2px;
       font-size:.73rem;
@@ -751,6 +857,12 @@
     @media (max-width:640px) {
       .lk-cal-hero,
       .lk-cal-selected-head { display:block; }
+      .lk-cal-title-line { display:block; }
+      .lk-cal-year-picker {
+        margin-top:10px;
+        grid-template-columns:auto minmax(0,1fr) auto;
+      }
+      .lk-cal-year-picker .select-input { width:100%; }
       .lk-cal-summary { justify-content:flex-start; margin-top:10px; }
       .lk-cal-grid { grid-template-columns:1fr; }
       .lk-cal-selected-head > button { margin-top:10px; }
@@ -762,6 +874,8 @@
   window.LKWeeklyCalendar = {
     schoolYearWeeks,
     isoWeekInfo,
+    schoolYearForDate,
+    schoolYearOptionYears,
     planMatchesWeek,
     weekPlanningState,
     makeDraftForWeek
