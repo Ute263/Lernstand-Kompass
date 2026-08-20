@@ -31,6 +31,7 @@ const files = [
   "weekly-ui-cleanup.js",
   "weekly-plan-9e.js",
   "weekly-plan-9f.js",
+  "weekly-minimax-pages.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
