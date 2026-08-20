@@ -27,6 +27,7 @@
 
   let lkCalendarSelectedMonday = "";
   let lkCalendarStartYear = null;
+  let lkCalendarAutoYear = true;
   let lkCalendarCreatingWeek = null;
 
   const MONTHS = [
@@ -85,23 +86,40 @@
     return `${startYear}/${String(startYear + 1).slice(-2)}`;
   }
 
+  function automaticSchoolYearStart(date = new Date()) {
+    // Schuljahr läuft in dieser Ansicht immer August bis Juli:
+    // Aug–Dez -> aktuelles Jahr / Folgejahr
+    // Jan–Jul -> Vorjahr / aktuelles Jahr
+    return date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  }
+
   function schoolYearStartFromClass() {
-    const stored = Number(state?.weeklyCalendarStartYear);
-    if (Number.isFinite(stored) && stored >= 2000 && stored <= 2200) return stored;
-
     const classItem = typeof activeClass === "function" ? activeClass() : null;
-    const label = String(classItem?.schoolYearLabel || classItem?.archiveSchoolYearLabel || "");
-    const match = label.match(/(20\d{2})\s*\/\s*(\d{2,4})/);
-    if (match) return Number(match[1]);
 
-    const today = new Date();
-    return today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1;
+    // Nur archivierte Klassen behalten bewusst ihr archiviertes Schuljahr.
+    const archivedLabel = String(classItem?.archiveSchoolYearLabel || "");
+    const archivedMatch = archivedLabel.match(/(20\d{2})\s*\/\s*(\d{2,4})/);
+    if (archivedMatch) return Number(archivedMatch[1]);
+
+    // Für eine aktive Klasse entscheidet immer das heutige Datum.
+    // Dadurch springt die Übersicht am 1. August automatisch ins neue Schuljahr.
+    return automaticSchoolYearStart(new Date());
   }
 
   function calendarStartYear() {
+    const automatic = schoolYearStartFromClass();
+
+    if (lkCalendarAutoYear) {
+      if (lkCalendarStartYear !== automatic) {
+        lkCalendarStartYear = automatic;
+        lkCalendarSelectedMonday = "";
+      }
+      return automatic;
+    }
+
     if (Number.isFinite(lkCalendarStartYear)) return lkCalendarStartYear;
-    lkCalendarStartYear = schoolYearStartFromClass();
-    return lkCalendarStartYear;
+    lkCalendarStartYear = automatic;
+    return automatic;
   }
 
   function schoolYearForDate(date) {
@@ -334,6 +352,8 @@
     }, { ready: 0, draft: 0, open: 0 });
     const startYear = calendarStartYear();
     const years = schoolYearOptionYears();
+    const automaticYear = automaticSchoolYearStart(new Date());
+    const isAutomaticYear = lkCalendarAutoYear && startYear === automaticYear;
 
     return `
       <section class="panel lk-cal-hero">
@@ -349,14 +369,17 @@
             <div class="lk-cal-year-picker" aria-label="Schuljahr auswählen">
               <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(-1)" aria-label="Vorheriges Schuljahr">←</button>
               <label>
-                <span>Schuljahr</span>
+                <span>Schuljahr ${isAutomaticYear ? `<small class="lk-cal-auto-badge">automatisch</small>` : ""}</span>
                 <select class="select-input" onchange="lkSetCalendarSchoolYear(Number(this.value))">
                   ${years.map((year) => `
-                    <option value="${year}" ${year === startYear ? "selected" : ""}>${escapeHtml(schoolYearLabel(year))}</option>
+                    <option value="${year}" ${year === startYear ? "selected" : ""}>
+                      ${escapeHtml(schoolYearLabel(year))}${year === automaticYear ? " · aktuell" : ""}
+                    </option>
                   `).join("")}
                 </select>
               </label>
               <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(1)" aria-label="Nächstes Schuljahr">→</button>
+              ${!isAutomaticYear ? `<button class="secondary lk-cal-today-year" type="button" onclick="lkUseAutomaticSchoolYear()">Aktuelles Schuljahr</button>` : ""}
             </div>
           </div>
           <p class="lk-cal-year-range">August ${startYear} bis Juli ${startYear + 1}</p>
@@ -468,6 +491,85 @@
     `;
   }
 
+  function renderCalendarWeeklyEditor(plan) {
+    const html = renderWeeklyPlanEditor(plan, null);
+    return String(html || "").replace(
+      /onclick="newWeeklyPlan\(\)">Formular leeren/g,
+      'onclick="lkClearWeeklyPlanForm()">Plan leeren'
+    );
+  }
+
+  function clearedWeeklyPlanDraft() {
+    let domDraft = null;
+    try {
+      domDraft = collectWeeklyPlanDraftFromDom();
+    } catch {}
+
+    const planId = domDraft?.id || weeklyPlanEditorId || "";
+    const existing = planId
+      ? (state.weeklyPlans || []).find((plan) => plan.id === planId)
+      : null;
+
+    const week = selectedWeek();
+    const fallback = week ? makeDraftForWeek(week) : {
+      title: "Wochenplan",
+      weekLabel: "",
+      validFrom: "",
+      validTo: "",
+      assignmentMode: "all",
+      animalIds: [],
+      progressMode: "confirm",
+      autoCreateEntries: false
+    };
+
+    const source = {
+      ...fallback,
+      ...(existing || {}),
+      ...(domDraft || {})
+    };
+
+    return {
+      ...source,
+
+      // Ein bestehender Plan bleibt derselbe Plan.
+      id: planId || source.id || "",
+
+      // Woche und Zuordnung bleiben erhalten; nur die eigentlichen
+      // Wochenplan-Inhalte werden geleert.
+      title: source.title || "Wochenplan",
+      weekLabel: source.weekLabel || fallback.weekLabel || "",
+      validFrom: source.validFrom || fallback.validFrom || "",
+      validTo: source.validTo || fallback.validTo || "",
+      assignmentMode: source.assignmentMode || "all",
+      animalIds: Array.isArray(source.animalIds) ? [...source.animalIds] : [],
+      progressMode: source.progressMode || "confirm",
+      autoCreateEntries: source.autoCreateEntries === true,
+
+      note: "",
+      days: emptyDays(),
+      overrides: {}
+    };
+  }
+
+  window.lkClearWeeklyPlanForm = function lkClearWeeklyPlanForm() {
+    const confirmed = window.confirm(
+      "Soll dieser Wochenplan wirklich geleert werden?\n\n" +
+      "Alle eingetragenen Aufgaben und individuellen Abweichungen werden aus dem Plan entfernt. " +
+      "Kalenderwoche und Zeitraum bleiben erhalten."
+    );
+
+    if (!confirmed) return;
+
+    weeklyPlanDraft = clearedWeeklyPlanDraft();
+    weeklyPlanEditorId = weeklyPlanDraft.id || weeklyPlanEditorId || "";
+    weeklyPickRequest = null;
+    weeklyOverrideAnimalId = "";
+    weeklyPlanFocusAnimalId = "";
+    weeklyPlanSection = "create";
+
+    render();
+  };
+
   renderWeeklyPlans = function renderWeeklyPlansCalendar() {
     const plans = weeklyPlansForActiveClass()
       .sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
@@ -489,7 +591,7 @@
     return `
       ${renderTopTabs(section)}
       ${section === "current" ? renderOverview() : ""}
-      ${section === "create" ? renderWeeklyPlanEditor(editorPlan, null) : ""}
+      ${section === "create" ? renderCalendarWeeklyEditor(editorPlan) : ""}
       ${section === "catalog" ? renderWorkbookCatalogManager() : ""}
       ${typeof renderWeeklyCatalogPicker === "function" ? renderWeeklyCatalogPicker() : ""}
       ${typeof renderWeeklyPrintDialog === "function" ? renderWeeklyPrintDialog() : ""}
@@ -504,23 +606,39 @@
     render();
   };
 
-  window.lkSetCalendarSchoolYear = async function lkSetCalendarSchoolYear(startYear) {
+  window.lkSetCalendarSchoolYear = function lkSetCalendarSchoolYear(startYear) {
     const year = Number(startYear);
     if (!Number.isFinite(year) || year < 2000 || year > 2200) return;
 
+    lkCalendarAutoYear = year === automaticSchoolYearStart(new Date());
     lkCalendarStartYear = year;
     lkCalendarSelectedMonday = "";
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
     weeklyPlanDraft = null;
-
-    await persist({ ...state, weeklyCalendarStartYear: year });
     render();
   };
 
   window.lkShiftCalendarSchoolYear = function lkShiftCalendarSchoolYear(direction) {
     const delta = Number(direction) < 0 ? -1 : 1;
-    return lkSetCalendarSchoolYear(calendarStartYear() + delta);
+    const nextYear = calendarStartYear() + delta;
+    lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
+    lkCalendarStartYear = nextYear;
+    lkCalendarSelectedMonday = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
+  };
+
+  window.lkUseAutomaticSchoolYear = function lkUseAutomaticSchoolYear() {
+    lkCalendarAutoYear = true;
+    lkCalendarStartYear = automaticSchoolYearStart(new Date());
+    lkCalendarSelectedMonday = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
   };
 
   window.lkSelectCalendarWeek = function lkSelectCalendarWeek(key) {
@@ -557,13 +675,20 @@
 
     if (plans.length) {
       weeklyPlanDraft = null;
-      editWeeklyPlan(plans[0].id);
+      lkEditCalendarPlan(plans[0].id);
       return;
     }
     lkCreateCalendarWeek(week.key);
   };
 
   window.lkEditCalendarPlan = function lkEditCalendarPlan(planId) {
+    const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+    const planDate = fromDateKey(plan?.validFrom || plan?.validTo || "");
+    const planYear = schoolYearForDate(planDate);
+    if (Number.isFinite(planYear)) {
+      lkCalendarAutoYear = planYear === automaticSchoolYearStart(new Date());
+      lkCalendarStartYear = planYear;
+    }
     weeklyPlanDraft = null;
     editWeeklyPlan(planId);
   };
@@ -589,7 +714,9 @@
   };
 
   window.lkChangeCalendarSchoolYear = function lkChangeCalendarSchoolYear(delta) {
-    lkCalendarStartYear = calendarStartYear() + Number(delta || 0);
+    const nextYear = calendarStartYear() + Number(delta || 0);
+    lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
+    lkCalendarStartYear = nextYear;
     lkCalendarSelectedMonday = "";
     weeklyPlanSection = "current";
     render();

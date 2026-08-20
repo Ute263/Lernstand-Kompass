@@ -33,6 +33,7 @@ const files = [
   "weekly-plan-9f.js",
   "weekly-minimax-pages.js",
   "weekly-calendar-overview.js",
+  "weekly-editor-compact.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
