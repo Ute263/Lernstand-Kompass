@@ -23,6 +23,7 @@ const files = [
   "nomen-feedback.js",
   "teacher-inbox.js",
   "teacher-cockpit.js",
+  "learning-overview-simple.js",
   "learning-games-plus.js",
   "safety-tools.js",
   "school-year-archive.js",
