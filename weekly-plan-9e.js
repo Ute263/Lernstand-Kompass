@@ -371,6 +371,17 @@
     `;
   };
 
+  function weeklySubjectBadgeHtml(subject, compact = false) {
+    const modeClass = compact ? " mini" : "";
+    if (/deutsch/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge deutsch${modeClass}" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
+    }
+    if (/mathe/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge mathe${modeClass}" aria-hidden="true"><span class="n1">1</span><span class="n2">2</span><span class="n3">3</span></span>`;
+    }
+    return `<span class="lk-subject-badge extra${modeClass}" aria-hidden="true">✏️</span>`;
+  }
+
   renderWeeklyPlannerTable = function renderWeeklyPlannerTable9e(days, scope, animalId = "") {
     const prefix = weeklyInputPrefix(scope, animalId);
     return `
@@ -388,17 +399,17 @@
               </summary>
               <div class="lk-weekly-day-content">
                 <section class="weekly-editor-subject lk-editor-subject deutsch">
-                  <div class="lk-editor-subject-head"><span>📘</span><strong>Deutsch</strong></div>
+                  <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong></div>
                   ${renderWeeklyPickCell("Deutsch", day, dayIndex, deutschIds, `${prefix}Deutsch${dayIndex}`, scope, animalId, data.deutschTaskNumber || "", data.deutschTaskNumbers, data.deutschTaskStars)}
                   ${renderFreeTaskList(data.deutschFreeTasks, prefix, "Deutsch", dayIndex, scope, animalId, day)}
                 </section>
                 <section class="weekly-editor-subject lk-editor-subject mathe">
-                  <div class="lk-editor-subject-head"><span>🔢</span><strong>Mathe</strong></div>
+                  <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong></div>
                   ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars)}
                   ${renderFreeTaskList(data.matheFreeTasks, prefix, "Mathe", dayIndex, scope, animalId, day)}
                 </section>
                 <section class="lk-editor-subject sonstiges">
-                  <div class="lk-editor-subject-head"><span>✏️</span><strong>Sonstiges</strong></div>
+                  <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>
                   ${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", dayIndex, scope, animalId, day)}
                 </section>
               </div>
@@ -704,7 +715,7 @@
       const done = status === "fertig";
       const partial = status === "teilweise";
       const subject = item.subject === "Deutsch" ? "Deutsch" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe";
-      const icon = item.subject === "Deutsch" ? "📘" : item.subject === "Mathe" ? "🔢" : "✏️";
+      const icon = weeklySubjectBadgeHtml(item.subject, true);
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
       if (item.catalogItem) {
@@ -865,7 +876,53 @@
     }
     .lk-editor-subject.sonstiges { grid-column:1 / -1; }
     .lk-editor-subject-head { display:flex; align-items:center; gap:7px; margin-bottom:9px; }
-    .lk-editor-subject-head span { font-size:1.15rem; }
+    .lk-subject-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:1px;
+      min-width:34px;
+      height:22px;
+      padding:0 8px;
+      border-radius:999px;
+      border:1px solid rgba(47,111,145,.18);
+      background:#fff;
+      font-family: Arial, sans-serif;
+      font-size:.92rem;
+      font-weight:800;
+      line-height:1;
+      letter-spacing:.02em;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+      flex:none;
+    }
+    .lk-subject-badge.mini {
+      min-width:32px;
+      height:20px;
+      padding:0 7px;
+      font-size:.82rem;
+    }
+    .lk-subject-badge.deutsch {
+      background:linear-gradient(180deg,#fffdf3 0%,#fff5c7 100%);
+      border-color:rgba(220,189,85,.55);
+      color:#2e608e;
+    }
+    .lk-subject-badge.deutsch .a { color:#df5b46; }
+    .lk-subject-badge.deutsch .b { color:#ef9b1f; }
+    .lk-subject-badge.deutsch .c { color:#2e608e; }
+    .lk-subject-badge.mathe {
+      background:linear-gradient(180deg,#f4fbff 0%,#d9f2ff 100%);
+      border-color:rgba(83,180,219,.55);
+      color:#1d728e;
+    }
+    .lk-subject-badge.mathe .n1 { color:#efb52b; }
+    .lk-subject-badge.mathe .n2 { color:#3bb171; }
+    .lk-subject-badge.mathe .n3 { color:#7b63c9; }
+    .lk-subject-badge.extra {
+      background:linear-gradient(180deg,#ffffff 0%,#f4f4f4 100%);
+      border-color:rgba(0,0,0,.12);
+      color:#666;
+      font-size:.9rem;
+    }
     .lk-weekly-pick-cell .weekly-selected-task {
       grid-template-columns:auto minmax(0,1fr) auto auto;
     }
@@ -922,7 +979,16 @@
     .lk-child-task.starred { background:#fff9df; border-color:rgba(218,173,45,.25); }
     .lk-child-task.done { background:#eef9f0; opacity:.86; }
     .lk-child-task.partial { background:#f4f7ff; }
-    .lk-child-task-icon { width:43px; height:43px; display:grid; place-items:center; border-radius:13px; background:#fff; font-size:1.25rem; }
+    .lk-child-task-icon {
+      min-width:50px;
+      height:43px;
+      padding:0 6px;
+      display:grid;
+      place-items:center;
+      border-radius:13px;
+      background:#fff;
+      font-size:1rem;
+    }
     .lk-child-task-body { min-width:0; }
     .lk-child-task-meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
     .lk-child-task-meta > strong { font-size:.78rem; }

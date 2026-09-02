@@ -82,6 +82,16 @@
     }).filter((group) => group.tasks.length);
   }
 
+  function compactSubjectBadge(subject) {
+    if (/deutsch/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge deutsch mini" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
+    }
+    if (/mathe/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge mathe mini" aria-hidden="true"><span class="n1">1</span><span class="n2">2</span><span class="n3">3</span></span>`;
+    }
+    return `<span class="lk-subject-badge extra mini" aria-hidden="true">✏️</span>`;
+  }
+
   function compactPreviewHtml(card) {
     const groups = compactGroups(card);
     if (!groups.length) {
@@ -89,12 +99,12 @@
     }
 
     return groups.map((group) => {
-      const icon = /deutsch/i.test(group.subject) ? "📘" : /mathe/i.test(group.subject) ? "🔢" : "✏️";
+      const icon = compactSubjectBadge(group.subject);
       const visible = group.tasks.slice(0, 3);
       const more = group.tasks.length - visible.length;
       return `
         <div class="lk-day-preview-group">
-          <span class="lk-day-preview-subject">${icon} ${escapeHtml(group.subject)}</span>
+          <span class="lk-day-preview-subject">${icon}<strong>${escapeHtml(group.subject)}</strong></span>
           <div class="lk-day-preview-tasks">
             ${visible.map((item) => `
               <span class="lk-day-preview-task ${item.starred ? "is-extra" : ""}">
@@ -306,10 +316,17 @@
     }
 
     .lk-day-preview-subject {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
       font-size:.76rem;
       font-weight:800;
       color:#24465a;
       white-space:nowrap;
+    }
+    .lk-day-preview-subject strong {
+      font-size:.76rem;
+      line-height:1;
     }
 
     .lk-day-preview-tasks {

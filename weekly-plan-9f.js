@@ -359,7 +359,23 @@
     return title;
   }
 
-  function printTaskRow(item = null) {
+  function printSubjectClass(subject) {
+    if (subject === "Deutsch") return "deutsch";
+    if (subject === "Mathe") return "mathe";
+    return "extra";
+  }
+
+  function printSubjectBadge(subject) {
+    if (subject === "Deutsch") {
+      return `<span class="lk-wp-subject-badge deutsch" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
+    }
+    if (subject === "Mathe") {
+      return `<span class="lk-wp-subject-badge mathe" aria-hidden="true"><span class="n1">1</span><span class="n2">2</span><span class="n3">3</span></span>`;
+    }
+    return `<span class="lk-wp-subject-badge extra" aria-hidden="true">✏️</span>`;
+  }
+
+  function printTaskRow(item = null, previousSubject = "") {
     if (!item) {
       return `
         <div class="lk-wp-task-row blank">
@@ -370,13 +386,14 @@
     }
 
     const subject = printSubject(item);
-    const icon = subject === "Deutsch" ? "📘" : subject === "Mathe" ? "🔢" : "✏️";
+    const subjectClass = printSubjectClass(subject);
     return `
-      <div class="lk-wp-task-row ${item.isExtraTask ? "starred" : ""}">
+      <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
           <span class="lk-wp-task-main">
             ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
-            <b class="lk-wp-subject" title="${escapeAttribute(subject || "Aufgabe")}">${icon}</b>
+            ${printSubjectBadge(subject)}
+            <span class="lk-wp-task-subject-label">${escapeHtml(subject)}</span>
             <span>${escapeHtml(pageText(item))}</span>
           </span>
         </div>
@@ -388,14 +405,21 @@
   function renderPrintDay9f(plan, day, animal, options) {
     const items = printableItems(plan, day, animal, options);
     const minimumRows = 5;
-    const rows = [...items];
-    while (rows.length < minimumRows) rows.push(null);
+    const rows = [];
+    let previousSubject = "";
+
+    items.forEach((item) => {
+      rows.push(printTaskRow(item, previousSubject));
+      previousSubject = printSubject(item);
+    });
+
+    while (rows.length < minimumRows) rows.push(printTaskRow(null));
 
     return `
       <section class="lk-wp-day">
         <div class="lk-wp-day-name">${escapeHtml(day)}</div>
         <div class="lk-wp-day-tasks">
-          ${rows.map(printTaskRow).join("")}
+          ${rows.join("")}
         </div>
       </section>
     `;
@@ -627,7 +651,11 @@
           border-bottom: .2mm solid #b9b9b9;
         }
         .lk-wp-task-row:last-child { border-bottom: 0; }
-        .lk-wp-task-row.starred { background: #fffbed; }
+        .lk-wp-task-row.deutsch { background: rgba(255,249,228,.55); }
+        .lk-wp-task-row.mathe { background: rgba(234,247,255,.62); }
+        .lk-wp-task-row.extra { background: rgba(247,247,247,.72); }
+        .lk-wp-task-row.starred { background: #fff6d9; }
+        .lk-wp-task-row.subject-break { border-top: .42mm solid #9bb8c8; }
         .lk-wp-task-text {
           min-width: 0;
           display: flex;
@@ -639,20 +667,62 @@
         }
         .lk-wp-task-main {
           display: flex;
-          align-items: baseline;
-          gap: 1.5mm;
+          align-items: center;
+          gap: 1.3mm;
           min-width: 0;
           font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
-          font-size: 10.4pt;
-          line-height: 1.12;
+          font-size: 10.1pt;
+          line-height: 1.1;
         }
         .lk-wp-task-main > span:last-child {
           min-width: 0;
           overflow-wrap: anywhere;
         }
-        .lk-wp-subject {
-          flex: none;
-          font-size: 9.2pt;
+        .lk-wp-subject-badge {
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          gap:.35mm;
+          min-width:10mm;
+          height:5mm;
+          padding:0 1.9mm;
+          border-radius:999px;
+          border:.25mm solid rgba(47,111,145,.18);
+          background:#fff;
+          font-family:Arial, sans-serif;
+          font-size:8.5pt;
+          font-weight:800;
+          line-height:1;
+          flex:none;
+        }
+        .lk-wp-subject-badge.deutsch {
+          background:linear-gradient(180deg,#fffdf2 0%,#fff4c3 100%);
+          border-color:rgba(220,189,85,.55);
+          color:#2e608e;
+        }
+        .lk-wp-subject-badge.deutsch .a { color:#df5b46; }
+        .lk-wp-subject-badge.deutsch .b { color:#ef9b1f; }
+        .lk-wp-subject-badge.deutsch .c { color:#2e608e; }
+        .lk-wp-subject-badge.mathe {
+          background:linear-gradient(180deg,#f5fbff 0%,#d8f1ff 100%);
+          border-color:rgba(83,180,219,.55);
+          color:#1d728e;
+        }
+        .lk-wp-subject-badge.mathe .n1 { color:#efb52b; }
+        .lk-wp-subject-badge.mathe .n2 { color:#3bb171; }
+        .lk-wp-subject-badge.mathe .n3 { color:#7b63c9; }
+        .lk-wp-subject-badge.extra {
+          background:linear-gradient(180deg,#ffffff 0%,#f4f4f4 100%);
+          border-color:rgba(0,0,0,.12);
+          color:#666;
+          font-size:8.2pt;
+        }
+        .lk-wp-task-subject-label {
+          flex:none;
+          font-size:8.6pt;
+          font-weight:700;
+          color:#31586e;
+          min-width:11mm;
         }
         .lk-wp-star {
           color: #c89400;

@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v120";
+const CACHE_NAME = "lernstand-kompass-cache-v121";
 const APP_FILES = [
   "./",
   "./index.html",
