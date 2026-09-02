@@ -728,7 +728,7 @@ function resetNomenRuntime() {
 
 function learningGameSessionsForActiveClass() {
   return (state.learningGameSessions || [])
-    .filter((session) => session.classId === state.activeClassId && session.gameId === NOMEN_GAME_ID && session.finishedAt)
+    .filter((session) => session.classId === state.activeClassId && session.teacherReset !== true && session.gameId === NOMEN_GAME_ID && session.finishedAt)
     .sort((a, b) => new Date(b.finishedAt || 0) - new Date(a.finishedAt || 0));
 }
 

@@ -199,8 +199,8 @@
     const hasFixedAudience = fixedAnimals.length > 0;
 
     return `
-      <div class="training-modal-overlay lk-print9f-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPrintTitle">
-        <section class="training-modal-card lk-print9f-card">
+      <div class="training-modal-overlay lk-print9f-overlay" role="presentation" onclick="if (event.target === this) closeWeeklyPrintDialog()">
+        <section class="training-modal-card lk-print9f-card" role="dialog" aria-modal="true" aria-labelledby="weeklyPrintTitle">
           <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyPrintDialog()">×</button>
           <div class="lk-print9f-head">
             <div>
@@ -341,6 +341,12 @@
     screen = "printView";
     render();
   };
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !weeklyPrintDialogOpen) return;
+    event.preventDefault();
+    closeWeeklyPrintDialog();
+  });
 
   /* ---------- A4 Druckvorlage ---------- */
 

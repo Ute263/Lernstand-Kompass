@@ -30,7 +30,7 @@
   }
 
   function activityRecords() {
-    return (state.learningGameSessions || []).filter((item) => item.gameId === ACTIVITY_GAME_ID);
+    return (state.learningGameSessions || []).filter((item) => item.gameId === ACTIVITY_GAME_ID && item.teacherReset !== true);
   }
 
   function activityById(id) {

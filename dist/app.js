@@ -153,6 +153,61 @@ let weeklyStatusFilter = "all";
 let teacherMaterialPicker = null;
 
 document.addEventListener("DOMContentLoaded", initApp);
+
+(function install9xTeacherStyles() {
+  const style = document.createElement("style");
+  style.id = "lk-9x-teacher-style";
+  style.textContent = `
+    .weekly-editor-audience-summary {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin:4px 0 14px;
+      padding:11px 14px;
+      border:1px solid rgba(47,111,145,.14);
+      border-radius:14px;
+      background:linear-gradient(135deg,rgba(236,248,255,.78),rgba(255,252,239,.78));
+    }
+    .weekly-editor-audience-summary > div { display:grid; gap:2px; }
+    .weekly-editor-audience-summary strong { font-size:1rem; }
+    .weekly-editor-audience-summary small { opacity:.67; text-align:right; }
+    .weekly-editor-audience-kicker {
+      font-size:.68rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      opacity:.58;
+    }
+    .training-heading-actions {
+      display:flex;
+      justify-content:space-between;
+      align-items:end;
+      gap:18px;
+    }
+    .training-reset-box {
+      display:flex;
+      align-items:end;
+      gap:8px;
+      padding:9px 10px;
+      border-radius:13px;
+      background:rgba(255,247,240,.72);
+      border:1px solid rgba(170,80,50,.12);
+    }
+    .training-reset-box .field { margin:0; min-width:210px; }
+    .danger-outline {
+      border-color:rgba(160,65,45,.28) !important;
+      color:#8b3f31 !important;
+      background:#fff !important;
+    }
+    @media (max-width:800px) {
+      .weekly-editor-audience-summary,
+      .training-heading-actions,
+      .training-reset-box { display:grid; }
+      .weekly-editor-audience-summary small { text-align:left; }
+    }
+  `;
+  document.head.appendChild(style);
+})();
 window.addEventListener("beforeunload", (event) => {
   if (!hasUnsavedChanges) return;
   event.preventDefault();
@@ -3047,8 +3102,21 @@ function renderTrainingOverview() {
     });
   return `
     <section class="panel">
-      <h2>Trainingszeit – Übersicht</h2>
-      <p class="message">Hier sieht die Lehrkraft, welche Entdeckeraufgaben bereits bearbeitet wurden. Es werden nur Tier-Pseudonyme angezeigt.</p>
+      <div class="training-heading-actions">
+        <div>
+          <h2>Trainingszeit – Übersicht</h2>
+          <p class="message">Hier sieht die Lehrkraft, welche Entdeckeraufgaben bereits bearbeitet wurden. Es werden nur Tier-Pseudonyme angezeigt.</p>
+        </div>
+        <div class="training-reset-box">
+          <label class="field">Trainingszeit zurücksetzen für
+            <select class="select-input" id="trainingResetAnimal">
+              <option value="">Kind auswählen …</option>
+              ${animals.map((animal) => `<option value="${escapeAttribute(animal.id)}">${escapeHtml(teacherAnimalLabel(animal))}</option>`).join("")}
+            </select>
+          </label>
+          <button class="secondary danger-outline" type="button" onclick="resetTrainingForSelectedAnimal()">Zurücksetzen</button>
+        </div>
+      </div>
       <form class="filters" onsubmit="event.preventDefault();">
         <label class="field">Tier
           <select class="select-input" onchange="setTrainingFilter('animalId', this.value)">
@@ -3420,7 +3488,16 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id)}
           <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichung für dieses Tier leeren</button>
         ` : `
-          <h3>Standard-Wochenplan für die ganze Klasse</h3>
+          <div class="weekly-editor-audience-summary">
+            <div>
+              <span class="weekly-editor-audience-kicker">Zielgruppe</span>
+              <strong>${assignmentMode === "all"
+                ? "Ganze Klasse"
+                : `${selectedAnimals.size} ${selectedAnimals.size === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}`}</strong>
+            </div>
+            <small>Die Zielgruppe wurde vor dem Öffnen des Wochenplans festgelegt.</small>
+          </div>
+          <h3>Aufgaben für diese Zielgruppe</h3>
           ${renderWeeklyPlannerTable(draft.days || {}, "standard")}
         `}
         <label class="field">Bemerkung optional
@@ -3432,26 +3509,6 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <option value="auto" ${progressMode === "auto" ? "selected" : ""}>Automatisch übernehmen</option>
           </select>
         </label>
-        ${focusAnimal ? "" : `
-          <div class="weekly-assignment">
-            <strong>Zuordnung</strong>
-            <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="all" ${assignmentMode === "all" ? "checked" : ""}> für die ganze Klasse</label>
-            <label class="toggle-label"><input type="radio" name="weeklyAssignmentMode" value="selected" ${assignmentMode !== "all" ? "checked" : ""}> für einzelne Tiere / Gruppe</label>
-            ${groups.length ? `
-              <label class="field">Tiergruppe als Auswahlhilfe
-                <select class="select-input" onchange="applyAnimalGroupSelection(this.value, 'weeklyAnimalCheckbox')">
-                  <option value="">Gruppe auswählen</option>
-                  ${groups.map((group) => `<option value="${escapeAttribute(group.id)}">${escapeHtml(group.name)}</option>`).join("")}
-                </select>
-              </label>
-            ` : ""}
-            <div class="animal-checkbox-grid">
-              ${animals.map((animal) => `
-                <label class="toggle-label"><input class="weeklyAnimalCheckbox" type="checkbox" value="${animal.id}" ${selectedAnimals.has(animal.id) ? "checked" : ""}> ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</label>
-              `).join("")}
-            </div>
-          </div>
-        `}
         <div class="backup-actions">
           <button class="primary" type="submit">Wochenplan speichern</button>
           <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Wochenplan drucken</button>
@@ -4177,6 +4234,65 @@ async function saveWeeklyPlan(event) {
     ? `Wochenplan gespeichert. ${visibility.label}.`
     : `Wochenplan gespeichert. ${visibility.detail || "Er ist aktuell noch nicht in der Kinderansicht sichtbar."}`;
   await persistAndRender({ ...state, weeklyPlans });
+}
+
+async function resetTrainingForSelectedAnimal() {
+  const animalId = document.querySelector("#trainingResetAnimal")?.value || "";
+  if (!animalId) {
+    globalMessage = "Bitte wähle zuerst ein Kind aus.";
+    render();
+    return;
+  }
+
+  const animal = animalsForActiveClass().find((item) => item.id === animalId);
+  const matching = (state.trainingCompletions || []).filter((item) => (
+    item.classId === state.activeClassId
+    && item.animalId === animalId
+    && item.status === "bearbeitet"
+  ));
+
+  if (!matching.length) {
+    globalMessage = `${animal ? teacherAnimalLabel(animal) : "Für dieses Kind"} gibt es keine bearbeiteten Trainingsaufgaben zum Zurücksetzen.`;
+    render();
+    return;
+  }
+
+  if (!confirm(`Möchtest du die Trainingszeit für ${animal ? teacherAnimalLabel(animal) : "dieses Kind"} wirklich zurücksetzen? ${matching.length} bearbeitete Aufgabe${matching.length === 1 ? "" : "n"} werden wieder auf „offen“ gesetzt.`)) return;
+
+  const timestamp = nowIso();
+  const resetIds = new Set(matching.map((item) => item.id));
+  const trainingCompletions = (state.trainingCompletions || []).map((item) => (
+    resetIds.has(item.id)
+      ? {
+          ...item,
+          status: "offen",
+          updatedAt: timestamp,
+          resetAt: timestamp,
+          resetNote: "Trainingszeit durch Lehrkraft zurückgesetzt"
+        }
+      : item
+  ));
+
+  const historyRows = matching.map((completion) => ({
+    id: makeId(),
+    classId: completion.classId,
+    animalId: completion.animalId,
+    taskCode: completion.taskCode,
+    subcategory: completion.subcategory || defaultTrainingSubcategory(completion.taskCode),
+    oldStatus: "bearbeitet",
+    newStatus: "offen",
+    changedAt: timestamp,
+    note: "Trainingszeit durch Lehrkraft zurückgesetzt"
+  }));
+
+  await persist({
+    ...state,
+    trainingCompletions,
+    trainingHistory: [...(state.trainingHistory || []), ...historyRows]
+  });
+
+  globalMessage = `Trainingszeit für ${animal ? teacherAnimalLabel(animal) : "das Kind"} zurückgesetzt.`;
+  render();
 }
 
 async function resetTrainingCompletion(animalId, taskCode) {

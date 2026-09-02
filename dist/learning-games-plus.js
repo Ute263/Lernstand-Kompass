@@ -1609,6 +1609,7 @@
     return lgSessionList()
       .filter((session) => (
         session.classId === state.activeClassId &&
+        session.teacherReset !== true &&
         LG_GAME_IDS.has(session.gameId) &&
         session.finishedAt
       ))
@@ -1619,6 +1620,7 @@
     return lgSessionList()
       .filter((item) => (
         item.classId === state.activeClassId &&
+        item.teacherReset !== true &&
         item.gameId === LG_ACTIVITY_ID &&
         LG_GAME_IDS.has(item.activityGameId)
       ))
@@ -1831,6 +1833,84 @@
     `;
   }
 
+  function lgResetAnimalOptions() {
+    return animalsForActiveClass()
+      .filter((animal) => animal.aktiv !== false)
+      .map((animal) => `<option value="${escapeAttribute(animal.id)}">${escapeHtml(teacherAnimalLabel(animal))}</option>`)
+      .join("");
+  }
+
+  window.resetLearningGameForSelectedAnimal = async function resetLearningGameForSelectedAnimal() {
+    const animalId = document.querySelector("#lgResetAnimal")?.value || "";
+    if (!animalId) {
+      globalMessage = "Bitte wähle zuerst ein Kind aus.";
+      render();
+      return;
+    }
+
+    const gameId = lgTeacherGameId || "nomen-probe";
+    const game = LG_CATALOG.find((item) => item.id === gameId);
+    const animal = animalsForActiveClass().find((item) => item.id === animalId);
+    const affected = (state.learningGameSessions || []).filter((item) => (
+      item.classId === state.activeClassId
+      && item.animalId === animalId
+      && item.teacherReset !== true
+      && (
+        item.gameId === gameId
+        || (gameId === "nomen-probe" && item.gameId === "nomen-probe-activity")
+        || (item.gameId === LG_ACTIVITY_ID && item.activityGameId === gameId)
+      )
+    ));
+
+    if (!affected.length) {
+      globalMessage = `Für ${animal ? teacherAnimalLabel(animal) : "dieses Kind"} gibt es in ${game?.fullLabel || "diesem Spiel"} nichts zurückzusetzen.`;
+      render();
+      return;
+    }
+
+    if (!confirm(`Möchtest du die Ergebnisse von ${animal ? teacherAnimalLabel(animal) : "diesem Kind"} in „${game?.fullLabel || "diesem Lernspiel"}“ wirklich zurücksetzen? Frühere Runden verschwinden aus der Auswertung, neue Runden werden wieder normal erfasst.`)) return;
+
+    const timestamp = lgNow();
+    const affectedIds = new Set(affected.map((item) => item.id));
+    const sessions = (state.learningGameSessions || []).map((item) => (
+      affectedIds.has(item.id)
+        ? {
+            ...item,
+            teacherReset: true,
+            teacherResetAt: timestamp,
+            updatedAt: timestamp
+          }
+        : item
+    ));
+
+    lgTeacherDetailId = "";
+    if (typeof nomenTeacherSessionId !== "undefined") {
+      try { nomenTeacherSessionId = ""; } catch {}
+    }
+
+    await persist({ ...state, learningGameSessions: sessions });
+    globalMessage = `${game?.fullLabel || "Lernspiel"} für ${animal ? teacherAnimalLabel(animal) : "das Kind"} zurückgesetzt.`;
+    render();
+  };
+
+  function lgRenderResetPanel() {
+    return `
+      <section class="panel lg-reset-panel">
+        <div>
+          <strong>Ergebnisse zurücksetzen</strong>
+          <small>Gilt nur für das gerade ausgewählte Lernspiel.</small>
+        </div>
+        <label class="field">
+          <select class="select-input" id="lgResetAnimal">
+            <option value="">Kind auswählen …</option>
+            ${lgResetAnimalOptions()}
+          </select>
+        </label>
+        <button class="secondary lg-reset-button" type="button" onclick="resetLearningGameForSelectedAnimal()">Zurücksetzen</button>
+      </section>
+    `;
+  }
+
   function lgRenderTeacherGameTabs() {
     return `
       <section class="panel lg-game-tabs-panel">
@@ -1871,6 +1951,7 @@
     return `
       ${lgRenderReleasePanel()}
       ${lgRenderTeacherGameTabs()}
+      ${lgRenderResetPanel()}
       ${lgTeacherGameId === "nomen-probe"
         ? lgRenderNomenTeacher()
         : lgRenderTeacherPanel(lgTeacherGameId)}
@@ -1882,6 +1963,31 @@
   const style = document.createElement("style");
   style.id = "lk-learning-games-plus-style";
   style.textContent = `
+    .lg-reset-panel {
+      display:flex;
+      align-items:end;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid rgba(160,65,45,.12);
+      background:rgba(255,247,240,.7);
+    }
+    .lg-reset-panel > div:first-child {
+      display:grid;
+      gap:2px;
+      margin-right:auto;
+    }
+    .lg-reset-panel > div:first-child small { opacity:.66; }
+    .lg-reset-panel .field { margin:0; min-width:220px; }
+    .lg-reset-button {
+      border-color:rgba(160,65,45,.28) !important;
+      color:#8b3f31 !important;
+      background:#fff !important;
+    }
+    @media (max-width:760px) {
+      .lg-reset-panel { display:grid; }
+      .lg-reset-panel .field { min-width:0; }
+    }
+
     .lg-game-home { display:grid; gap:18px; }
     .lg-home-hero {
       display:grid;
