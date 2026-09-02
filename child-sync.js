@@ -710,9 +710,64 @@
   persist = async function automaticPersist(nextState = state) {
     await basePersist(nextState);
     if (runtime.applyingRemote) return;
-    if (isChildDevice()) scheduleChildPush();
-    else if (teacherClassSyncReady()) scheduleTeacherPublish();
+    if (isChildDevice()) {
+      scheduleChildPush();
+    } else if (teacherClassSyncReady()) {
+      scheduleTeacherPublish();
+      // Wurde der Kinder-Sync erst nach dem Öffnen der App eingerichtet,
+      // lief bisher noch kein regelmäßiger Abruf. Genau dann starten wir ihn hier.
+      if (!runtime.teacherPullTimer) scheduleTeacherPullLoop();
+    }
   };
+
+  // Der sichtbare Button „Kinder-Ergebnisse abrufen“ stammt noch aus dem
+  // ursprünglichen Klassen-Sync. QR-Kindergeräte senden inzwischen jedoch in
+  // den neuen verschlüsselten Transport-Kanal. Deshalb wird der manuelle Abruf
+  // hier auf denselben Weg umgeleitet, den auch der automatische Kinder-Sync nutzt.
+  async function pullTeacherChildStatesWithFeedback() {
+    if (!teacherClassSyncReady()) {
+      try {
+        syncRuntime.classStatus = "error";
+        syncRuntime.classMessage = "Kinder-Sync ist noch nicht vollständig eingerichtet.";
+      } catch {}
+      if (screen === "teacher") render();
+      return 0;
+    }
+
+    try {
+      try {
+        syncRuntime.classStatus = "working";
+        syncRuntime.classMessage = "Kinder-Ergebnisse werden abgerufen …";
+      } catch {}
+      if (screen === "teacher") render();
+
+      const changed = await pullTeacherChildStates({ renderIfSafe: false });
+
+      try {
+        syncRuntime.classStatus = "success";
+        syncRuntime.classMessage = changed
+          ? `${changed} neue oder aktualisierte Kindmeldung${changed === 1 ? "" : "en"} übernommen.`
+          : "Keine neuen Kinder-Ergebnisse.";
+      } catch {}
+      if (screen === "teacher") render();
+      return changed;
+    } catch (error) {
+      console.warn("Kinder-Ergebnisse konnten nicht abgerufen werden.", error);
+      try {
+        syncRuntime.classStatus = "error";
+        syncRuntime.classMessage =
+          typeof friendlySyncError === "function"
+            ? friendlySyncError(error)
+            : "Kinder-Ergebnisse konnten gerade nicht abgerufen werden.";
+      } catch {}
+      if (screen === "teacher") render();
+      return 0;
+    }
+  }
+
+  if (typeof pullClassSyncSessions === "function") {
+    pullClassSyncSessions = pullTeacherChildStatesWithFeedback;
+  }
 
   // Die Nomen-Probe nutzt dieselbe automatische Kinderpost statt des Klassen-Schlüssels.
   if (typeof syncLearningGameSessionAfterSave === "function") {
@@ -766,6 +821,7 @@
 
   window.publishAllChildBootstraps = publishAllChildBootstraps;
   window.pullTeacherChildStates = pullTeacherChildStates;
+  window.pullTeacherChildStatesWithFeedback = pullTeacherChildStatesWithFeedback;
   window.pushChildStateNow = pushChildStateNow;
 
   window.addEventListener("online", () => {
