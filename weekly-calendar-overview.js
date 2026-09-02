@@ -30,6 +30,7 @@
   let lkCalendarAutoYear = true;
   let lkCalendarCreatingWeek = null;
   let lkCalendarWeekDialogOpen = false;
+  let lkCalendarAudienceChoiceOpen = false;
 
   const MONTHS = [
     "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -273,6 +274,125 @@
     }]));
   }
 
+  function activeCalendarAnimals() {
+    try {
+      return animalsForActiveClass().filter((animal) => animal.aktiv !== false);
+    } catch {
+      return (state.animals || []).filter((animal) => animal.classId === state.activeClassId && animal.aktiv !== false);
+    }
+  }
+
+  function calendarAnimalPlainName(animal) {
+    if (!animal) return "Kind";
+    if (state.teacherShowFirstNames && animal.firstName) return String(animal.firstName);
+    return String(animal.tierName || "Kind");
+  }
+
+  function sameAnimalSelection(a, b) {
+    const left = [...new Set(a || [])].sort();
+    const right = [...new Set(b || [])].sort();
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  }
+
+  function matchingCalendarGroup(animalIds) {
+    const ids = [...new Set(animalIds || [])];
+    if (!ids.length) return null;
+    return (state.animalGroups || []).find((group) =>
+      group.classId === state.activeClassId
+      && sameAnimalSelection(group.animalIds || [], ids)
+    ) || null;
+  }
+
+  function calendarPlanAudience(plan) {
+    if (!plan || plan.assignmentMode === "all" || !Array.isArray(plan.animalIds) || !plan.animalIds.length) {
+      return { label: "Ganze Klasse", kind: "all", count: activeCalendarAnimals().length };
+    }
+
+    const ids = [...new Set(plan.animalIds || [])];
+    const group = matchingCalendarGroup(ids);
+    if (group) {
+      return { label: `Gruppe: ${group.name || "Gruppe"}`, kind: "group", count: ids.length };
+    }
+
+    const animals = activeCalendarAnimals().filter((animal) => ids.includes(animal.id));
+    if (animals.length === 1) {
+      return { label: `Einzelplan: ${calendarAnimalPlainName(animals[0])}`, kind: "single", count: 1 };
+    }
+
+    return {
+      label: `Auswahl: ${animals.length || ids.length} Kinder`,
+      kind: "selected",
+      count: animals.length || ids.length
+    };
+  }
+
+  function suggestedCalendarPlanTitle({ mode = "all", animalIds = [], group = null } = {}) {
+    if (mode === "all") return "Klasse";
+    if (group?.name) return String(group.name);
+
+    const animals = activeCalendarAnimals().filter((animal) => animalIds.includes(animal.id));
+    const matchedGroup = matchingCalendarGroup(animalIds);
+    if (matchedGroup?.name) return String(matchedGroup.name);
+    if (animals.length === 1) return `Einzelplan – ${calendarAnimalPlainName(animals[0])}`;
+    if (animals.length > 1) return `Auswahl – ${animals.length} Kinder`;
+    return "Wochenplan";
+  }
+
+  function renderCalendarAudienceChoice(week) {
+    const animals = activeCalendarAnimals();
+    const groups = (state.animalGroups || [])
+      .filter((group) => group.classId === state.activeClassId && Array.isArray(group.animalIds) && group.animalIds.length);
+
+    return `
+      <section class="lk-cal-audience-picker">
+        <div class="lk-cal-audience-heading">
+          <div>
+            <span class="lk-cal-audience-kicker">Neuer Wochenplan</span>
+            <h3>Für wen gilt dieser Plan?</h3>
+            <p>Wähle zuerst die Kinder. Den vorgeschlagenen Titel kannst du anschließend noch ändern.</p>
+          </div>
+          ${plansForWeek(week).length ? `<button class="link-button" type="button" onclick="lkCancelCalendarAudienceChoice()">Abbrechen</button>` : ""}
+        </div>
+
+        <div class="lk-cal-audience-quick">
+          <button class="lk-cal-audience-option" type="button" onclick="lkCreateCalendarPlanForAll('${escapeAttribute(week.key)}')">
+            <span>👥</span>
+            <strong>Ganze Klasse</strong>
+            <small>${animals.length} Kinder · Titelvorschlag „Klasse“</small>
+          </button>
+
+          ${groups.map((group) => `
+            <button class="lk-cal-audience-option" type="button" onclick="lkCreateCalendarPlanForGroup('${escapeAttribute(week.key)}','${escapeAttribute(group.id)}')">
+              <span>🧩</span>
+              <strong>${escapeHtml(group.name || "Gruppe")}</strong>
+              <small>${(group.animalIds || []).length} Kinder · Gruppenplan</small>
+            </button>
+          `).join("")}
+        </div>
+
+        <details class="lk-cal-individual-choice">
+          <summary>Einzelne Kinder auswählen</summary>
+          <div class="lk-cal-audience-animal-grid">
+            ${animals.map((animal) => `
+              <label>
+                <input class="lkCalendarAudienceAnimal" type="checkbox" value="${escapeAttribute(animal.id)}">
+                <span>${escapeHtml(animal.tierEmoji || "🐾")}</span>
+                <strong>${escapeHtml(calendarAnimalPlainName(animal))}</strong>
+                ${state.teacherShowFirstNames && animal.firstName && animal.tierName
+                  ? `<small>${escapeHtml(animal.tierName)}</small>`
+                  : ""}
+              </label>
+            `).join("")}
+          </div>
+          <button class="primary" type="button" onclick="lkCreateCalendarPlanForSelected('${escapeAttribute(week.key)}')">
+            Mit Auswahl weiter
+          </button>
+          <p class="message error lk-cal-audience-error" id="lkCalendarAudienceError"></p>
+        </details>
+      </section>
+    `;
+  }
+
   function makeDraftForWeek(week) {
     return {
       title: "Wochenplan",
@@ -401,12 +521,16 @@
     const visibility = typeof weeklyPlanChildVisibility === "function"
       ? weeklyPlanChildVisibility(plan)
       : { label: "" };
+    const audience = calendarPlanAudience(plan);
 
     return `
       <article class="lk-cal-plan-card">
         <div class="lk-cal-plan-main">
           <div class="lk-cal-plan-title">
-            <span class="lk-cal-plan-status ${meta.className}">${meta.icon} ${escapeHtml(meta.label)}</span>
+            <div class="lk-cal-plan-badges">
+              <span class="lk-cal-plan-status ${meta.className}">${meta.icon} ${escapeHtml(meta.label)}</span>
+              <span class="lk-cal-audience-badge ${escapeAttribute(audience.kind)}">${escapeHtml(audience.label)}</span>
+            </div>
             <h3>${escapeHtml(plan.title || "Wochenplan")}</h3>
             <p>
               ${taskCount} Aufgabe${taskCount === 1 ? "" : "n"}
@@ -452,20 +576,24 @@
               <span class="lk-cal-week-status ${meta.className}">${meta.icon} ${escapeHtml(meta.label)}</span>
               <h2 id="lk-cal-week-dialog-title">${escapeHtml(selectedWeekTitle(week))}</h2>
             </div>
-            ${plans.length
-              ? `<button class="primary" type="button" onclick="lkOpenSelectedWeekEditor()">✏️ Plan bearbeiten</button>`
-              : `<button class="primary" type="button" onclick="lkCreateCalendarWeek('${escapeAttribute(week.key)}')">+ Wochenplan erstellen</button>`}
+            <button class="primary" type="button" onclick="lkStartCalendarAudienceChoice('${escapeAttribute(week.key)}')">
+              ${plans.length ? "+ Weiteren Wochenplan anlegen" : "+ Wochenplan anlegen"}
+            </button>
           </div>
+
+          ${lkCalendarAudienceChoiceOpen ? renderCalendarAudienceChoice(week) : ""}
 
           ${plans.length
             ? `<div class="lk-cal-plan-list">${plans.map((plan) => renderSelectedPlanCard(plan, week)).join("")}</div>`
-            : `<div class="lk-cal-empty">
-                <span>○</span>
-                <div>
-                  <strong>Für diese Woche ist noch kein Plan angelegt.</strong>
-                  <small>Mit einem Klick werden KW und Zeitraum bereits eingetragen.</small>
-                </div>
-              </div>`}
+            : (!lkCalendarAudienceChoiceOpen
+              ? `<div class="lk-cal-empty">
+                  <span>○</span>
+                  <div>
+                    <strong>Für diese Woche ist noch kein Plan angelegt.</strong>
+                    <small>Lege einen Plan für die Klasse, eine Gruppe oder einzelne Kinder an.</small>
+                  </div>
+                </div>`
+              : "")}
         </section>
       </div>
     `;
@@ -652,6 +780,8 @@
   window.lkSelectCalendarWeek = function lkSelectCalendarWeek(key) {
     lkCalendarSelectedMonday = key;
     lkCalendarWeekDialogOpen = true;
+    const week = weekByKey(key);
+    lkCalendarAudienceChoiceOpen = !!week && plansForWeek(week).length === 0;
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
     weeklyPlanDraft = null;
@@ -663,24 +793,76 @@
 
   window.lkCloseCalendarWeekDialog = function lkCloseCalendarWeekDialog() {
     lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
     render();
   };
 
-  window.lkCreateCalendarWeek = function lkCreateCalendarWeek(key) {
+  function openCalendarPlanEditorForAudience(key, { mode = "all", animalIds = [], group = null } = {}) {
     lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
     const week = weekByKey(key);
     if (!week) return;
+
     lkCalendarSelectedMonday = key;
     lkCalendarCreatingWeek = {
       key,
       validFrom: week.key,
       validTo: localDateKey(week.friday)
     };
+
     weeklyPlanEditorId = "";
-    weeklyPlanDraft = makeDraftForWeek(week);
+    weeklyPlanDraft = {
+      ...makeDraftForWeek(week),
+      title: suggestedCalendarPlanTitle({ mode, animalIds, group }),
+      assignmentMode: mode === "all" ? "all" : "selected",
+      animalIds: mode === "all" ? [] : [...new Set(animalIds || [])]
+    };
     weeklyPickRequest = null;
     weeklyPlanSection = "create";
     render();
+  }
+
+  window.lkStartCalendarAudienceChoice = function lkStartCalendarAudienceChoice(key) {
+    const week = weekByKey(key);
+    if (!week) return;
+    lkCalendarSelectedMonday = key;
+    lkCalendarWeekDialogOpen = true;
+    lkCalendarAudienceChoiceOpen = true;
+    render();
+  };
+
+  window.lkCancelCalendarAudienceChoice = function lkCancelCalendarAudienceChoice() {
+    lkCalendarAudienceChoiceOpen = false;
+    render();
+  };
+
+  window.lkCreateCalendarPlanForAll = function lkCreateCalendarPlanForAll(key) {
+    openCalendarPlanEditorForAudience(key, { mode: "all" });
+  };
+
+  window.lkCreateCalendarPlanForGroup = function lkCreateCalendarPlanForGroup(key, groupId) {
+    const group = (state.animalGroups || []).find((item) => item.id === groupId && item.classId === state.activeClassId);
+    if (!group) return;
+    openCalendarPlanEditorForAudience(key, {
+      mode: "selected",
+      animalIds: group.animalIds || [],
+      group
+    });
+  };
+
+  window.lkCreateCalendarPlanForSelected = function lkCreateCalendarPlanForSelected(key) {
+    const animalIds = [...document.querySelectorAll(".lkCalendarAudienceAnimal:checked")].map((input) => input.value);
+    if (!animalIds.length) {
+      const error = document.querySelector("#lkCalendarAudienceError");
+      if (error) error.textContent = "Bitte wähle mindestens ein Kind aus.";
+      return;
+    }
+    openCalendarPlanEditorForAudience(key, { mode: "selected", animalIds });
+  };
+
+  // Kompatibel mit älteren Buttons/Links: Neue Pläne beginnen ebenfalls mit der Zielgruppenwahl.
+  window.lkCreateCalendarWeek = function lkCreateCalendarWeek(key) {
+    lkStartCalendarAudienceChoice(key);
   };
 
   window.lkOpenSelectedWeekEditor = function lkOpenSelectedWeekEditor() {
@@ -688,16 +870,24 @@
     if (!week) return;
     const plans = plansForWeek(week);
 
-    if (plans.length) {
+    if (plans.length === 1) {
       weeklyPlanDraft = null;
       lkEditCalendarPlan(plans[0].id);
       return;
     }
-    lkCreateCalendarWeek(week.key);
+    if (plans.length > 1) {
+      lkCalendarWeekDialogOpen = true;
+      lkCalendarAudienceChoiceOpen = false;
+      weeklyPlanSection = "current";
+      render();
+      return;
+    }
+    lkStartCalendarAudienceChoice(week.key);
   };
 
   window.lkEditCalendarPlan = function lkEditCalendarPlan(planId) {
     lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
     const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
     const planDate = fromDateKey(plan?.validFrom || plan?.validTo || "");
     const planYear = schoolYearForDate(planDate);
@@ -767,6 +957,7 @@
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !lkCalendarWeekDialogOpen) return;
     lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
     render();
   });
 
@@ -985,6 +1176,106 @@
     }
     .lk-cal-plan-title h3 { margin:6px 0 3px; }
     .lk-cal-plan-title p { margin:0; opacity:.65; font-size:.82rem; }
+    .lk-cal-plan-badges { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .lk-cal-audience-badge {
+      display:inline-flex;
+      align-items:center;
+      min-height:25px;
+      padding:3px 8px;
+      border-radius:999px;
+      background:rgba(47,111,145,.08);
+      border:1px solid rgba(47,111,145,.12);
+      font-size:.72rem;
+      font-weight:700;
+      color:#315a70;
+    }
+    .lk-cal-audience-badge.group { background:rgba(255,239,171,.42); color:#6b5a20; }
+    .lk-cal-audience-badge.single,
+    .lk-cal-audience-badge.selected { background:rgba(221,242,230,.56); color:#315f47; }
+
+    .lk-cal-audience-picker {
+      margin:4px 0 16px;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid rgba(47,111,145,.13);
+      background:linear-gradient(135deg,rgba(236,248,255,.92),rgba(255,252,239,.92));
+    }
+    .lk-cal-audience-heading {
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      margin-bottom:12px;
+    }
+    .lk-cal-audience-heading h3 { margin:3px 0 4px; }
+    .lk-cal-audience-heading p { margin:0; opacity:.7; font-size:.85rem; }
+    .lk-cal-audience-kicker {
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      opacity:.65;
+    }
+    .lk-cal-audience-quick {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:9px;
+    }
+    .lk-cal-audience-option {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      column-gap:9px;
+      row-gap:2px;
+      align-items:center;
+      text-align:left;
+      padding:11px;
+      border:1px solid rgba(47,111,145,.14);
+      border-radius:13px;
+      background:#fff;
+      color:inherit;
+      cursor:pointer;
+    }
+    .lk-cal-audience-option:hover { border-color:rgba(47,111,145,.36); background:#f8fcfe; }
+    .lk-cal-audience-option > span {
+      grid-row:1 / span 2;
+      font-size:1.25rem;
+    }
+    .lk-cal-audience-option strong { font-size:.88rem; }
+    .lk-cal-audience-option small { opacity:.62; font-size:.72rem; }
+    .lk-cal-individual-choice {
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:13px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(0,0,0,.06);
+    }
+    .lk-cal-individual-choice summary {
+      cursor:pointer;
+      font-weight:700;
+      font-size:.86rem;
+    }
+    .lk-cal-audience-animal-grid {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:7px;
+      margin:10px 0;
+    }
+    .lk-cal-audience-animal-grid label {
+      display:grid;
+      grid-template-columns:auto auto 1fr;
+      gap:5px;
+      align-items:center;
+      padding:7px 8px;
+      border-radius:10px;
+      background:#fff;
+      border:1px solid rgba(0,0,0,.06);
+      font-size:.78rem;
+    }
+    .lk-cal-audience-animal-grid label small {
+      grid-column:3;
+      opacity:.58;
+      font-size:.68rem;
+    }
+    .lk-cal-audience-error { margin:7px 0 0; min-height:0; }
     .lk-cal-plan-actions {
       display:flex;
       align-items:center;
@@ -1041,6 +1332,8 @@
 
     @media (max-width:980px) {
       .lk-cal-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-audience-quick { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-audience-animal-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
       .lk-cal-plan-main { grid-template-columns:1fr; }
       .lk-cal-plan-actions { justify-content:flex-start; }
     }
@@ -1052,7 +1345,10 @@
         border-radius:18px;
       }
       .lk-cal-hero,
-      .lk-cal-selected-head { display:block; }
+      .lk-cal-selected-head,
+      .lk-cal-audience-heading { display:block; }
+      .lk-cal-audience-quick { grid-template-columns:1fr; }
+      .lk-cal-audience-animal-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .lk-cal-title-line { display:block; }
       .lk-cal-year-picker {
         margin-top:10px;
