@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-cache-v121";
+const CACHE_NAME = "lernstand-kompass-cache-v124";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const APP_FILES = [
   "./exceljs-LICENSE.txt",
   "./export.js",
   "./qrcode.js",
+  "./jsqr.js",
   "./sync.js",
   "./app.js",
   "./child-sync.js",

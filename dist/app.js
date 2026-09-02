@@ -1363,8 +1363,8 @@ function renderQrScanner() {
         <p class="message" id="scannerMessage">Kamera wird geöffnet...</p>
       </div>
       <form class="inline-form qr-manual-form" onsubmit="submitManualQrCode(event)">
-        <label class="field">Tier-ID manuell eingeben
-          <input class="text-input" id="manualQrInput" placeholder="animalId=..." autocomplete="off">
+        <label class="field">QR-Zugang manuell eingeben
+          <input class="text-input" id="manualQrInput" placeholder="QR-Code, Link oder Tier-Zugang" autocomplete="off">
         </label>
         <button class="secondary" type="submit">Tier öffnen</button>
       </form>
@@ -1379,10 +1379,18 @@ async function startQrScanner() {
   if (!message || !video) return;
   try {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("no-camera");
-    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
     video.srcObject = scannerStream;
     await video.play();
-    message.textContent = "Halte die Karte vor die Kamera.";
+
+    barcodeDetector = null;
     if ("BarcodeDetector" in window) {
       try {
         barcodeDetector = new BarcodeDetector({ formats: ["qr_code"] });
@@ -1390,10 +1398,40 @@ async function startQrScanner() {
         barcodeDetector = null;
       }
     }
+
+    const localFallbackAvailable = typeof window.jsQR === "function";
+    if (!barcodeDetector && !localFallbackAvailable) {
+      message.textContent = "Die QR-Erkennung konnte nicht geladen werden. Bitte lade die App neu.";
+      return;
+    }
+    message.textContent = barcodeDetector
+      ? "Halte die QR-Karte ruhig vor die Kamera."
+      : "Halte die QR-Karte ruhig vor die Kamera. Die Erkennung läuft lokal auf diesem Gerät.";
     scanQrFrame();
-  } catch {
-    message.textContent = "Die Kamera konnte nicht geöffnet werden. Bitte prüfe die Berechtigung oder wähle dein Tier über die Tierauswahl.";
+  } catch (error) {
+    const name = String(error?.name || "");
+    message.textContent = name === "NotAllowedError"
+      ? "Die Kamera ist nicht freigegeben. Bitte erlaube der Lernstand-Kompass-App den Kamerazugriff und versuche es erneut."
+      : "Die Kamera konnte nicht geöffnet werden. Bitte prüfe die Kameraberechtigung oder wähle dein Tier über die Tierauswahl.";
   }
+}
+
+function scanQrWithJsQr(video, canvas) {
+  if (typeof window.jsQR !== "function" || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return "";
+
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  const width = Math.max(1, Math.round(video.videoWidth * scale));
+  const height = Math.max(1, Math.round(video.videoHeight * scale));
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return "";
+  context.drawImage(video, 0, 0, width, height);
+  const image = context.getImageData(0, 0, width, height);
+  const result = window.jsQR(image.data, width, height, { inversionAttempts: "attemptBoth" });
+  return result?.data || "";
 }
 
 async function scanQrFrame() {
@@ -1406,20 +1444,24 @@ async function scanQrFrame() {
   try {
     let token = "";
     if (barcodeDetector && video.readyState >= 2) {
-      const codes = await barcodeDetector.detect(video);
-      token = codes[0]?.rawValue || "";
-    } else if (!("BarcodeDetector" in window)) {
-      message.textContent = "Die automatische Erkennung ist in diesem Browser nicht verfügbar. Bitte gib die Tier-ID ein oder wähle dein Tier über die Tierauswahl.";
+      try {
+        const codes = await barcodeDetector.detect(video);
+        token = codes[0]?.rawValue || "";
+      } catch {
+        barcodeDetector = null;
+      }
     }
+    if (!token) token = scanQrWithJsQr(video, canvas);
 
     if (token) {
+      message.textContent = "QR-Code erkannt …";
       await handleScannedQrToken(token.trim());
       return;
     }
-  } catch {
-    message.textContent = "Der Code konnte nicht gelesen werden. Bitte erneut versuchen.";
+  } catch (error) {
+    console.warn("QR-Code konnte in diesem Kamerabild nicht ausgewertet werden.", error);
   }
-  scannerTimer = window.setTimeout(scanQrFrame, 350);
+  scannerTimer = window.setTimeout(scanQrFrame, 220);
 }
 
 async function handleScannedQrToken(token) {

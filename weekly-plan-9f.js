@@ -148,6 +148,30 @@
 
   /* ---------- Druckdialog ---------- */
 
+  function fixedPrintAnimalIds(plan, animals) {
+    if (!plan || plan.assignmentMode !== "selected" || !Array.isArray(plan.animalIds) || !plan.animalIds.length) return [];
+    const validIds = new Set((animals || []).map((animal) => animal.id));
+    return [...new Set(plan.animalIds)].filter((id) => validIds.has(id));
+  }
+
+  function fixedPrintAnimalRows(animals) {
+    return animals.map((animal) => `
+      <div class="lk-print-animal-row lk-print-animal-row-fixed">
+        <span class="lk-print-fixed-mark" aria-hidden="true">✓</span>
+        <span>${escapeHtml(teacherAnimalName(animal))}</span>
+        <span class="lk-print-code-label">Code</span>
+        <input
+          class="text-input lk-print-code-input"
+          id="lkPrintCode_${escapeAttribute(animal.id)}"
+          maxlength="3"
+          value="${escapeAttribute(animal.weeklyCode || "")}"
+          placeholder="A"
+          aria-label="Druck-Code für ${escapeAttribute(teacherAnimalName(animal))}"
+        >
+      </div>
+    `).join("");
+  }
+
   function animalPrintRows(animals) {
     return animals.map((animal, index) => `
       <label class="lk-print-animal-row">
@@ -170,6 +194,9 @@
     if (!weeklyPrintDialogOpen) return "";
     const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
     const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+    const fixedIds = fixedPrintAnimalIds(plan, animals);
+    const fixedAnimals = fixedIds.map((id) => animals.find((animal) => animal.id === id)).filter(Boolean);
+    const hasFixedAudience = fixedAnimals.length > 0;
 
     return `
       <div class="training-modal-overlay lk-print9f-overlay" role="dialog" aria-modal="true" aria-labelledby="weeklyPrintTitle">
@@ -188,36 +215,55 @@
 
           ${plan ? `
             <div class="lk-print9f-steps">
-              <section>
-                <strong>1. Welche Pläne?</strong>
-                <label class="lk-print-choice">
-                  <input type="radio" name="lkPrintTarget" value="all" checked onchange="lkToggle9fPrintTarget()">
-                  <span><b>Ein Plan für die ganze Klasse</b><small>Alle bekommen denselben Wochenplan. Das Code-Kästchen bleibt leer.</small></span>
-                </label>
-                <label class="lk-print-choice">
-                  <input type="radio" name="lkPrintTarget" value="selected" onchange="lkToggle9fPrintTarget()">
-                  <span><b>Individuelle Pläne</b><small>Die App berücksichtigt die individuellen Aufgaben. Nur der kleine Code unterscheidet die Ausdrucke.</small></span>
-                </label>
-              </section>
-
-              <section id="lkPrintIndividualWrap" class="lk-print-individual hidden">
-                <div class="lk-print-section-head">
-                  <strong>2. Kinder auswählen</strong>
-                  <div>
-                    <button class="link-button" type="button" onclick="lkSelectAllPrintAnimals(true)">alle</button>
-                    <button class="link-button" type="button" onclick="lkSelectAllPrintAnimals(false)">keine</button>
+              ${hasFixedAudience ? `
+                <section class="lk-print-fixed-audience">
+                  <strong>Für wen wird gedruckt?</strong>
+                  <div class="lk-print-fixed-summary">
+                    <span class="lk-print-fixed-icon">✓</span>
+                    <div>
+                      <b>Auswahl aus dem Wochenplan wird übernommen</b>
+                      <small>${fixedAnimals.length} ${fixedAnimals.length === 1 ? "Kind" : "Kinder"}. Die Zielgruppe kann hier nicht versehentlich verändert werden.</small>
+                    </div>
                   </div>
-                </div>
-                <div class="lk-print-animal-grid">
-                  ${animalPrintRows(animals)}
-                </div>
-                <p class="message subtle">
-                  Der Code kann hier für diesen Ausdruck geändert werden. Auf dem Blatt steht weder Tier noch Vorname.
-                </p>
-              </section>
+                  <div class="lk-print-animal-grid lk-print-fixed-grid">
+                    ${fixedPrintAnimalRows(fixedAnimals)}
+                  </div>
+                  <p class="message subtle">
+                    Die kleinen Druck-Codes kannst du bei Bedarf ändern. Die Kinder-Auswahl stammt direkt aus dem Wochenplan.
+                  </p>
+                </section>
+              ` : `
+                <section>
+                  <strong>1. Welche Pläne?</strong>
+                  <label class="lk-print-choice">
+                    <input type="radio" name="lkPrintTarget" value="all" checked onchange="lkToggle9fPrintTarget()">
+                    <span><b>Ein Plan für die ganze Klasse</b><small>Alle bekommen denselben Wochenplan. Das Code-Kästchen bleibt leer.</small></span>
+                  </label>
+                  <label class="lk-print-choice">
+                    <input type="radio" name="lkPrintTarget" value="selected" onchange="lkToggle9fPrintTarget()">
+                    <span><b>Individuelle Pläne</b><small>Die App berücksichtigt die individuellen Aufgaben. Nur der kleine Code unterscheidet die Ausdrucke.</small></span>
+                  </label>
+                </section>
+
+                <section id="lkPrintIndividualWrap" class="lk-print-individual hidden">
+                  <div class="lk-print-section-head">
+                    <strong>2. Kinder auswählen</strong>
+                    <div>
+                      <button class="link-button" type="button" onclick="lkSelectAllPrintAnimals(true)">alle</button>
+                      <button class="link-button" type="button" onclick="lkSelectAllPrintAnimals(false)">keine</button>
+                    </div>
+                  </div>
+                  <div class="lk-print-animal-grid">
+                    ${animalPrintRows(animals)}
+                  </div>
+                  <p class="message subtle">
+                    Der Code kann hier für diesen Ausdruck geändert werden. Auf dem Blatt steht weder Tier noch Vorname.
+                  </p>
+                </section>
+              `}
 
               <section>
-                <strong>2${animals.length ? "/3" : ""}. Inhalt</strong>
+                <strong>${hasFixedAudience ? "Inhalt" : `2${animals.length ? "/3" : ""}. Inhalt`}</strong>
                 <label class="toggle-label lk-print-toggle">
                   <input id="weeklyPrintExtra" type="checkbox" checked>
                   ⭐ Zusatzaufgaben mitdrucken
@@ -252,10 +298,17 @@
     const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
     if (!plan) return;
 
-    const target = document.querySelector('input[name="lkPrintTarget"]:checked')?.value || "all";
-    const selectedAnimals = target === "selected"
-      ? [...document.querySelectorAll(".weeklyPrintAnimalCheckbox:checked")].map((input) => input.value)
-      : [];
+    const availableAnimals = animalsForActiveClass().filter((animal) => animal.aktiv);
+    const fixedIds = fixedPrintAnimalIds(plan, availableAnimals);
+    const hasFixedAudience = fixedIds.length > 0;
+    const target = hasFixedAudience
+      ? "selected"
+      : (document.querySelector('input[name="lkPrintTarget"]:checked')?.value || "all");
+    const selectedAnimals = hasFixedAudience
+      ? fixedIds
+      : target === "selected"
+        ? [...document.querySelectorAll(".weeklyPrintAnimalCheckbox:checked")].map((input) => input.value)
+        : [];
 
     if (target === "selected" && !selectedAnimals.length) {
       lkPrint9fMessage = "Bitte wähle mindestens ein Kind für den individuellen Ausdruck aus.";
@@ -860,6 +913,39 @@
       display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px;
       max-height:300px; overflow:auto; padding-right:3px;
     }
+    .lk-print-fixed-audience {
+      border:1px solid rgba(69,139,102,.18);
+      border-radius:14px;
+      padding:13px;
+      background:rgba(237,248,243,.68);
+    }
+    .lk-print-fixed-summary {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:9px 0 11px;
+      padding:10px 12px;
+      border-radius:11px;
+      background:#fff;
+      border:1px solid rgba(69,139,102,.14);
+    }
+    .lk-print-fixed-summary > span,
+    .lk-print-fixed-mark {
+      display:grid;
+      place-items:center;
+      flex:none;
+      width:25px;
+      height:25px;
+      border-radius:50%;
+      background:#e0f3e8;
+      color:#31704b;
+      font-weight:900;
+    }
+    .lk-print-fixed-summary div { display:grid; gap:2px; }
+    .lk-print-fixed-summary small { opacity:.68; }
+    .lk-print-animal-row-fixed { cursor:default; }
+    .lk-print-fixed-grid { margin-top:4px; }
+
     .lk-print-animal-row {
       display:grid; grid-template-columns:auto minmax(0,1fr) auto 52px; gap:7px; align-items:center;
       padding:8px; border-radius:12px; background:rgba(0,0,0,.03);

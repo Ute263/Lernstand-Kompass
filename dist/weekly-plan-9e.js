@@ -556,11 +556,18 @@
         ids.length,
         duplicateDefaults(ids)
       );
+      const numbers = numberList(
+        source[keys.numbers],
+        source[keys.legacyNumber] || "",
+        ids.length
+      );
       const starred = Boolean(stars[index]);
+      const taskNumber = numbers[index] || "";
 
       return {
         ...item,
         subject,
+        taskNumber,
         text: `${starred ? "⭐ " : ""}${stripStar(item.text)}`,
         label: `${starred ? "⭐ " : ""}${stripStar(item.label || subject)}`,
         isExtraTask: starred

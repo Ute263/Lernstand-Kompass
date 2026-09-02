@@ -13,6 +13,7 @@ const files = [
   "exceljs-LICENSE.txt",
   "export.js",
   "qrcode.js",
+  "jsqr.js",
   "sync.js",
   "app.js",
   "child-sync.js",
