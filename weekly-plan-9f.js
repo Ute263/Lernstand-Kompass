@@ -247,6 +247,27 @@
                   ⭐ Zusatzaufgaben mitdrucken
                 </label>
               </section>
+
+              <section class="lk-print-footer-inputs">
+                <div class="lk-print-footer-inputs-head">
+                  <strong>Untere Felder beschriften <span>optional</span></strong>
+                  <small>Leere Felder bleiben auf dem Ausdruck mit Schreiblinien frei.</small>
+                </div>
+                <div class="lk-print-footer-input-grid">
+                  <label class="field">
+                    Daran denke ich
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintRemember" rows="3" placeholder="z. B. Lesemappe mitbringen"></textarea>
+                  </label>
+                  <label class="field">
+                    Mitteilung Lehrkraft
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintTeacherNote" rows="3" placeholder="Optionale Mitteilung"></textarea>
+                  </label>
+                  <label class="field">
+                    Mitteilung Eltern
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintParentNote" rows="3" placeholder="Kann auch leer bleiben"></textarea>
+                  </label>
+                </div>
+              </section>
             </div>
 
             ${lkPrint9fMessage ? `<p class="message error">${escapeHtml(lkPrint9fMessage)}</p>` : ""}
@@ -298,7 +319,12 @@
       showExtra: document.querySelector("#weeklyPrintExtra")?.checked !== false,
       showCheckboxes: true,
       showFirstNames: false,
-      codes
+      codes,
+      footerNotes: {
+        remember: String(document.querySelector("#lkPrintRemember")?.value || "").trim(),
+        teacher: String(document.querySelector("#lkPrintTeacherNote")?.value || "").trim(),
+        parent: String(document.querySelector("#lkPrintParentNote")?.value || "").trim()
+      }
     };
     weeklyPrintDialogOpen = false;
     currentPrintType = "weeklyPlan";
@@ -449,13 +475,14 @@
     `;
   }
 
-  function renderFooterBox(title, kind = "") {
+  function renderFooterBox(title, kind = "", value = "") {
+    const text = String(value || "").trim();
     return `
-      <section class="lk-wp-footer-box ${escapeAttribute(kind)}">
+      <section class="lk-wp-footer-box ${escapeAttribute(kind)} ${text ? "has-text" : ""}">
         <h3>${escapeHtml(title)}</h3>
-        <div class="lk-wp-footer-lines">
-          <span></span><span></span><span></span>
-        </div>
+        ${text
+          ? `<div class="lk-wp-footer-text">${escapeHtml(text).replace(/\n/g, "<br>")}</div>`
+          : `<div class="lk-wp-footer-lines"><span></span><span></span><span></span></div>`}
       </section>
     `;
   }
@@ -496,9 +523,9 @@
         </main>
 
         <footer class="lk-wp-footer">
-          ${renderFooterBox("Daran denke ich", "remember")}
-          ${renderFooterBox("Mitteilung Lehrkraft", "teacher-note")}
-          ${renderFooterBox("Mitteilung Eltern", "parent-note")}
+          ${renderFooterBox("Daran denke ich", "remember", options?.footerNotes?.remember)}
+          ${renderFooterBox("Mitteilung Lehrkraft", "teacher-note", options?.footerNotes?.teacher)}
+          ${renderFooterBox("Mitteilung Eltern", "parent-note", options?.footerNotes?.parent)}
         </footer>
       </section>
     `;
@@ -823,6 +850,14 @@
         .lk-wp-footer-lines span {
           border-bottom: .2mm solid #c0c0c0;
         }
+        .lk-wp-footer-text {
+          padding: 3.2mm 3.4mm;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
+          font-size: 9.6pt;
+          line-height: 1.35;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
 
         @media print {
           html, body {
@@ -916,6 +951,40 @@
     .lk-print-fixed-summary small { opacity:.68; }
     .lk-print-animal-row-fixed { cursor:default; }
     .lk-print-fixed-grid { margin-top:4px; }
+    .lk-print-footer-inputs {
+      display:grid;
+      gap:10px;
+      padding-top:2px;
+    }
+    .lk-print-footer-inputs-head {
+      display:grid;
+      gap:2px;
+    }
+    .lk-print-footer-inputs-head strong span {
+      font-size:.72rem;
+      font-weight:500;
+      opacity:.58;
+      margin-left:4px;
+    }
+    .lk-print-footer-inputs-head small { opacity:.66; }
+    .lk-print-footer-input-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:9px;
+    }
+    .lk-print-footer-input-grid .field {
+      margin:0;
+      min-width:0;
+    }
+    .lk-print-footer-text {
+      width:100%;
+      min-height:76px;
+      resize:vertical;
+      line-height:1.35;
+    }
+    @media (max-width:800px) {
+      .lk-print-footer-input-grid { grid-template-columns:1fr; }
+    }
 
     .lk-print-animal-row {
       display:grid; grid-template-columns:auto minmax(0,1fr) auto 52px; gap:7px; align-items:center;
