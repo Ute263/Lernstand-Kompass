@@ -539,7 +539,7 @@
           </div>
           <div class="lk-cal-plan-actions">
             <button class="primary" type="button" onclick="lkEditCalendarPlan('${escapeAttribute(plan.id)}')">Bearbeiten</button>
-            <button class="primary lk-cal-print" type="button" onclick="openWeeklyPrintDialog('${escapeAttribute(plan.id)}')">🖨 Wochenplan drucken</button>
+            <button class="primary lk-cal-print" type="button" onclick="lkOpenCalendarPrint('${escapeAttribute(plan.id)}')">🖨 Wochenplan drucken</button>
             <button class="secondary small-button" type="button" onclick="lkCopyCalendarPlan('${escapeAttribute(plan.id)}')">Kopieren</button>
           </div>
         </div>
@@ -795,6 +795,16 @@
     lkCalendarWeekDialogOpen = false;
     lkCalendarAudienceChoiceOpen = false;
     render();
+  };
+
+  window.lkOpenCalendarPrint = function lkOpenCalendarPrint(planId) {
+    // Es darf immer nur ein Dialog sichtbar sein.
+    // Zuerst das Kalender-Wochenfenster schließen, dann den Druckdialog öffnen.
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    if (typeof openWeeklyPrintDialog === "function") {
+      openWeeklyPrintDialog(planId);
+    }
   };
 
   function openCalendarPlanEditorForAudience(key, { mode = "all", animalIds = [], group = null } = {}) {
