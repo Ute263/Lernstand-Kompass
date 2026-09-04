@@ -318,6 +318,79 @@
     `;
   }
 
+  function moveTargetIndex(stars, itemIndex, direction, weekMode = false) {
+    if (itemIndex < 0 || itemIndex >= stars.length) return -1;
+    const step = direction < 0 ? -1 : 1;
+    let target = itemIndex + step;
+
+    if (!weekMode) return target >= 0 && target < stars.length ? target : -1;
+
+    // Im Wochenmodus bleibt die feste Struktur Pflicht → Sternchen erhalten.
+    // Deshalb wird nur innerhalb derselben Gruppe verschoben.
+    const starred = Boolean(stars[itemIndex]);
+    while (target >= 0 && target < stars.length) {
+      if (Boolean(stars[target]) === starred) return target;
+      target += step;
+    }
+    return -1;
+  }
+
+  function renderTaskOrderButtons(scope, animalId, day, subject, itemIndex, stars) {
+    const weekMode = weeklyPlanDraft?.planningMode === "week";
+    const upIndex = moveTargetIndex(stars, itemIndex, -1, weekMode);
+    const downIndex = moveTargetIndex(stars, itemIndex, 1, weekMode);
+
+    return `
+      <div class="lk-task-order-controls" aria-label="Reihenfolge ändern">
+        <button
+          class="lk-task-order-button"
+          type="button"
+          title="Aufgabe nach oben"
+          aria-label="Aufgabe nach oben verschieben"
+          ${upIndex < 0 ? "disabled" : ""}
+          onclick="moveWeeklyTaskOccurrence('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}',${itemIndex},-1)"
+        >↑</button>
+        <button
+          class="lk-task-order-button"
+          type="button"
+          title="Aufgabe nach unten"
+          aria-label="Aufgabe nach unten verschieben"
+          ${downIndex < 0 ? "disabled" : ""}
+          onclick="moveWeeklyTaskOccurrence('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}',${itemIndex},1)"
+        >↓</button>
+      </div>
+    `;
+  }
+
+  function renderFreeTaskOrderButtons(scope, animalId, day, subject, tasks, itemIndex) {
+    const stars = tasks.map((task) => task.starred === true);
+    const weekMode = weeklyPlanDraft?.planningMode === "week";
+    const upIndex = moveTargetIndex(stars, itemIndex, -1, weekMode);
+    const downIndex = moveTargetIndex(stars, itemIndex, 1, weekMode);
+    const taskId = tasks[itemIndex]?.id || "";
+
+    return `
+      <div class="lk-task-order-controls" aria-label="Reihenfolge ändern">
+        <button
+          class="lk-task-order-button"
+          type="button"
+          title="Aufgabe nach oben"
+          aria-label="Aufgabe nach oben verschieben"
+          ${upIndex < 0 ? "disabled" : ""}
+          onclick="moveWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}','${escapeAttribute(taskId)}',-1)"
+        >↑</button>
+        <button
+          class="lk-task-order-button"
+          type="button"
+          title="Aufgabe nach unten"
+          aria-label="Aufgabe nach unten verschieben"
+          ${downIndex < 0 ? "disabled" : ""}
+          onclick="moveWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}','${escapeAttribute(taskId)}',1)"
+        >↓</button>
+      </div>
+    `;
+  }
+
   function renderFreeTaskList(tasks, prefix, subject, dayIndex, scope, animalId, day) {
     const normalized = normalizeFreeTasks(tasks, subject);
     return `
@@ -327,11 +400,12 @@
           <button class="small-button" type="button" onclick="addWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}')">+ freie Aufgabe</button>
         </div>
         <div id="${escapeAttribute(`${prefix}${subject}${dayIndex}FreeList`)}" class="lk-free-task-list">
-          ${normalized.map((task) => `
+          ${normalized.map((task, taskIndex) => `
             <div class="lk-free-task-row ${task.starred ? "is-extra" : ""}" data-free-task-row>
               <input type="hidden" data-free-id value="${escapeAttribute(task.id)}">
               <input type="hidden" data-free-star value="${task.starred ? "1" : "0"}">
               ${renderStarButton(scope, animalId, day, subject, 0, task.starred, task.id)}
+              ${renderFreeTaskOrderButtons(scope, animalId, day, subject, normalized, taskIndex)}
               <input class="text-input" data-free-text value="${escapeAttribute(task.text)}" placeholder="Aufgabe frei eintragen …">
               <button class="weekly-task-remove" type="button" aria-label="Freie Aufgabe entfernen" onclick="removeWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}','${escapeAttribute(task.id)}')">×</button>
             </div>
@@ -359,6 +433,7 @@
             <div class="weekly-selected-task ${stars[itemIndex] ? "is-extra" : ""}">
               <input type="hidden" id="${escapeAttribute(`${inputId}Star_${itemIndex}`)}" value="${stars[itemIndex] ? "1" : "0"}">
               ${renderStarButton(scope, animalId, day, subject, itemIndex, stars[itemIndex])}
+              ${renderTaskOrderButtons(scope, animalId, day, subject, itemIndex, stars)}
               <div class="weekly-selected-task-label">
                 ${stars[itemIndex] ? `<span class="weekly-extra-star">⭐ Zusatzaufgabe</span>` : ""}
                 <strong>${escapeHtml(workbookCatalogShortLabel(item))}</strong>
@@ -549,6 +624,63 @@
     if (itemIndex < 0 || itemIndex >= stars.length) return;
     stars[itemIndex] = !stars[itemIndex];
     target[keys.stars] = stars;
+    lkWeeklyOpenDay = day;
+    render();
+  };
+
+  window.moveWeeklyTaskOccurrence = function moveWeeklyTaskOccurrence(scope, animalId, day, subject, itemIndex, direction) {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
+    const keys = taskKeys(subject);
+    const ids = normalizeIdArray(target[keys.ids] || target[keys.legacyId]);
+    const numbers = numberList(target[keys.numbers], target[keys.legacyNumber], ids.length);
+    const stars = boolList(target[keys.stars], ids.length, duplicateDefaults(ids));
+
+    const targetIndex = moveTargetIndex(
+      stars,
+      Number(itemIndex),
+      Number(direction),
+      weeklyPlanDraft?.planningMode === "week"
+    );
+    if (targetIndex < 0) return;
+
+    [ids[itemIndex], ids[targetIndex]] = [ids[targetIndex], ids[itemIndex]];
+    [numbers[itemIndex], numbers[targetIndex]] = [numbers[targetIndex], numbers[itemIndex]];
+    [stars[itemIndex], stars[targetIndex]] = [stars[targetIndex], stars[itemIndex]];
+
+    target[keys.ids] = ids;
+    target[keys.legacyId] = ids[0] || "";
+    target[keys.numbers] = numbers;
+    target[keys.legacyNumber] = numbers[0] || "";
+    target[keys.stars] = stars;
+    lkWeeklyOpenDay = day;
+    render();
+  };
+
+  window.moveWeeklyFreeTask = function moveWeeklyFreeTask(scope, animalId, day, subject, taskId, direction) {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
+    const key = freeKey(subject);
+    const tasks = normalizeFreeTasks(
+      target[key],
+      subject,
+      subject === "Extra" ? target.freeText : ""
+    );
+    const itemIndex = tasks.findIndex((task) => task.id === taskId);
+    if (itemIndex < 0) return;
+
+    const stars = tasks.map((task) => task.starred === true);
+    const targetIndex = moveTargetIndex(
+      stars,
+      itemIndex,
+      Number(direction),
+      weeklyPlanDraft?.planningMode === "week"
+    );
+    if (targetIndex < 0) return;
+
+    [tasks[itemIndex], tasks[targetIndex]] = [tasks[targetIndex], tasks[itemIndex]];
+    target[key] = tasks;
+    if (subject === "Extra") target.freeText = tasks[0]?.text || "";
     lkWeeklyOpenDay = day;
     render();
   };
@@ -1089,7 +1221,7 @@
       font-size:.9rem;
     }
     .lk-weekly-pick-cell .weekly-selected-task {
-      grid-template-columns:auto minmax(0,1fr) auto auto;
+      grid-template-columns:auto auto minmax(0,1fr) auto auto;
     }
     .lk-star-toggle {
       width:34px; height:34px; padding:0; border:1px solid rgba(0,0,0,.1); border-radius:10px;
@@ -1102,8 +1234,35 @@
     .lk-free-task-head > span { font-size:.78rem; font-weight:750; opacity:.7; }
     .lk-free-task-list { display:grid; gap:7px; }
     .lk-free-task-row {
-      display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:7px; align-items:center;
+      display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; gap:7px; align-items:center;
       padding:7px; border-radius:12px; background:rgba(47,111,145,.045);
+    }
+    .lk-task-order-controls {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:3px;
+      align-items:center;
+    }
+    .lk-task-order-button {
+      width:30px;
+      height:30px;
+      padding:0;
+      display:grid;
+      place-items:center;
+      border:1px solid rgba(47,111,145,.18);
+      border-radius:9px;
+      background:#fff;
+      color:#315a70;
+      font:800 1rem/1 Arial,sans-serif;
+      cursor:pointer;
+    }
+    .lk-task-order-button:hover:not(:disabled) {
+      background:#edf7fc;
+      border-color:rgba(47,111,145,.38);
+    }
+    .lk-task-order-button:disabled {
+      opacity:.22;
+      cursor:default;
     }
     .lk-free-task-row.is-extra { background:#fff6d2; }
     .lk-workbook-head-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
@@ -1224,8 +1383,9 @@
     @media (max-width:820px) {
       .lk-weekly-day-content { grid-template-columns:1fr; }
       .lk-editor-subject.sonstiges { grid-column:auto; }
-      .lk-weekly-pick-cell .weekly-selected-task { grid-template-columns:auto minmax(0,1fr) auto; }
-      .lk-weekly-pick-cell .weekly-task-number-label { grid-column:2; }
+      .lk-weekly-pick-cell .weekly-selected-task { grid-template-columns:auto auto minmax(0,1fr) auto; }
+      .lk-weekly-pick-cell .weekly-task-number-label { grid-column:3; }
+      .lk-free-task-row { grid-template-columns:auto auto minmax(0,1fr) auto; }
       .lk-workbook-head-actions { justify-content:flex-start; }
     }
     @media (max-width:620px) {
