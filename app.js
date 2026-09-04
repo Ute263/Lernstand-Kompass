@@ -178,6 +178,32 @@ document.addEventListener("DOMContentLoaded", initApp);
       letter-spacing:.08em;
       opacity:.58;
     }
+    .weekly-planning-mode-picker {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin:10px 0 14px;
+      padding:12px 14px;
+      border:1px solid rgba(47,111,145,.14);
+      border-radius:14px;
+      background:rgba(255,255,255,.72);
+    }
+    .weekly-planning-mode-copy { display:grid; gap:2px; }
+    .weekly-planning-mode-copy > span {
+      font-size:.68rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      opacity:.58;
+    }
+    .weekly-planning-mode-copy small { opacity:.68; }
+    .weekly-planning-mode-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .weekly-planning-mode-actions .active {
+      background:#e6f3fb !important;
+      border-color:rgba(47,111,145,.38) !important;
+      color:#234e66 !important;
+      box-shadow:inset 0 0 0 1px rgba(47,111,145,.12);
+    }
     .training-heading-actions {
       display:flex;
       justify-content:space-between;
@@ -201,9 +227,11 @@ document.addEventListener("DOMContentLoaded", initApp);
     }
     @media (max-width:800px) {
       .weekly-editor-audience-summary,
+      .weekly-planning-mode-picker,
       .training-heading-actions,
       .training-reset-box { display:grid; }
       .weekly-editor-audience-summary small { text-align:left; }
+      .weekly-planning-mode-actions { display:grid; grid-template-columns:1fr 1fr; }
     }
   `;
   document.head.appendChild(style);
@@ -3439,6 +3467,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const validTo = draft.validTo || "";
   const note = draft.note || "";
   const progressMode = weeklyPlanProgressMode(draft);
+  const planningMode = draft.planningMode === "week" ? "week" : "days";
   const assignmentMode = draft.assignmentMode || "all";
   const selectedAnimals = new Set(draft.animalIds || []);
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
@@ -3480,12 +3509,26 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
           </label>
         </div>
+        <div class="weekly-planning-mode-picker">
+          <div class="weekly-planning-mode-copy">
+            <span>Planungsart</span>
+            <strong>${planningMode === "week" ? "Für die ganze Woche" : "Nach Tagen"}</strong>
+            <small>${planningMode === "week"
+              ? "Die Aufgaben werden nicht auf einzelne Wochentage verteilt."
+              : "Die Aufgaben werden Montag bis Freitag geplant."}</small>
+          </div>
+          <input type="hidden" id="weeklyPlanningMode" value="${escapeAttribute(planningMode)}">
+          <div class="weekly-planning-mode-actions" role="group" aria-label="Planungsart">
+            <button class="secondary ${planningMode === "days" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('days')">📅 Nach Tagen</button>
+            <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">🗂 Ganze Woche</button>
+          </div>
+        </div>
         ${focusAnimal ? `
           <div class="weekly-focus-note">
             <h3>Individueller Wochenplan für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</h3>
             <p class="message">Trage hier nur Aufgaben ein, die vom Klassenwochenplan abweichen. Leere Felder übernehmen automatisch den Klassenwochenplan.</p>
           </div>
-          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id)}
+          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id, planningMode)}
           <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichung für dieses Tier leeren</button>
         ` : `
           <div class="weekly-editor-audience-summary">
@@ -3498,7 +3541,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <small>Die Zielgruppe wurde vor dem Öffnen des Wochenplans festgelegt.</small>
           </div>
           <h3>Aufgaben für diese Zielgruppe</h3>
-          ${renderWeeklyPlannerTable(draft.days || {}, "standard")}
+          ${renderWeeklyPlannerTable(draft.days || {}, "standard", "", planningMode)}
         `}
         <label class="field">Bemerkung optional
           <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
@@ -3903,6 +3946,7 @@ function collectWeeklyPlanDraftFromDom() {
     validFrom: document.querySelector("#weeklyFrom")?.value || "",
     validTo: document.querySelector("#weeklyTo")?.value || "",
     note: document.querySelector("#weeklyNote")?.value.trim() || "",
+    planningMode: document.querySelector("#weeklyPlanningMode")?.value || weeklyPlanDraft?.planningMode || existing.planningMode || "days",
     assignmentMode: assignmentModeInput?.value || weeklyPlanDraft?.assignmentMode || existing.assignmentMode || "all",
     animalIds: checkedAnimalInputs.length || document.querySelector(".weeklyAnimalCheckbox")
       ? checkedAnimalInputs.map((item) => item.value)
@@ -4213,6 +4257,7 @@ async function saveWeeklyPlan(event) {
     validFrom: draft.validFrom || "",
     validTo: draft.validTo || "",
     note: draft.note || "",
+    planningMode: draft.planningMode === "week" ? "week" : "days",
     assignmentMode: draft.assignmentMode || "all",
     animalIds: draft.animalIds || [],
     progressMode: draft.progressMode || "confirm",

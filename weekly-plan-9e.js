@@ -382,7 +382,116 @@
     return `<span class="lk-subject-badge extra${modeClass}" aria-hidden="true">✏️</span>`;
   }
 
-  renderWeeklyPlannerTable = function renderWeeklyPlannerTable9e(days, scope, animalId = "") {
+  function emptyWeeklyModeDay() {
+    return {
+      deutschId: "", deutschIds: [], deutschTaskNumber: "", deutschTaskNumbers: [],
+      deutschTaskStars: [], deutschFreeTasks: [],
+      matheId: "", matheIds: [], matheTaskNumber: "", matheTaskNumbers: [],
+      matheTaskStars: [], matheFreeTasks: [],
+      extraFreeTasks: [], freeText: ""
+    };
+  }
+
+  function aggregateWeeklyDays(days) {
+    const result = emptyWeeklyModeDay();
+    WEEK_DAYS.forEach((day) => {
+      const data = normalizeDayExtras({ ...(days?.[day] || {}) }, days?.[day] || {});
+      ["Deutsch", "Mathe"].forEach((subject) => {
+        const keys = taskKeys(subject);
+        const ids = normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
+        const numbers = numberList(data[keys.numbers], data[keys.legacyNumber], ids.length);
+        const stars = boolList(data[keys.stars], ids.length, duplicateDefaults(ids));
+        result[keys.ids].push(...ids);
+        result[keys.numbers].push(...numbers);
+        result[keys.stars].push(...stars);
+        result[keys.free].push(...normalizeFreeTasks(data[keys.free], subject));
+      });
+      result.extraFreeTasks.push(...normalizeFreeTasks(data.extraFreeTasks, "Extra", data.freeText || ""));
+    });
+    result.deutschId = result.deutschIds[0] || "";
+    result.deutschTaskNumber = result.deutschTaskNumbers[0] || "";
+    result.matheId = result.matheIds[0] || "";
+    result.matheTaskNumber = result.matheTaskNumbers[0] || "";
+    result.freeText = result.extraFreeTasks[0]?.text || "";
+    return result;
+  }
+
+  function sortWeeklyModeDay(data) {
+    const result = normalizeDayExtras({ ...(data || {}) }, data || {});
+    ["Deutsch", "Mathe"].forEach((subject) => {
+      const keys = taskKeys(subject);
+      const ids = normalizeIdArray(result[keys.ids] || result[keys.legacyId]);
+      const numbers = numberList(result[keys.numbers], result[keys.legacyNumber], ids.length);
+      const stars = boolList(result[keys.stars], ids.length, duplicateDefaults(ids));
+      const order = ids.map((_, index) => index).sort((a, b) => Number(stars[a]) - Number(stars[b]) || a - b);
+      result[keys.ids] = order.map((index) => ids[index]);
+      result[keys.numbers] = order.map((index) => numbers[index] || "");
+      result[keys.stars] = order.map((index) => Boolean(stars[index]));
+      result[keys.legacyId] = result[keys.ids][0] || "";
+      result[keys.legacyNumber] = result[keys.numbers][0] || "";
+      result[keys.free] = normalizeFreeTasks(result[keys.free], subject)
+        .sort((a, b) => Number(a.starred) - Number(b.starred));
+    });
+    result.extraFreeTasks = normalizeFreeTasks(result.extraFreeTasks, "Extra", result.freeText || "")
+      .sort((a, b) => Number(a.starred) - Number(b.starred));
+    result.freeText = result.extraFreeTasks[0]?.text || "";
+    return result;
+  }
+
+  function renderWholeWeekPlanner(days, scope, animalId = "") {
+    const prefix = weeklyInputPrefix(scope, animalId);
+    const data = sortWeeklyModeDay(days?.Montag || {});
+    const deutschIds = normalizeIdArray(data.deutschIds || data.deutschId);
+    const matheIds = normalizeIdArray(data.matheIds || data.matheId);
+    return `
+      <div class="lk-whole-week-editor">
+        <div class="lk-whole-week-note">
+          <span>🗂</span>
+          <div>
+            <strong>Aufgaben für die ganze Woche</strong>
+            <small>Pflichtaufgaben stehen automatisch vor den Sternchenaufgaben. Ein Stern kann bei jeder Aufgabe an- oder ausgeschaltet werden.</small>
+          </div>
+        </div>
+
+        <section class="weekly-editor-subject lk-editor-subject deutsch lk-week-mode-subject">
+          <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong></div>
+          ${renderWeeklyPickCell("Deutsch", "Montag", 0, deutschIds, `${prefix}Deutsch0`, scope, animalId, data.deutschTaskNumber || "", data.deutschTaskNumbers, data.deutschTaskStars)}
+          ${renderFreeTaskList(data.deutschFreeTasks, prefix, "Deutsch", 0, scope, animalId, "Montag")}
+        </section>
+
+        <section class="weekly-editor-subject lk-editor-subject mathe lk-week-mode-subject">
+          <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong></div>
+          ${renderWeeklyPickCell("Mathe", "Montag", 0, matheIds, `${prefix}Mathe0`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars)}
+          ${renderFreeTaskList(data.matheFreeTasks, prefix, "Mathe", 0, scope, animalId, "Montag")}
+        </section>
+
+        <section class="lk-editor-subject sonstiges lk-week-mode-subject">
+          <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>
+          ${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", 0, scope, animalId, "Montag")}
+        </section>
+      </div>
+    `;
+  }
+
+  window.setWeeklyPlanningMode = function setWeeklyPlanningMode(mode) {
+    const nextMode = mode === "week" ? "week" : "days";
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    const previousMode = weeklyPlanDraft?.planningMode === "week" ? "week" : "days";
+
+    if (nextMode === "week" && previousMode !== "week") {
+      const aggregated = aggregateWeeklyDays(weeklyPlanDraft.days || {});
+      weeklyPlanDraft.days = Object.fromEntries(
+        WEEK_DAYS.map((day) => [day, day === "Montag" ? aggregated : emptyWeeklyModeDay()])
+      );
+    }
+    // Beim Wechsel zurück bleiben alle Wochenaufgaben sicher erhalten und liegen
+    // zunächst am Montag. Von dort können sie anschließend verteilt werden.
+    weeklyPlanDraft.planningMode = nextMode;
+    render();
+  };
+
+  renderWeeklyPlannerTable = function renderWeeklyPlannerTable9e(days, scope, animalId = "", planningMode = "days") {
+    if (planningMode === "week") return renderWholeWeekPlanner(days, scope, animalId);
     const prefix = weeklyInputPrefix(scope, animalId);
     return `
       <div class="weekly-day-editor-list lk-weekly-day-accordion">
@@ -682,6 +791,48 @@
 
   if (typeof renderChildWeeklyPlan === "function") {
     renderChildWeeklyPlan = function renderChildWeeklyPlan9e(plan, animal) {
+      if (plan?.planningMode === "week") {
+        const items = weeklyPlanItemsForDay(plan, "Montag", animal.id)
+          .map((item, index) => ({ item, index }))
+          .sort((a, b) => {
+            const rank = (entry) => entry.subject === "Deutsch" ? 1 : entry.subject === "Mathe" ? 2 : 3;
+            return rank(a.item) - rank(b.item)
+              || Number(a.item.isExtraTask === true) - Number(b.item.isExtraTask === true)
+              || a.index - b.index;
+          })
+          .map(({ item }) => item);
+
+        const groups = [
+          ["Deutsch · Pflicht", items.filter((item) => item.subject === "Deutsch" && !item.isExtraTask), "deutsch"],
+          ["Deutsch · ⭐ Sternchen", items.filter((item) => item.subject === "Deutsch" && item.isExtraTask), "deutsch star"],
+          ["Mathe · Pflicht", items.filter((item) => item.subject === "Mathe" && !item.isExtraTask), "mathe"],
+          ["Mathe · ⭐ Sternchen", items.filter((item) => item.subject === "Mathe" && item.isExtraTask), "mathe star"],
+          ["Sonstiges", items.filter((item) => item.subject !== "Deutsch" && item.subject !== "Mathe"), "extra"]
+        ].filter(([, groupItems]) => groupItems.length);
+
+        return `
+          <article class="lk-child-week-plan lk-child-whole-week">
+            <div class="lk-child-day-heading lk-child-week-mode-heading">
+              <div>
+                <span>Deine Woche</span>
+                <h3>Wochenaufgaben</h3>
+              </div>
+              <strong>${items.length} ${items.length === 1 ? "Aufgabe" : "Aufgaben"}</strong>
+            </div>
+            <div class="lk-child-week-groups">
+              ${groups.map(([title, groupItems, className]) => `
+                <section class="lk-child-week-group ${escapeAttribute(className)}">
+                  <h4>${escapeHtml(title)}</h4>
+                  <div class="lk-child-task-list">
+                    ${groupItems.map((item) => renderChildWeeklyPlanItem(plan, animal, "Montag", item)).join("")}
+                  </div>
+                </section>
+              `).join("") || `<div class="lk-child-no-tasks"><span>🎉</span><strong>Für diese Woche ist nichts eingetragen.</strong></div>`}
+            </div>
+          </article>
+        `;
+      }
+
       const selectedDay = WEEK_DAYS.includes(lkChildWeekDay) ? lkChildWeekDay : todayGerman();
       const items = weeklyPlanItemsForDay(plan, selectedDay, animal.id);
       const actualToday = todayGerman();
@@ -949,6 +1100,52 @@
     }
     .lk-free-task-row.is-extra { background:#fff6d2; }
     .lk-workbook-head-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+
+    .lk-whole-week-editor { display:grid; gap:12px; }
+    .lk-whole-week-note {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:11px 13px;
+      border-radius:14px;
+      background:linear-gradient(135deg,rgba(236,248,255,.9),rgba(255,250,224,.82));
+      border:1px solid rgba(47,111,145,.12);
+    }
+    .lk-whole-week-note > span { font-size:1.35rem; }
+    .lk-whole-week-note > div { display:grid; gap:2px; }
+    .lk-whole-week-note small { opacity:.68; }
+    .lk-week-mode-subject {
+      border-width:2px;
+      padding:14px;
+    }
+    .lk-week-mode-subject .weekly-selected-task:not(.is-extra) .weekly-selected-task-label::before {
+      content:"Pflicht";
+      display:inline-flex;
+      width:max-content;
+      margin-bottom:2px;
+      padding:2px 6px;
+      border-radius:999px;
+      background:rgba(47,111,145,.08);
+      color:#315a70;
+      font-size:.66rem;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .lk-child-whole-week { display:grid; gap:12px; }
+    .lk-child-week-mode-heading { border-radius:16px; }
+    .lk-child-week-groups { display:grid; gap:12px; }
+    .lk-child-week-group {
+      padding:12px;
+      border-radius:16px;
+      border:1px solid rgba(47,111,145,.12);
+      background:#fff;
+    }
+    .lk-child-week-group.deutsch { background:rgba(255,249,228,.5); }
+    .lk-child-week-group.mathe { background:rgba(234,247,255,.55); }
+    .lk-child-week-group.star { border-style:dashed; }
+    .lk-child-week-group h4 { margin:0 0 9px; font-size:.9rem; }
+    .lk-child-week-group .lk-child-task-list { display:grid; gap:8px; }
 
     .lk-child-week-wrap { max-width:980px; margin-inline:auto; width:100%; min-width:0; }
     .lk-child-week-hero {

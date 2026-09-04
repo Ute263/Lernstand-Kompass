@@ -240,6 +240,31 @@
                 `}
               </section>
 
+              <section class="lk-print-layout-section">
+                <strong>Layout</strong>
+                <div class="lk-print-layout-grid">
+                  <label class="lk-print-layout-choice ${plan?.planningMode === "week" ? "disabled" : ""}">
+                    <input type="radio" name="lkPrintLayout" value="day"
+                      ${plan?.planningMode === "week" ? "disabled" : "checked"}>
+                    <span>📅</span>
+                    <div>
+                      <b>Tagesplan</b>
+                      <small>Montag bis Freitag einzeln</small>
+                      ${plan?.planningMode === "week" ? `<em>Nur bei Planung nach Tagen</em>` : ""}
+                    </div>
+                  </label>
+                  <label class="lk-print-layout-choice">
+                    <input type="radio" name="lkPrintLayout" value="week"
+                      ${plan?.planningMode === "week" ? "checked" : ""}>
+                    <span>🗂</span>
+                    <div>
+                      <b>Wochenplan</b>
+                      <small>Deutsch/Mathe · Pflicht vor Sternchen</small>
+                    </div>
+                  </label>
+                </div>
+              </section>
+
               <section>
                 <strong>Inhalt</strong>
                 <label class="toggle-label lk-print-toggle">
@@ -319,6 +344,8 @@
       showExtra: document.querySelector("#weeklyPrintExtra")?.checked !== false,
       showCheckboxes: true,
       showFirstNames: false,
+      layout: document.querySelector('input[name="lkPrintLayout"]:checked')?.value
+        || (plan.planningMode === "week" ? "week" : "day"),
       codes,
       footerNotes: {
         remember: String(document.querySelector("#lkPrintRemember")?.value || "").trim(),
@@ -483,6 +510,84 @@
         ${text
           ? `<div class="lk-wp-footer-text">${escapeHtml(text).replace(/\n/g, "<br>")}</div>`
           : `<div class="lk-wp-footer-lines"><span></span><span></span><span></span></div>`}
+      </section>
+    `;
+  }
+
+  function allPrintableItems(plan, animal, options) {
+    let items = WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day, animal?.id || "")
+      .map((item) => ({ ...item, sourceDay: day })));
+    if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
+    return items;
+  }
+
+  function renderWeekLayoutRows(items) {
+    if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
+    return items.map((item) => `
+      <div class="lk-wp-week-row">
+        <div>
+          ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+          <span>${escapeHtml(pageText(item))}</span>
+        </div>
+        <span class="lk-wp-circle"></span>
+      </div>
+    `).join("");
+  }
+
+  function renderWeekLayoutSection(title, items, className = "") {
+    return `
+      <section class="lk-wp-week-section ${escapeAttribute(className)}">
+        <h2>${escapeHtml(title)}</h2>
+        <div class="lk-wp-week-list">${renderWeekLayoutRows(items)}</div>
+      </section>
+    `;
+  }
+
+  function printPageWeekLayout(className, plan, animal, options) {
+    const code = codeForAnimal(animal, options);
+    const items = allPrintableItems(plan, animal, options);
+    const deutschRequired = items.filter((item) => printSubject(item) === "Deutsch" && !item.isExtraTask);
+    const deutschStar = items.filter((item) => printSubject(item) === "Deutsch" && item.isExtraTask);
+    const matheRequired = items.filter((item) => printSubject(item) === "Mathe" && !item.isExtraTask);
+    const matheStar = items.filter((item) => printSubject(item) === "Mathe" && item.isExtraTask);
+    const extra = items.filter((item) => !["Deutsch", "Mathe"].includes(printSubject(item)));
+
+    return `
+      <section class="lk-wp-page lk-wp-week-layout">
+        <header class="lk-wp-header">
+          <div class="lk-wp-title-wrap">
+            <h1>Mein Wochenplan</h1>
+            <div class="lk-wp-wave" aria-hidden="true">~~~~~~~</div>
+          </div>
+          <div class="lk-wp-code-box">${escapeHtml(code)}</div>
+          <div class="lk-wp-meta">
+            <div><strong>Name:</strong><span class="lk-wp-write-line"></span></div>
+            <div class="lk-wp-period">
+              <strong>Woche vom:</strong>
+              <span>${escapeHtml(germanDate(plan.validFrom))}</span>
+              <strong>bis:</strong>
+              <span>${escapeHtml(germanDate(plan.validTo))}</span>
+            </div>
+          </div>
+          <div class="lk-wp-small-meta">
+            <span>${escapeHtml(className || "")}</span>
+            ${plan.weekLabel ? `<span>${escapeHtml(plan.weekLabel)}</span>` : ""}
+          </div>
+        </header>
+
+        <main class="lk-wp-week-groups">
+          ${renderWeekLayoutSection("Deutsch · Pflichtaufgaben", deutschRequired, "deutsch")}
+          ${deutschStar.length ? renderWeekLayoutSection("Deutsch · ⭐ Sternchenaufgaben", deutschStar, "deutsch star") : ""}
+          ${renderWeekLayoutSection("Mathe · Pflichtaufgaben", matheRequired, "mathe")}
+          ${matheStar.length ? renderWeekLayoutSection("Mathe · ⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
+          ${extra.length ? renderWeekLayoutSection("Sonstiges", extra, "extra") : ""}
+        </main>
+
+        <footer class="lk-wp-footer">
+          ${renderFooterBox("Daran denke ich", "remember", options?.footerNotes?.remember)}
+          ${renderFooterBox("Mitteilung Lehrkraft", "teacher-note", options?.footerNotes?.teacher)}
+          ${renderFooterBox("Mitteilung Eltern", "parent-note", options?.footerNotes?.parent)}
+        </footer>
       </section>
     `;
   }
@@ -819,6 +924,60 @@
           background: #fff;
         }
 
+        .lk-wp-week-groups {
+          display:grid;
+          gap:3mm;
+          margin-top:2mm;
+        }
+        .lk-wp-week-section {
+          border:.35mm solid #6b6b6b;
+          border-radius:3.5mm;
+          overflow:hidden;
+          break-inside:avoid;
+        }
+        .lk-wp-week-section h2 {
+          margin:0;
+          padding:1.8mm 3mm;
+          font-size:11pt;
+          font-weight:600;
+          border-bottom:.25mm solid #9a9a9a;
+        }
+        .lk-wp-week-section.deutsch h2 { background:#fff5c8; }
+        .lk-wp-week-section.mathe h2 { background:#dff4ff; }
+        .lk-wp-week-section.star h2 { background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,244,190,.55)); }
+        .lk-wp-week-section.extra h2 { background:#f4f4f4; }
+        .lk-wp-week-list { display:grid; }
+        .lk-wp-week-row {
+          min-height:8.2mm;
+          display:grid;
+          grid-template-columns:1fr 14mm;
+          align-items:center;
+          border-bottom:.2mm solid #c5c5c5;
+        }
+        .lk-wp-week-row:last-child { border-bottom:0; }
+        .lk-wp-week-row > div {
+          display:flex;
+          align-items:center;
+          gap:1.5mm;
+          padding:1.2mm 3mm;
+          font-size:10pt;
+        }
+        .lk-wp-week-row .lk-wp-circle {
+          position:static;
+          grid-column:2;
+          grid-row:auto;
+        }
+        .lk-wp-week-row::after { display:none; }
+        .lk-wp-week-empty {
+          min-height:8mm;
+          display:flex;
+          align-items:center;
+          padding:1mm 3mm;
+          color:#999;
+          font-family:Arial,sans-serif;
+          font-size:8pt;
+        }
+
         .lk-wp-footer {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
@@ -876,7 +1035,9 @@
 
       ${targets.map((animal, index) => `
         ${index > 0 ? `<div class="page-break"></div>` : ""}
-        ${printPage9f(className, plan, animal, options)}
+        ${options.layout === "week"
+          ? printPageWeekLayout(className, plan, animal, options)
+          : printPage9f(className, plan, animal, options)}
       `).join("")}
     `;
   };
@@ -951,6 +1112,43 @@
     .lk-print-fixed-summary small { opacity:.68; }
     .lk-print-animal-row-fixed { cursor:default; }
     .lk-print-fixed-grid { margin-top:4px; }
+    .lk-print-layout-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:9px;
+    }
+    .lk-print-layout-choice {
+      display:grid;
+      grid-template-columns:auto auto minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      padding:11px;
+      border-radius:13px;
+      border:1px solid rgba(47,111,145,.14);
+      background:#fff;
+      cursor:pointer;
+    }
+    .lk-print-layout-choice:has(input:checked) {
+      background:#eef8fd;
+      border-color:rgba(47,111,145,.42);
+      box-shadow:inset 0 0 0 1px rgba(47,111,145,.08);
+    }
+    .lk-print-layout-choice.disabled {
+      opacity:.48;
+      cursor:not-allowed;
+    }
+    .lk-print-layout-choice > span { font-size:1.35rem; }
+    .lk-print-layout-choice > div { display:grid; gap:2px; }
+    .lk-print-layout-choice small { opacity:.68; }
+    .lk-print-layout-choice em {
+      font-style:normal;
+      font-size:.68rem;
+      color:#8a5b3b;
+    }
+    @media (max-width:700px) {
+      .lk-print-layout-grid { grid-template-columns:1fr; }
+    }
+
     .lk-print-footer-inputs {
       display:grid;
       gap:10px;
