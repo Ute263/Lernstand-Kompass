@@ -200,6 +200,13 @@
 
   normalizeWeeklyPlan = function normalizeWeeklyPlan9e(item, fallbackClassId) {
     const normalized = baseNormalizeWeeklyPlan(item, fallbackClassId);
+
+    // Paket 10c:
+    // Der Basis-Normalizer kennt die neue Planungsart noch nicht und hat sie
+    // deshalb bei jedem Speichern verworfen. Dadurch sprang ein Wochenplan
+    // nach dem nächsten persist()/normalizeState() wieder auf "days".
+    normalized.planningMode = item?.planningMode === "week" ? "week" : "days";
+
     WEEK_DAYS.forEach((day) => {
       const source = item?.days?.[day] || item?.tage?.[day] || {};
       if (normalized.days?.[day]) normalizeDayExtras(normalized.days[day], source);
