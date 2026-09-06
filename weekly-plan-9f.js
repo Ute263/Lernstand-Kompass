@@ -442,6 +442,13 @@
   }
 
   function pageText(item) {
+    if (item?.weeklySection === "Lernwörter") {
+      const free = String(item.freeText || item.text || "").replace(/^⭐\s*/, "").trim();
+      if (free) return free;
+      const legacyTitle = String(item?.catalogItem?.title || "").trim();
+      if (legacyTitle && !/^Lernwörter(?:\s+Seite\s+\d+)?$/i.test(legacyTitle)) return legacyTitle;
+      return "Lernwörter";
+    }
     if (item.isFreeTask || !item.catalogItem) {
       return String(item.freeText || item.text || "").replace(/^⭐\s*/, "").trim();
     }
@@ -582,13 +589,13 @@
 
   function renderWeekSubjectHeader(subject, subtitle = "") {
     return `
-      <div class="lk-wp-week-subject-head ${escapeAttribute(printSubjectClass(subject))}">
+      <header class="lk-wp-week-subject-head ${escapeAttribute(printSubjectClass(subject))}">
         ${printSubjectBadge(subject)}
-        <div>
+        <div class="lk-wp-week-subject-copy">
           <strong>${escapeHtml(subject)}</strong>
           ${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ""}
         </div>
-      </div>
+      </header>
     `;
   }
 
@@ -1018,37 +1025,43 @@
           display:grid;
           gap:1.8mm;
           break-inside:avoid;
-          padding:2mm;
+          padding:0 2mm 2mm;
           border:.4mm solid #777;
           border-radius:4mm;
           background:#fff;
+          overflow:hidden;
         }
         .lk-wp-week-subject-block.deutsch-group { border-color:#d9bc59; }
         .lk-wp-week-subject-block.mathe-group { border-color:#59aeca; }
         .lk-wp-week-subject-head {
-          display:flex;
+          display:flex !important;
           align-items:center;
           gap:2.2mm;
-          min-height:8mm;
-          padding:1mm 1.5mm;
+          min-height:10mm;
+          margin:0 -2mm;
+          padding:1.6mm 3mm;
+          border-bottom:.35mm solid currentColor;
         }
-        .lk-wp-week-subject-head > div {
+        .lk-wp-week-subject-head .lk-wp-week-subject-copy {
           display:flex;
           align-items:baseline;
           gap:2mm;
           min-width:0;
         }
         .lk-wp-week-subject-head strong {
-          font-size:14pt;
+          display:inline-block !important;
+          font-size:15pt;
           line-height:1;
+          font-weight:700;
         }
         .lk-wp-week-subject-head small {
+          display:inline-block !important;
           font-family:Arial,sans-serif;
           font-size:7.2pt;
           color:#666;
         }
-        .lk-wp-week-subject-head.deutsch { background:#fff9db; border-radius:3mm; }
-        .lk-wp-week-subject-head.mathe { background:#eaf8ff; border-radius:3mm; }
+        .lk-wp-week-subject-head.deutsch { background:#fff2a8; color:#5a4a13; }
+        .lk-wp-week-subject-head.mathe { background:#d9f2ff; color:#24536a; }
         .lk-wp-week-subject-head .lk-wp-subject-badge {
           min-width:12mm;
           height:6mm;
