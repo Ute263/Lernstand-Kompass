@@ -83,6 +83,12 @@
   }
 
   function compactSubjectBadge(subject) {
+    if (/lesezeit/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge lesezeit mini" aria-hidden="true">📖</span>`;
+    }
+    if (/lernwörter|lernwoerter/i.test(String(subject || ""))) {
+      return `<span class="lk-subject-badge lernwoerter mini" aria-hidden="true">Aa</span>`;
+    }
     if (/deutsch/i.test(String(subject || ""))) {
       return `<span class="lk-subject-badge deutsch mini" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
     }

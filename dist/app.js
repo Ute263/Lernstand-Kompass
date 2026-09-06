@@ -2553,7 +2553,8 @@ function applyTeacherMaterialPickerSelection() {
   if (!selected) return;
   if (request.mode === "weekly") {
     const meta = request.meta || {};
-    const field = selected.subject === "Deutsch" ? "Deutsch" : "Mathe";
+    const defaultField = selected.subject === "Deutsch" ? "Deutsch" : "Mathe";
+    const field = meta.weeklySection || defaultField;
     weeklyPlanDraft = weeklyPlanDraft || collectWeeklyPlanDraftFromDom();
     setWeeklyDraftValue(weeklyPlanDraft, meta.scope, meta.animalId, meta.day, field, selected.id);
     teacherMaterialPicker = null;
@@ -3685,11 +3686,19 @@ function renderWeeklyCatalogPicker() {
 function openWeeklyCatalogPicker(subject, day, scope, animalId, dayIndex) {
   weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
   const prefix = weeklyInputPrefix(scope, animalId);
-  const field = subject === "Deutsch" ? "Deutsch" : "Mathe";
-  const selectedIds = normalizeIdArray(document.getElementById(`${prefix}${field}${dayIndex}`)?.value || "");
+  const weeklySection = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(subject) ? subject : "Deutsch";
+  const catalogSubject = weeklySection === "Mathe" ? "Mathe" : "Deutsch";
+  const selectedIds = normalizeIdArray(document.getElementById(`${prefix}${weeklySection}${dayIndex}`)?.value || "");
   const effectiveAnimalId = scope === "override" ? animalId : "";
-  const defaultId = defaultWorkbookCatalogIdForSubject(subject, { animalId: effectiveAnimalId, classId: state.activeClassId });
-  openTeacherMaterialPicker("weekly", subject, "", selectedIds[selectedIds.length - 1] || defaultId, state.activeClassId, { day, scope, animalId, dayIndex });
+  const defaultId = defaultWorkbookCatalogIdForSubject(catalogSubject, { animalId: effectiveAnimalId, classId: state.activeClassId });
+  openTeacherMaterialPicker(
+    "weekly",
+    catalogSubject,
+    "",
+    selectedIds[selectedIds.length - 1] || defaultId,
+    state.activeClassId,
+    { day, scope, animalId, dayIndex, weeklySection }
+  );
 }
 
 function closeWeeklyCatalogPicker() {
@@ -3709,7 +3718,7 @@ function selectWeeklyCatalogItem(catalogId) {
 
 function clearWeeklyPick(inputId) {
   weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
-  const match = inputId.match(/^(weekly(?:Override_([^_]+)_)?)(Deutsch|Mathe)(\d)$/);
+  const match = inputId.match(/^(weekly(?:Override_([^_]+)_)?)(Deutsch|Lesezeit|Lernwörter|Mathe)(\d)$/);
   if (match) {
     const animalId = match[2] || "";
     const field = match[3];
@@ -3717,8 +3726,11 @@ function clearWeeklyPick(inputId) {
     setWeeklyDraftValue(weeklyPlanDraft, animalId ? "override" : "standard", animalId, day, field, "");
     const dayData = animalId ? weeklyPlanDraft.overrides?.[animalId]?.days?.[day] : weeklyPlanDraft.days?.[day];
     if (dayData) {
-      if (field === "Deutsch") dayData.deutschTaskNumber = "";
-      if (field === "Mathe") dayData.matheTaskNumber = "";
+      const key = field === "Deutsch" ? "deutschTaskNumber"
+        : field === "Lesezeit" ? "lesezeitTaskNumber"
+          : field === "Lernwörter" ? "lernwoerterTaskNumber"
+            : "matheTaskNumber";
+      dayData[key] = "";
     }
   }
   render();

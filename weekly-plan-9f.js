@@ -398,17 +398,21 @@
     return item?.isFreeTask ? "Extra" : raw;
   }
 
+  function printDisplaySection(item) {
+    return item?.weeklySection || printSubject(item);
+  }
+
   function printableItems(plan, day, animal, options) {
     let items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
     if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
 
     // Für Kinder immer die gleiche, leicht erkennbare Reihenfolge:
-    // Deutsch → Mathe → freie/sonstige Aufgaben.
-    const rank = { Deutsch: 1, Mathe: 2, Extra: 3 };
+    // Deutsch → Lesezeit → Lernwörter → Mathe → Sonstiges.
+    const rank = { Deutsch: 1, Lesezeit: 2, "Lernwörter": 3, Mathe: 4, Extra: 5 };
     return items
       .map((item, index) => ({ item, index }))
       .sort((a, b) => (
-        (rank[printSubject(a.item)] || 9) - (rank[printSubject(b.item)] || 9)
+        (rank[printDisplaySection(a.item)] || 9) - (rank[printDisplaySection(b.item)] || 9)
         || a.index - b.index
       ))
       .map(({ item }) => item);
@@ -438,6 +442,8 @@
 
   function printSubjectClass(subject) {
     if (subject === "Deutsch") return "deutsch";
+    if (subject === "Lesezeit") return "lesezeit";
+    if (subject === "Lernwörter") return "lernwoerter";
     if (subject === "Mathe") return "mathe";
     return "extra";
   }
@@ -445,6 +451,12 @@
   function printSubjectBadge(subject) {
     if (subject === "Deutsch") {
       return `<span class="lk-wp-subject-badge deutsch" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
+    }
+    if (subject === "Lesezeit") {
+      return `<span class="lk-wp-subject-badge lesezeit" aria-hidden="true">📖</span>`;
+    }
+    if (subject === "Lernwörter") {
+      return `<span class="lk-wp-subject-badge lernwoerter" aria-hidden="true">Aa</span>`;
     }
     if (subject === "Mathe") {
       return `<span class="lk-wp-subject-badge mathe" aria-hidden="true"><span class="n1">1</span><span class="n2">2</span><span class="n3">3</span></span>`;
@@ -462,7 +474,7 @@
       `;
     }
 
-    const subject = printSubject(item);
+    const subject = printDisplaySection(item);
     const subjectClass = printSubjectClass(subject);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
@@ -546,8 +558,12 @@
   function printPageWeekLayout(className, plan, animal, options) {
     const code = codeForAnimal(animal, options);
     const items = allPrintableItems(plan, animal, options);
-    const deutschRequired = items.filter((item) => printSubject(item) === "Deutsch" && !item.isExtraTask);
-    const deutschStar = items.filter((item) => printSubject(item) === "Deutsch" && item.isExtraTask);
+    const deutschRequired = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection && !item.isExtraTask);
+    const deutschStar = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection && item.isExtraTask);
+    const lesezeitRequired = items.filter((item) => item.weeklySection === "Lesezeit" && !item.isExtraTask);
+    const lesezeitStar = items.filter((item) => item.weeklySection === "Lesezeit" && item.isExtraTask);
+    const lernwoerterRequired = items.filter((item) => item.weeklySection === "Lernwörter" && !item.isExtraTask);
+    const lernwoerterStar = items.filter((item) => item.weeklySection === "Lernwörter" && item.isExtraTask);
     const matheRequired = items.filter((item) => printSubject(item) === "Mathe" && !item.isExtraTask);
     const matheStar = items.filter((item) => printSubject(item) === "Mathe" && item.isExtraTask);
     const extra = items.filter((item) => !["Deutsch", "Mathe"].includes(printSubject(item)));
@@ -578,6 +594,10 @@
         <main class="lk-wp-week-groups">
           ${renderWeekLayoutSection("Deutsch · Pflichtaufgaben", deutschRequired, "deutsch")}
           ${deutschStar.length ? renderWeekLayoutSection("Deutsch · ⭐ Sternchenaufgaben", deutschStar, "deutsch star") : ""}
+          ${lesezeitRequired.length ? renderWeekLayoutSection("Lesezeit · Pflichtaufgaben", lesezeitRequired, "lesezeit") : ""}
+          ${lesezeitStar.length ? renderWeekLayoutSection("Lesezeit · ⭐ Sternchenaufgaben", lesezeitStar, "lesezeit star") : ""}
+          ${lernwoerterRequired.length ? renderWeekLayoutSection("Lernwörter · Pflichtaufgaben", lernwoerterRequired, "lernwoerter") : ""}
+          ${lernwoerterStar.length ? renderWeekLayoutSection("Lernwörter · ⭐ Sternchenaufgaben", lernwoerterStar, "lernwoerter star") : ""}
           ${renderWeekLayoutSection("Mathe · Pflichtaufgaben", matheRequired, "mathe")}
           ${matheStar.length ? renderWeekLayoutSection("Mathe · ⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
           ${extra.length ? renderWeekLayoutSection("Sonstiges", extra, "extra") : ""}
@@ -808,6 +828,8 @@
         }
         .lk-wp-task-row:last-child { border-bottom: 0; }
         .lk-wp-task-row.deutsch { background: rgba(255,249,228,.55); }
+        .lk-wp-task-row.lesezeit { background: rgba(232,247,237,.58); }
+        .lk-wp-task-row.lernwoerter { background: rgba(244,237,250,.58); }
         .lk-wp-task-row.mathe { background: rgba(234,247,255,.62); }
         .lk-wp-task-row.extra { background: rgba(247,247,247,.72); }
         .lk-wp-task-row.starred { background: #fff6d9; }
@@ -859,6 +881,19 @@
         .lk-wp-subject-badge.deutsch .a { color:#df5b46; }
         .lk-wp-subject-badge.deutsch .b { color:#ef9b1f; }
         .lk-wp-subject-badge.deutsch .c { color:#2e608e; }
+        .lk-wp-subject-badge.lesezeit {
+          background:#e5f5eb;
+          border-color:rgba(83,155,112,.38);
+          color:#386e4d;
+          font-size:8pt;
+        }
+        .lk-wp-subject-badge.lernwoerter {
+          background:#f1e8f8;
+          border-color:rgba(130,94,170,.35);
+          color:#72539b;
+          font-family:Arial,sans-serif;
+          font-size:7.8pt;
+        }
         .lk-wp-subject-badge.mathe {
           background:linear-gradient(180deg,#f5fbff 0%,#d8f1ff 100%);
           border-color:rgba(83,180,219,.55);
@@ -943,6 +978,8 @@
           border-bottom:.25mm solid #9a9a9a;
         }
         .lk-wp-week-section.deutsch h2 { background:#fff5c8; }
+        .lk-wp-week-section.lesezeit h2 { background:#e5f5eb; }
+        .lk-wp-week-section.lernwoerter h2 { background:#f1e8f8; }
         .lk-wp-week-section.mathe h2 { background:#dff4ff; }
         .lk-wp-week-section.star h2 { background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,244,190,.55)); }
         .lk-wp-week-section.extra h2 { background:#f4f4f4; }
