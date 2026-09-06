@@ -457,8 +457,8 @@
 
   function deutschSubareaTitle(subject) {
     if (subject === "Deutsch") return "Arbeitsaufträge";
-    if (subject === "Lesezeit") return "Deutsch · Lesezeit";
-    if (subject === "Lernwörter") return "Deutsch · Lernwörter";
+    if (subject === "Lesezeit") return "Lesezeit";
+    if (subject === "Lernwörter") return "Lernwörter";
     return subject;
   }
 

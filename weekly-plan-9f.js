@@ -413,6 +413,17 @@
     return section === "Deutsch" ? "Arbeitsaufträge" : section;
   }
 
+  function printParentSubject(section) {
+    return section === "Lesezeit" || section === "Lernwörter" ? "Deutsch" : section;
+  }
+
+  function printTaskSubjectLabel(section) {
+    if (section === "Deutsch") return "Arbeitsaufträge";
+    if (section === "Lesezeit") return "Lesezeit";
+    if (section === "Lernwörter") return "Lernwörter";
+    return section;
+  }
+
   function printableItems(plan, day, animal, options) {
     let items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
     if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
@@ -488,13 +499,15 @@
 
     const subject = printDisplaySection(item);
     const subjectClass = printSubjectClass(subject);
+    const parentSubject = printParentSubject(subject);
+    const subjectLabel = printTaskSubjectLabel(subject);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
           <span class="lk-wp-task-main">
             ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
-            ${printSubjectBadge(subject)}
-            <span class="lk-wp-task-subject-label">${escapeHtml(subject)}</span>
+            ${printSubjectBadge(parentSubject)}
+            <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
             <span>${escapeHtml(pageText(item))}</span>
           </span>
         </div>
@@ -511,7 +524,7 @@
 
     items.forEach((item) => {
       rows.push(printTaskRow(item, previousSubject));
-      previousSubject = printSubject(item);
+      previousSubject = printDisplaySection(item);
     });
 
     while (rows.length < minimumRows) rows.push(printTaskRow(null));
@@ -567,6 +580,18 @@
     `;
   }
 
+  function renderWeekSubjectHeader(subject, subtitle = "") {
+    return `
+      <div class="lk-wp-week-subject-head ${escapeAttribute(printSubjectClass(subject))}">
+        ${printSubjectBadge(subject)}
+        <div>
+          <strong>${escapeHtml(subject)}</strong>
+          ${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
   function printPageWeekLayout(className, plan, animal, options) {
     const code = codeForAnimal(animal, options);
     const items = allPrintableItems(plan, animal, options);
@@ -604,14 +629,26 @@
         </header>
 
         <main class="lk-wp-week-groups">
-          ${printDeutschSectionOrder(plan).map((section) => {
-            const required = section === "Deutsch" ? deutschRequired : section === "Lesezeit" ? lesezeitRequired : lernwoerterRequired;
-            const starred = section === "Deutsch" ? deutschStar : section === "Lesezeit" ? lesezeitStar : lernwoerterStar;
-            const cssClass = section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
-            return `${required.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · Pflichtaufgaben`, required, cssClass) : ""}${starred.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · ⭐ Sternchenaufgaben`, starred, `${cssClass} star`) : ""}`;
-          }).join("")}
-          ${renderWeekLayoutSection("Mathe · Pflichtaufgaben", matheRequired, "mathe")}
-          ${matheStar.length ? renderWeekLayoutSection("Mathe · ⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
+          <section class="lk-wp-week-subject-block deutsch-group">
+            ${renderWeekSubjectHeader("Deutsch", "Arbeitsaufträge · Lesezeit · Lernwörter")}
+            <div class="lk-wp-week-subsections">
+              ${printDeutschSectionOrder(plan).map((section) => {
+                const required = section === "Deutsch" ? deutschRequired : section === "Lesezeit" ? lesezeitRequired : lernwoerterRequired;
+                const starred = section === "Deutsch" ? deutschStar : section === "Lesezeit" ? lesezeitStar : lernwoerterStar;
+                const cssClass = section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
+                return `${required.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · Pflichtaufgaben`, required, cssClass) : ""}${starred.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · ⭐ Sternchenaufgaben`, starred, `${cssClass} star`) : ""}`;
+              }).join("")}
+            </div>
+          </section>
+
+          <section class="lk-wp-week-subject-block mathe-group">
+            ${renderWeekSubjectHeader("Mathe")}
+            <div class="lk-wp-week-subsections">
+              ${renderWeekLayoutSection("Pflichtaufgaben", matheRequired, "mathe")}
+              ${matheStar.length ? renderWeekLayoutSection("⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
+            </div>
+          </section>
+
           ${extra.length ? renderWeekLayoutSection("Sonstiges", extra, "extra") : ""}
         </main>
 
@@ -922,10 +959,11 @@
         }
         .lk-wp-task-subject-label {
           flex:none;
-          font-size:8.6pt;
+          font-size:7.8pt;
           font-weight:700;
           color:#31586e;
-          min-width:11mm;
+          min-width:31mm;
+          white-space:nowrap;
         }
         .lk-wp-star {
           color: #c89400;
@@ -975,6 +1013,50 @@
           display:grid;
           gap:3mm;
           margin-top:2mm;
+        }
+        .lk-wp-week-subject-block {
+          display:grid;
+          gap:1.8mm;
+          break-inside:avoid;
+          padding:2mm;
+          border:.4mm solid #777;
+          border-radius:4mm;
+          background:#fff;
+        }
+        .lk-wp-week-subject-block.deutsch-group { border-color:#d9bc59; }
+        .lk-wp-week-subject-block.mathe-group { border-color:#59aeca; }
+        .lk-wp-week-subject-head {
+          display:flex;
+          align-items:center;
+          gap:2.2mm;
+          min-height:8mm;
+          padding:1mm 1.5mm;
+        }
+        .lk-wp-week-subject-head > div {
+          display:flex;
+          align-items:baseline;
+          gap:2mm;
+          min-width:0;
+        }
+        .lk-wp-week-subject-head strong {
+          font-size:14pt;
+          line-height:1;
+        }
+        .lk-wp-week-subject-head small {
+          font-family:Arial,sans-serif;
+          font-size:7.2pt;
+          color:#666;
+        }
+        .lk-wp-week-subject-head.deutsch { background:#fff9db; border-radius:3mm; }
+        .lk-wp-week-subject-head.mathe { background:#eaf8ff; border-radius:3mm; }
+        .lk-wp-week-subject-head .lk-wp-subject-badge {
+          min-width:12mm;
+          height:6mm;
+          font-size:9.5pt;
+        }
+        .lk-wp-week-subsections {
+          display:grid;
+          gap:1.8mm;
         }
         .lk-wp-week-section {
           border:.35mm solid #6b6b6b;
