@@ -38,8 +38,11 @@
   }
 
   function mmCatalog(subject) {
+    // Lesezeit und Lernwörter sind Wochenplan-Bereiche, aber keine eigenen
+    // Fächer im Arbeitsmaterial-Katalog. Beide verwenden den Deutsch-Katalog.
+    const catalogSubject = subject === "Mathe" ? "Mathe" : "Deutsch";
     const all = workbookCatalogForActiveClass()
-      .filter((item) => item.active !== false && item.subject === subject);
+      .filter((item) => item.active !== false && item.subject === catalogSubject);
 
     let activeYear = "";
     try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
@@ -125,7 +128,11 @@
   function mmSelectedIds() {
     if (!weeklyPickRequest) return [];
     const prefix = weeklyInputPrefix(weeklyPickRequest.scope, weeklyPickRequest.animalId);
-    const field = weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe";
+    // Die Auswahl muss aus dem tatsächlichen Wochenplan-Bereich gelesen werden.
+    // Sonst würde Lesezeit/Lernwörter fälschlich auf Mathe zeigen.
+    const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(weeklyPickRequest.subject)
+      ? weeklyPickRequest.subject
+      : (weeklyPickRequest.subject === "Mathe" ? "Mathe" : "Deutsch");
     return normalizeIdArray(
       document.getElementById(`${prefix}${field}${weeklyPickRequest.dayIndex}`)?.value || ""
     );
