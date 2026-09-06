@@ -204,6 +204,16 @@ document.addEventListener("DOMContentLoaded", initApp);
       color:#234e66 !important;
       box-shadow:inset 0 0 0 1px rgba(47,111,145,.12);
     }
+    .lk-deutsch-order-picker { display:grid; grid-template-columns:minmax(170px,.75fr) minmax(0,1.8fr); gap:12px; align-items:center; margin:10px 0 14px; padding:11px 13px; border:1px solid rgba(220,189,85,.24); border-radius:14px; background:rgba(255,253,243,.78); }
+    .lk-deutsch-order-copy { display:grid; gap:2px; }
+    .lk-deutsch-order-copy > span { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; opacity:.58; }
+    .lk-deutsch-order-copy small { opacity:.68; }
+    .lk-deutsch-order-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+    .lk-deutsch-order-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:7px; padding:8px 9px; border-radius:11px; background:#fff; border:1px solid rgba(47,111,145,.10); }
+    .lk-deutsch-order-icon { min-width:27px; text-align:center; font-size:.78rem; font-weight:800; }
+    .lk-deutsch-order-item > div { display:flex; gap:3px; }
+    .lk-order-small { width:27px; height:27px; padding:0; display:grid; place-items:center; border:1px solid rgba(47,111,145,.18); border-radius:8px; background:#fff; color:#315a70; font-weight:900; cursor:pointer; }
+    .lk-order-small:disabled { opacity:.20; cursor:default; }
     .training-heading-actions {
       display:flex;
       justify-content:space-between;
@@ -232,6 +242,8 @@ document.addEventListener("DOMContentLoaded", initApp);
       .training-reset-box { display:grid; }
       .weekly-editor-audience-summary small { text-align:left; }
       .weekly-planning-mode-actions { display:grid; grid-template-columns:1fr 1fr; }
+      .lk-deutsch-order-picker { grid-template-columns:1fr; }
+      .lk-deutsch-order-list { grid-template-columns:1fr; }
     }
   `;
   document.head.appendChild(style);
@@ -3469,6 +3481,9 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const note = draft.note || "";
   const progressMode = weeklyPlanProgressMode(draft);
   const planningMode = draft.planningMode === "week" ? "week" : "days";
+  const deutschSectionOrder = typeof window.lkNormalizeDeutschSectionOrder === "function"
+    ? window.lkNormalizeDeutschSectionOrder(draft.deutschSectionOrder)
+    : ["Deutsch", "Lesezeit", "Lernwörter"];
   const assignmentMode = draft.assignmentMode || "all";
   const selectedAnimals = new Set(draft.animalIds || []);
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
@@ -3524,12 +3539,34 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">🗂 Ganze Woche</button>
           </div>
         </div>
+        <div class="lk-deutsch-order-picker">
+          <div class="lk-deutsch-order-copy">
+            <span>Deutsch-Bereiche</span>
+            <strong>Reihenfolge</strong>
+            <small>Gilt auch für Kinderansicht und Druck.</small>
+          </div>
+          <input type="hidden" id="weeklyDeutschSectionOrder" value="${escapeAttribute(deutschSectionOrder.join(","))}">
+          <div class="lk-deutsch-order-list">
+            ${deutschSectionOrder.map((section, index) => {
+              const label = section === "Deutsch" ? "Arbeitsaufträge" : section;
+              const icon = section === "Deutsch" ? "ABC" : section === "Lesezeit" ? "📖" : "Aa";
+              return `<div class="lk-deutsch-order-item">
+                <span class="lk-deutsch-order-icon">${escapeHtml(icon)}</span>
+                <strong>${escapeHtml(label)}</strong>
+                <div>
+                  <button class="lk-order-small" type="button" ${index === 0 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',-1)">↑</button>
+                  <button class="lk-order-small" type="button" ${index === deutschSectionOrder.length - 1 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',1)">↓</button>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
         ${focusAnimal ? `
           <div class="weekly-focus-note">
             <h3>Individueller Wochenplan für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</h3>
             <p class="message">Trage hier nur Aufgaben ein, die vom Klassenwochenplan abweichen. Leere Felder übernehmen automatisch den Klassenwochenplan.</p>
           </div>
-          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id, planningMode)}
+          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id, planningMode, deutschSectionOrder)}
           <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichung für dieses Tier leeren</button>
         ` : `
           <div class="weekly-editor-audience-summary">
@@ -3542,7 +3579,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <small>Die Zielgruppe wurde vor dem Öffnen des Wochenplans festgelegt.</small>
           </div>
           <h3>Aufgaben für diese Zielgruppe</h3>
-          ${renderWeeklyPlannerTable(draft.days || {}, "standard", "", planningMode)}
+          ${renderWeeklyPlannerTable(draft.days || {}, "standard", "", planningMode, deutschSectionOrder)}
         `}
         <label class="field">Bemerkung optional
           <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
@@ -3959,6 +3996,11 @@ function collectWeeklyPlanDraftFromDom() {
     validTo: document.querySelector("#weeklyTo")?.value || "",
     note: document.querySelector("#weeklyNote")?.value.trim() || "",
     planningMode: document.querySelector("#weeklyPlanningMode")?.value || weeklyPlanDraft?.planningMode || existing.planningMode || "days",
+    deutschSectionOrder: typeof window.lkNormalizeDeutschSectionOrder === "function"
+      ? window.lkNormalizeDeutschSectionOrder(String(document.querySelector("#weeklyDeutschSectionOrder")?.value || "").split(",").filter(Boolean).length
+          ? String(document.querySelector("#weeklyDeutschSectionOrder")?.value || "").split(",")
+          : (weeklyPlanDraft?.deutschSectionOrder || existing.deutschSectionOrder))
+      : (weeklyPlanDraft?.deutschSectionOrder || existing.deutschSectionOrder || ["Deutsch", "Lesezeit", "Lernwörter"]),
     assignmentMode: assignmentModeInput?.value || weeklyPlanDraft?.assignmentMode || existing.assignmentMode || "all",
     animalIds: checkedAnimalInputs.length || document.querySelector(".weeklyAnimalCheckbox")
       ? checkedAnimalInputs.map((item) => item.value)
@@ -4270,6 +4312,9 @@ async function saveWeeklyPlan(event) {
     validTo: draft.validTo || "",
     note: draft.note || "",
     planningMode: draft.planningMode === "week" ? "week" : "days",
+    deutschSectionOrder: typeof window.lkNormalizeDeutschSectionOrder === "function"
+      ? window.lkNormalizeDeutschSectionOrder(draft.deutschSectionOrder)
+      : (draft.deutschSectionOrder || ["Deutsch", "Lesezeit", "Lernwörter"]),
     assignmentMode: draft.assignmentMode || "all",
     animalIds: draft.animalIds || [],
     progressMode: draft.progressMode || "confirm",
@@ -8415,8 +8460,8 @@ function workbookCoverForCatalogItem(catalogItem) {
   if (workbook === "ABC der Tiere 1") {
     return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
   }
-  if (workbook === "ABC der Tiere 2" || workbook === "ABC der Tiere 2 - Lernstandsheft") {
-    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: "ABC der Tiere 2" };
+  if (workbook === "ABC der Tiere 2" || workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
+    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2" };
   }
   if (workbook === "MiniMax 1") {
     return { src: "./materials/cover-minimax-1.svg", alt: "MiniMax 1" };

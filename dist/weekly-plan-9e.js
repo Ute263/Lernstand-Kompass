@@ -187,6 +187,26 @@
     return "extraFreeTasks";
   }
 
+  const LK_DEUTSCH_SECTIONS = ["Deutsch", "Lesezeit", "Lernwörter"];
+
+  function normalizeDeutschSectionOrder(value) {
+    const input = Array.isArray(value) ? value : [];
+    const valid = input.filter((item) => LK_DEUTSCH_SECTIONS.includes(item));
+    return [...new Set([...valid, ...LK_DEUTSCH_SECTIONS])].slice(0, LK_DEUTSCH_SECTIONS.length);
+  }
+  window.lkNormalizeDeutschSectionOrder = normalizeDeutschSectionOrder;
+
+  window.moveDeutschSectionOrder = function moveDeutschSectionOrder(section, direction) {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    const order = normalizeDeutschSectionOrder(weeklyPlanDraft?.deutschSectionOrder);
+    const index = order.indexOf(section);
+    const target = index + (Number(direction) < 0 ? -1 : 1);
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    weeklyPlanDraft.deutschSectionOrder = order;
+    render();
+  };
+
   function normalizeDayExtras(target, source = target) {
     ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].forEach((subject) => {
       const keys = taskKeys(subject);
@@ -211,6 +231,7 @@
     // deshalb bei jedem Speichern verworfen. Dadurch sprang ein Wochenplan
     // nach dem nächsten persist()/normalizeState() wieder auf "days".
     normalized.planningMode = item?.planningMode === "week" ? "week" : "days";
+    normalized.deutschSectionOrder = normalizeDeutschSectionOrder(item?.deutschSectionOrder);
 
     WEEK_DAYS.forEach((day) => {
       const source = item?.days?.[day] || item?.tage?.[day] || {};
@@ -417,6 +438,33 @@
     `;
   }
 
+  function renderLearningWordsFreeField(tasks, prefix, dayIndex, scope, animalId, day) {
+    const normalized = normalizeFreeTasks(tasks, "Lernwörter");
+    const primary = normalized[0] || { id: `free-lernwoerter-main-${dayIndex}`, text: "", starred: false };
+    return `
+      <div class="lk-learning-words-free">
+        <div class="lk-learning-words-free-head"><span>✏️ Lernwörter frei eintragen</span><small>Wörter direkt hier eintragen.</small></div>
+        <div id="${escapeAttribute(`${prefix}Lernwörter${dayIndex}FreeList`)}" class="lk-learning-words-free-list">
+          <div class="lk-learning-words-free-row ${primary.starred ? "is-extra" : ""}" data-free-task-row>
+            <input type="hidden" data-free-id value="${escapeAttribute(primary.id)}">
+            <input type="hidden" data-free-star value="${primary.starred ? "1" : "0"}">
+            ${renderStarButton(scope, animalId, day, "Lernwörter", 0, primary.starred, primary.id)}
+            <textarea class="text-input lk-learning-words-textarea" data-free-text rows="3" placeholder="z. B. Haus, Häuser, Maus, Mäuse …">${escapeHtml(primary.text)}</textarea>
+          </div>
+          ${normalized.slice(1).map((task, taskIndex) => `
+            <div class="lk-free-task-row ${task.starred ? "is-extra" : ""}" data-free-task-row>
+              <input type="hidden" data-free-id value="${escapeAttribute(task.id)}">
+              <input type="hidden" data-free-star value="${task.starred ? "1" : "0"}">
+              ${renderStarButton(scope, animalId, day, "Lernwörter", 0, task.starred, task.id)}
+              ${renderFreeTaskOrderButtons(scope, animalId, day, "Lernwörter", normalized, taskIndex + 1)}
+              <input class="text-input" data-free-text value="${escapeAttribute(task.text)}" placeholder="Weitere Lernwörter …">
+              <button class="weekly-task-remove" type="button" onclick="removeWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','Lernwörter','${escapeAttribute(task.id)}')">×</button>
+            </div>`).join("")}
+        </div>
+        <button class="small-button lk-learning-words-more" type="button" onclick="addWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','Lernwörter')">+ weiteres Feld</button>
+      </div>`;
+  }
+
   renderWeeklyPickCell = function renderWeeklyPickCell9e(
     subject, day, index, selectedIds, inputId, scope, animalId = "",
     legacyTaskNumber = "", taskNumbers = [], taskStars = []
@@ -529,57 +577,35 @@
     return result;
   }
 
-  function renderWholeWeekPlanner(days, scope, animalId = "") {
+  function renderWholeWeekPlanner(days, scope, animalId = "", deutschSectionOrder = []) {
     const prefix = weeklyInputPrefix(scope, animalId);
     const data = sortWeeklyModeDay(days?.Montag || {});
+    const sectionOrder = normalizeDeutschSectionOrder(deutschSectionOrder);
     const sectionData = {};
     ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].forEach((subject) => {
       const keys = taskKeys(subject);
-      sectionData[subject] = {
-        keys,
-        ids: normalizeIdArray(data[keys.ids] || data[keys.legacyId])
-      };
+      sectionData[subject] = { keys, ids: normalizeIdArray(data[keys.ids] || data[keys.legacyId]) };
     });
-
-    const renderSection = (subject, cssClass, title) => {
+    const renderSection = (subject) => {
+      const title = subject === "Deutsch" ? "Arbeitsaufträge" : subject;
+      const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : subject === "Lernwörter" ? "lernwoerter" : "mathe";
       const { keys, ids } = sectionData[subject];
-      return `
-        <section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)} lk-week-mode-subject">
-          <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>
-          ${renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars])}
-          ${renderFreeTaskList(data[keys.free], prefix, subject, 0, scope, animalId, "Montag")}
-        </section>`;
+      const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, 0, scope, animalId, "Montag") : renderFreeTaskList(data[keys.free], prefix, subject, 0, scope, animalId, "Montag");
+      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)} lk-week-mode-subject">
+        <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>
+        ${renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars])}
+        ${freePart}
+      </section>`;
     };
-
-    return `
-      <div class="lk-whole-week-editor">
-        <div class="lk-whole-week-note">
-          <span>🗂</span>
-          <div>
-            <strong>Aufgaben für die ganze Woche</strong>
-            <small>In jedem Bereich stehen Pflichtaufgaben vor den Sternchenaufgaben. Die Reihenfolge kannst du mit ↑ und ↓ verändern.</small>
-          </div>
-        </div>
-
-        <div class="lk-deutsch-area-block">
-          <div class="lk-deutsch-area-title">
-            ${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Sprache · Lesezeit · Lernwörter</small></div>
-          </div>
-          <div class="lk-deutsch-subarea-grid">
-            ${renderSection("Deutsch", "deutsch", "Deutsch")}
-            ${renderSection("Lesezeit", "lesezeit", "Lesezeit")}
-            ${renderSection("Lernwörter", "lernwoerter", "Lernwörter")}
-          </div>
-        </div>
-
-        ${renderSection("Mathe", "mathe", "Mathe")}
-
-        <section class="lk-editor-subject sonstiges lk-week-mode-subject">
-          <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>
-          ${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", 0, scope, animalId, "Montag")}
-        </section>
+    return `<div class="lk-whole-week-editor">
+      <div class="lk-whole-week-note"><span>🗂</span><div><strong>Aufgaben für die ganze Woche</strong><small>Die Deutsch-Bereiche kannst du oben umsortieren.</small></div></div>
+      <div class="lk-deutsch-area-block">
+        <div class="lk-deutsch-area-title">${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small></div></div>
+        <div class="lk-deutsch-subarea-stack">${sectionOrder.map(renderSection).join("")}</div>
       </div>
-    `;
+      ${renderSection("Mathe")}
+      <section class="lk-editor-subject sonstiges lk-week-mode-subject"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", 0, scope, animalId, "Montag")}</section>
+    </div>`;
   }
 
   window.setWeeklyPlanningMode = function setWeeklyPlanningMode(mode) {
@@ -599,8 +625,9 @@
     render();
   };
 
-  renderWeeklyPlannerTable = function renderWeeklyPlannerTable9e(days, scope, animalId = "", planningMode = "days") {
-    if (planningMode === "week") return renderWholeWeekPlanner(days, scope, animalId);
+  renderWeeklyPlannerTable = function renderWeeklyPlannerTable9e(days, scope, animalId = "", planningMode = "days", deutschSectionOrder = []) {
+    const sectionOrder = normalizeDeutschSectionOrder(deutschSectionOrder);
+    if (planningMode === "week") return renderWholeWeekPlanner(days, scope, animalId, sectionOrder);
     const prefix = weeklyInputPrefix(scope, animalId);
     return `
       <div class="weekly-day-editor-list lk-weekly-day-accordion">
@@ -625,24 +652,17 @@
               </summary>
               <div class="lk-weekly-day-content">
                 <div class="lk-deutsch-area-block compact">
-                  <div class="lk-deutsch-area-title">
-                    ${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Sprache · Lesezeit · Lernwörter</small></div>
+                  <div class="lk-deutsch-area-title">${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small></div></div>
+                  <div class="lk-deutsch-subarea-stack">
+                    ${sectionOrder.map((subject) => {
+                      const keys = taskKeys(subject);
+                      const title = subject === "Deutsch" ? "Arbeitsaufträge" : subject;
+                      const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : "lernwoerter";
+                      const ids = subject === "Deutsch" ? deutschIds : normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
+                      const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, dayIndex, scope, animalId, day) : renderFreeTaskList(data[keys.free], prefix, subject, dayIndex, scope, animalId, day);
+                      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)}"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>${renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars])}${freePart}</section>`;
+                    }).join("")}
                   </div>
-                  <section class="weekly-editor-subject lk-editor-subject deutsch">
-                    <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong></div>
-                    ${renderWeeklyPickCell("Deutsch", day, dayIndex, deutschIds, `${prefix}Deutsch${dayIndex}`, scope, animalId, data.deutschTaskNumber || "", data.deutschTaskNumbers, data.deutschTaskStars)}
-                    ${renderFreeTaskList(data.deutschFreeTasks, prefix, "Deutsch", dayIndex, scope, animalId, day)}
-                  </section>
-                  <section class="weekly-editor-subject lk-editor-subject lesezeit">
-                    <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Lesezeit")}<strong>Lesezeit</strong></div>
-                    ${renderWeeklyPickCell("Lesezeit", day, dayIndex, normalizeIdArray(data.lesezeitIds || data.lesezeitId), `${prefix}Lesezeit${dayIndex}`, scope, animalId, data.lesezeitTaskNumber || "", data.lesezeitTaskNumbers, data.lesezeitTaskStars)}
-                    ${renderFreeTaskList(data.lesezeitFreeTasks, prefix, "Lesezeit", dayIndex, scope, animalId, day)}
-                  </section>
-                  <section class="weekly-editor-subject lk-editor-subject lernwoerter">
-                    <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Lernwörter")}<strong>Lernwörter</strong></div>
-                    ${renderWeeklyPickCell("Lernwörter", day, dayIndex, normalizeIdArray(data.lernwoerterIds || data.lernwoerterId), `${prefix}Lernwörter${dayIndex}`, scope, animalId, data.lernwoerterTaskNumber || "", data.lernwoerterTaskNumbers, data.lernwoerterTaskStars)}
-                    ${renderFreeTaskList(data.lernwoerterFreeTasks, prefix, "Lernwörter", dayIndex, scope, animalId, day)}
-                  </section>
                 </div>
                 <section class="weekly-editor-subject lk-editor-subject mathe">
                   <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong></div>
@@ -1010,26 +1030,23 @@
   if (typeof renderChildWeeklyPlan === "function") {
     renderChildWeeklyPlan = function renderChildWeeklyPlan9e(plan, animal) {
       if (plan?.planningMode === "week") {
+        const sectionOrder = normalizeDeutschSectionOrder(plan?.deutschSectionOrder);
+        const rankMap = Object.fromEntries(sectionOrder.map((section, index) => [section, index + 1]));
         const items = weeklyPlanItemsForDay(plan, "Montag", animal.id)
           .map((item, index) => ({ item, index }))
           .sort((a, b) => {
-            const rank = (entry) => entry.weeklySection === "Lesezeit" ? 2
-              : entry.weeklySection === "Lernwörter" ? 3
-                : entry.subject === "Deutsch" ? 1
-                  : entry.subject === "Mathe" ? 4 : 5;
-            return rank(a.item) - rank(b.item)
-              || Number(a.item.isExtraTask === true) - Number(b.item.isExtraTask === true)
-              || a.index - b.index;
-          })
-          .map(({ item }) => item);
-
+            const sectionFor = (entry) => entry.weeklySection || (entry.subject === "Deutsch" ? "Deutsch" : entry.subject);
+            const ra = rankMap[sectionFor(a.item)] || (a.item.subject === "Mathe" ? 10 : 20);
+            const rb = rankMap[sectionFor(b.item)] || (b.item.subject === "Mathe" ? 10 : 20);
+            return ra - rb || Number(a.item.isExtraTask) - Number(b.item.isExtraTask) || a.index - b.index;
+          }).map(({ item }) => item);
+        const titleFor = (section) => section === "Deutsch" ? "Arbeitsaufträge" : section;
+        const classFor = (section) => section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
         const groups = [
-          ["Deutsch · Pflicht", items.filter((item) => item.subject === "Deutsch" && !item.weeklySection && !item.isExtraTask), "deutsch"],
-          ["Deutsch · ⭐ Sternchen", items.filter((item) => item.subject === "Deutsch" && !item.weeklySection && item.isExtraTask), "deutsch star"],
-          ["Lesezeit · Pflicht", items.filter((item) => item.weeklySection === "Lesezeit" && !item.isExtraTask), "lesezeit"],
-          ["Lesezeit · ⭐ Sternchen", items.filter((item) => item.weeklySection === "Lesezeit" && item.isExtraTask), "lesezeit star"],
-          ["Lernwörter · Pflicht", items.filter((item) => item.weeklySection === "Lernwörter" && !item.isExtraTask), "lernwoerter"],
-          ["Lernwörter · ⭐ Sternchen", items.filter((item) => item.weeklySection === "Lernwörter" && item.isExtraTask), "lernwoerter star"],
+          ...sectionOrder.flatMap((section) => [
+            [`${titleFor(section)} · Pflicht`, items.filter((item) => (item.weeklySection || (item.subject === "Deutsch" ? "Deutsch" : "")) === section && !item.isExtraTask), classFor(section)],
+            [`${titleFor(section)} · ⭐ Sternchen`, items.filter((item) => (item.weeklySection || (item.subject === "Deutsch" ? "Deutsch" : "")) === section && item.isExtraTask), `${classFor(section)} star`]
+          ]),
           ["Mathe · Pflicht", items.filter((item) => item.subject === "Mathe" && !item.isExtraTask), "mathe"],
           ["Mathe · ⭐ Sternchen", items.filter((item) => item.subject === "Mathe" && item.isExtraTask), "mathe star"],
           ["Sonstiges", items.filter((item) => item.subject !== "Deutsch" && item.subject !== "Mathe"), "extra"]
@@ -1059,7 +1076,16 @@
       }
 
       const selectedDay = WEEK_DAYS.includes(lkChildWeekDay) ? lkChildWeekDay : todayGerman();
-      const items = weeklyPlanItemsForDay(plan, selectedDay, animal.id);
+      const sectionOrder = normalizeDeutschSectionOrder(plan?.deutschSectionOrder);
+      const rankMap = Object.fromEntries(sectionOrder.map((section, index) => [section, index + 1]));
+      const items = weeklyPlanItemsForDay(plan, selectedDay, animal.id)
+        .map((item, index) => ({ item, index }))
+        .sort((a, b) => {
+          const sectionFor = (entry) => entry.weeklySection || (entry.subject === "Deutsch" ? "Deutsch" : entry.subject);
+          const ra = rankMap[sectionFor(a.item)] || (a.item.subject === "Mathe" ? 10 : 20);
+          const rb = rankMap[sectionFor(b.item)] || (b.item.subject === "Mathe" ? 10 : 20);
+          return ra - rb || a.index - b.index;
+        }).map(({ item }) => item);
       const actualToday = todayGerman();
       return `
         <article class="lk-child-week-plan">
@@ -1097,7 +1123,7 @@
       const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
       const done = status === "fertig";
       const partial = status === "teilweise";
-      const subject = item.weeklySection || (item.subject === "Deutsch" ? "Deutsch" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe");
+      const subject = item.weeklySection || (item.subject === "Deutsch" ? "Arbeitsaufträge" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe");
       const icon = weeklySubjectBadgeHtml(item.weeklySection || item.subject, true);
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
@@ -1371,14 +1397,19 @@
     .lk-deutsch-area-title > div { display:grid; gap:1px; }
     .lk-deutsch-area-title strong { font-size:1rem; }
     .lk-deutsch-area-title small { color:#748089; font-size:.72rem; }
-    .lk-deutsch-subarea-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+    .lk-deutsch-subarea-stack { display:grid; grid-template-columns:1fr; gap:10px; }
     .lk-editor-subject.lesezeit { background:rgba(238,248,242,.72); border-color:rgba(90,160,120,.20); }
     .lk-editor-subject.lernwoerter { background:rgba(248,241,255,.70); border-color:rgba(135,100,175,.18); }
+    .lk-learning-words-free { display:grid; gap:8px; margin-top:9px; padding:10px; border-radius:12px; background:rgba(255,255,255,.76); border:1px dashed rgba(130,94,170,.25); }
+    .lk-learning-words-free-head { display:grid; gap:2px; }
+    .lk-learning-words-free-head > span { font-weight:800; color:#684a8c; }
+    .lk-learning-words-free-head small { color:#7d7188; }
+    .lk-learning-words-free-list { display:grid; gap:7px; }
+    .lk-learning-words-free-row { display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px; align-items:start; }
+    .lk-learning-words-textarea { width:100%; min-height:78px; resize:vertical; line-height:1.45; }
+    .lk-learning-words-more { justify-self:start; }
     .lk-subject-badge.lesezeit { background:#e8f6ee; border-color:rgba(83,155,112,.35); font-size:.88rem; }
     .lk-subject-badge.lernwoerter { background:#f2eafb; border-color:rgba(130,94,170,.30); color:#72539b; font-family:Arial,sans-serif; font-size:.76rem; }
-    @media (max-width:1050px) {
-      .lk-deutsch-subarea-grid { grid-template-columns:1fr; }
-    }
 
     .lk-whole-week-editor { display:grid; gap:12px; }
     .lk-whole-week-note {

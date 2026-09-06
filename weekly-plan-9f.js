@@ -402,17 +402,29 @@
     return item?.weeklySection || printSubject(item);
   }
 
+  function printDeutschSectionOrder(plan) {
+    const defaults = ["Deutsch", "Lesezeit", "Lernwörter"];
+    const input = Array.isArray(plan?.deutschSectionOrder) ? plan.deutschSectionOrder : [];
+    const valid = input.filter((item) => defaults.includes(item));
+    return [...new Set([...valid, ...defaults])].slice(0, defaults.length);
+  }
+
+  function printSectionTitle(section) {
+    return section === "Deutsch" ? "Arbeitsaufträge" : section;
+  }
+
   function printableItems(plan, day, animal, options) {
     let items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
     if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
 
-    // Für Kinder immer die gleiche, leicht erkennbare Reihenfolge:
-    // Deutsch → Lesezeit → Lernwörter → Mathe → Sonstiges.
-    const rank = { Deutsch: 1, Lesezeit: 2, "Lernwörter": 3, Mathe: 4, Extra: 5 };
+    const order = printDeutschSectionOrder(plan);
+    const rank = Object.fromEntries(order.map((section, index) => [section, index + 1]));
+    rank.Mathe = 10;
+    rank.Extra = 20;
     return items
       .map((item, index) => ({ item, index }))
       .sort((a, b) => (
-        (rank[printDisplaySection(a.item)] || 9) - (rank[printDisplaySection(b.item)] || 9)
+        (rank[printDisplaySection(a.item)] || 30) - (rank[printDisplaySection(b.item)] || 30)
         || a.index - b.index
       ))
       .map(({ item }) => item);
@@ -592,12 +604,12 @@
         </header>
 
         <main class="lk-wp-week-groups">
-          ${renderWeekLayoutSection("Deutsch · Pflichtaufgaben", deutschRequired, "deutsch")}
-          ${deutschStar.length ? renderWeekLayoutSection("Deutsch · ⭐ Sternchenaufgaben", deutschStar, "deutsch star") : ""}
-          ${lesezeitRequired.length ? renderWeekLayoutSection("Lesezeit · Pflichtaufgaben", lesezeitRequired, "lesezeit") : ""}
-          ${lesezeitStar.length ? renderWeekLayoutSection("Lesezeit · ⭐ Sternchenaufgaben", lesezeitStar, "lesezeit star") : ""}
-          ${lernwoerterRequired.length ? renderWeekLayoutSection("Lernwörter · Pflichtaufgaben", lernwoerterRequired, "lernwoerter") : ""}
-          ${lernwoerterStar.length ? renderWeekLayoutSection("Lernwörter · ⭐ Sternchenaufgaben", lernwoerterStar, "lernwoerter star") : ""}
+          ${printDeutschSectionOrder(plan).map((section) => {
+            const required = section === "Deutsch" ? deutschRequired : section === "Lesezeit" ? lesezeitRequired : lernwoerterRequired;
+            const starred = section === "Deutsch" ? deutschStar : section === "Lesezeit" ? lesezeitStar : lernwoerterStar;
+            const cssClass = section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
+            return `${required.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · Pflichtaufgaben`, required, cssClass) : ""}${starred.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · ⭐ Sternchenaufgaben`, starred, `${cssClass} star`) : ""}`;
+          }).join("")}
           ${renderWeekLayoutSection("Mathe · Pflichtaufgaben", matheRequired, "mathe")}
           ${matheStar.length ? renderWeekLayoutSection("Mathe · ⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
           ${extra.length ? renderWeekLayoutSection("Sonstiges", extra, "extra") : ""}

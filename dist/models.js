@@ -133,8 +133,109 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
     ["63", "Meine Reise", "", ""],
     ["64", "Einladung", "", ""]
   ]),
+  ...abc2ReadingCatalog("Ferienende und Schulbeginn", [
+    ["6", "Ferienende und Schulbeginn"],
+    ["7", "Kartengrüße aus den Ferien"],
+    ["8", "Kartengrüße aus Europa"],
+    ["10", "Allein mit der Bahn"],
+    ["12", "Das beste Fundstück"],
+    ["14", "Jule und der Wunderstein"],
+    ["16", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Ich – Du – Wir", [
+    ["20", "Ich – Du – Wir"],
+    ["21", "Ich bin ich"],
+    ["22", "Drei Ameisen und der Elefant"],
+    ["23", "Nina und das Gänseblümchen"],
+    ["24", "Meine Füße sind der Rollstuhl"],
+    ["28", "Kai will nicht zum Kaufmann gehen"],
+    ["30", "Die Geschichte vom Schmetterling"],
+    ["32", "Wie Franz das Piepsen besiegte"],
+    ["36", "Die Torte"],
+    ["39", "Maren"],
+    ["40", "Murat ist nicht doof"],
+    ["42", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Erlebt – geträumt – erfunden", [
+    ["47", "Erlebt – geträumt – erfunden"],
+    ["48", "Mio bei den Prärieindianern"],
+    ["53", "Kapitän Kralle"],
+    ["58", "Ebbe und Flut"],
+    ["60", "Flucht im Dschungel"],
+    ["62", "Der Computer-Arbeitsplatz"],
+    ["63", "Ohne Worte"],
+    ["64", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Kinder und Tiere", [
+    ["69", "Kinder und Tiere"],
+    ["70", "Ein Welpe kommt ins Haus"],
+    ["74", "Der Kuckuck – ein seltsamer Vogel"],
+    ["78", "Endlich Reitstunden!"],
+    ["82", "Pferde helfen Menschen"],
+    ["83", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Die Welt um uns", [
+    ["86", "Die Welt um uns"],
+    ["87", "Wie die Bohnen wachsen"],
+    ["89", "Die Wiese, ein kleiner Dschungel"],
+    ["91", "Was ist eine Wiese?"],
+    ["92", "Der Löwenzahn hat viele Namen"],
+    ["94", "Gemüseball"],
+    ["95", "Mit dem Förster im Wald"],
+    ["97", "Die Rote Waldameise"],
+    ["98", "Der Traum vom Fliegen"],
+    ["100", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Märchenhafte Welten", [
+    ["104", "Märchenhafte Welten"],
+    ["105", "Der gestiefelte Kater"],
+    ["113", "Frau Holle"],
+    ["120", "Joshi, der Steinmetz"],
+    ["123", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Kinder der Welt – ein Projekt", [
+    ["126", "Kinder der Welt – ein Projekt"],
+    ["127", "Ein Kind aus Indien erzählt"],
+    ["131", "Hunger und Armut in Indien heute"],
+    ["132", "Kinder aus Deutschland erzählen"],
+    ["134", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Rund um Bücher und Medien", [
+    ["138", "Rund um Bücher und Medien"],
+    ["139", "Nils Holgerssons wunderbare Reise"],
+    ["148", "Wir erstellen ein Hörbuch"],
+    ["150", "Filmtiere für Nils Holgersson"],
+    ["152", "Worüber der Franz unzufrieden ist"],
+    ["155", "Steckbrief Christine Nöstlinger"],
+    ["156", "Besuch in der Stadtbücherei"],
+    ["161", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Gedichte und Feste im Jahreskreis", [
+    ["165", "Gedichte und Feste im Jahreskreis"],
+    ["166", "Wenn ein Löwe in die Schule geht"],
+    ["167", "Der Herbst steht auf der Leiter"],
+    ["168", "Der Wind vor dem Richter"],
+    ["169", "Bruder Jakob"],
+    ["170", "Nikolauslegende"],
+    ["171", "Nikolausgedicht"],
+    ["172", "Der Adventskalender"],
+    ["173", "Wer kommt zur Weihnachtszeit?"],
+    ["174", "Die Zwölf mit der Post"],
+    ["177", "Winterbild"],
+    ["178", "Frühling"],
+    ["179", "Ostern"],
+    ["180", "Zum Muttertag"],
+    ["181", "Sommer"],
+    ["182", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ]),
+  ...abc2ReadingCatalog("Werkstatt und Anhang", [
+    ["186", "Lesetipps"],
+    ["192", "Das Darstellende Spiel"],
+    ["193", "Sachwörter-Lexikon"],
+    ["194", "Quellen- und Illustratorenverzeichnis"]
+  ]),
   ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
-    ["4", "Wir sind in Klasse 2"], ["6", "Nomen"], ["10", "Silbenhaus A und Silbenhaus B"], ["11", "Bestimmter Artikel: der, die, das"], ["12", "Unbestimmter Artikel: ein, eine"], ["13", "Einzahl – Mehrzahl"], ["14", "Nomen-Probe"], ["15", "Eine Infotafel gestalten"], ["3-6", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
+    ["4", "Wir sind in Klasse 2"], ["6", "Nomen"],["7", "Nomen"], ["8", "Nomen"], ["9", "Nomen"], ["10", "Silbenhaus A und Silbenhaus B"], ["11", "Bestimmter Artikel: der, die, das"], ["12", "Unbestimmter Artikel: ein, eine"], ["13", "Einzahl – Mehrzahl"], ["14", "Nomen-Probe"], ["15", "Eine Infotafel gestalten"], ["3-6", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
   ]),
   ...abcCatalog("Teil A", "Rund um das Abc", [
     ["16", "Rund um das Abc"], ["18", "Abc"], ["20", "Selbstlaute – Mitlaute"], ["21", "Erste Silbe: offen oder geschlossen?"], ["22", "Nach dem Abc ordnen"], ["23", "Im Wörterbuch nachschlagen"], ["24", "Lang oder kurz? – Doppelter Mitlaut"], ["26", "Verben"], ["28", "Nomen oder Verb?"], ["30", "Lang oder kurz? – Sprechprobe"], ["31", "Lang oder kurz?"], ["32", "Aussagesatz"], ["33", "Richtig abschreiben – Würfeldiktat"], ["7-11", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
@@ -221,6 +322,20 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
     ["Rechenregeln", "", "79-80"]
   ])
 ]);
+
+function abc2ReadingCatalog(area, rows) {
+  return rows.map(([pageSpec, title]) => catalogItem(
+    "Deutsch",
+    "ABC der Tiere 2 - Lesebuch",
+    "Lesebuch",
+    area,
+    "Lesebuch",
+    pageSpec,
+    title,
+    "Lesen",
+    ""
+  ));
+}
 
 function abcCatalog(part, area, rows) {
   return rows.map(([pageSpec, title, category = ""]) => {
