@@ -11,6 +11,19 @@ const LK_GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const LK_ONEDRIVE_FOLDER = "Lernstand-Kompass";
 const LK_ONEDRIVE_FILENAME = "lernstand-kompass-sync.json";
 const LK_GRAPH_SCOPES = ["openid", "profile", "User.Read", "Files.ReadWrite"];
+const LK_MS_REDIRECT_ACTION_KEY = "lkMicrosoftRedirectAction";
+
+function rememberMicrosoftRedirectAction(action = "connect") {
+  try { sessionStorage.setItem(LK_MS_REDIRECT_ACTION_KEY, action); } catch {}
+}
+
+function readMicrosoftRedirectAction() {
+  try { return sessionStorage.getItem(LK_MS_REDIRECT_ACTION_KEY) || ""; } catch { return ""; }
+}
+
+function clearMicrosoftRedirectAction() {
+  try { sessionStorage.removeItem(LK_MS_REDIRECT_ACTION_KEY); } catch {}
+}
 
 const syncRuntime = {
   msalPromise: null,
@@ -149,17 +162,93 @@ async function initCloudSync() {
   try {
     const settings = currentMicrosoftSettings();
     if (isValidClientId(settings.clientId)) {
-      await getMsalClient();
-      if (syncRuntime.msAccount) syncRuntime.msStatus = "connected";
+      const pca = await getMsalClient();
+
+      // Paket 10g: Rückkehr von loginRedirect/acquireTokenRedirect abholen.
+      // Microsoft verlangt bei Redirect-Flows handleRedirectPromise(), bevor
+      // eine neue interaktive Anmeldung gestartet werden darf.
+      const redirectResult = await pca.handleRedirectPromise();
+      const action = readMicrosoftRedirectAction();
+      const account = redirectResult?.account || pca.getActiveAccount() || pca.getAllAccounts()[0] || null;
+
+      if (account) {
+        syncRuntime.msAccount = account;
+        pca.setActiveAccount(account);
+        syncRuntime.msStatus = "connected";
+        syncRuntime.msMessage = redirectResult
+          ? "Microsoft-Anmeldung abgeschlossen. OneDrive wird geprüft …"
+          : "Microsoft ist verbunden.";
+
+        syncRuntime.suppressAuto = true;
+        try {
+          await persist({
+            ...state,
+            microsoftSync: {
+              ...currentMicrosoftSettings(),
+              connectedAccount: account.username || "",
+              connectedName: account.name || "",
+              lastSyncStatus: redirectResult
+                ? "Microsoft verbunden – OneDrive wird geprüft"
+                : (currentMicrosoftSettings().lastSyncStatus || "Microsoft verbunden")
+            }
+          });
+        } finally {
+          syncRuntime.suppressAuto = false;
+        }
+
+        if (redirectResult && action === "connect") {
+          try {
+            await ensureOneDriveFolder();
+            syncRuntime.msStatus = "connected";
+            syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden.";
+            syncRuntime.suppressAuto = true;
+            try {
+              await persist({
+                ...state,
+                microsoftSync: {
+                  ...currentMicrosoftSettings(),
+                  connectedAccount: account.username || "",
+                  connectedName: account.name || "",
+                  lastSyncStatus: "Microsoft und OneDrive verbunden"
+                }
+              });
+            } finally {
+              syncRuntime.suppressAuto = false;
+            }
+          } catch (driveError) {
+            console.warn("Microsoft ist angemeldet, aber OneDrive konnte nicht geprüft werden.", driveError);
+            syncRuntime.msStatus = "error";
+            syncRuntime.msMessage = `Microsoft ist angemeldet, aber OneDrive konnte nicht geöffnet werden: ${friendlySyncError(driveError)}`;
+          }
+        }
+      }
+      clearMicrosoftRedirectAction();
     }
   } catch (error) {
+    clearMicrosoftRedirectAction();
     console.warn("Microsoft-Sync konnte beim Start nicht initialisiert werden.", error);
+    syncRuntime.msStatus = "error";
+    syncRuntime.msMessage = friendlySyncError(error);
   }
+
   window.addEventListener("online", () => {
     syncPendingLearningGameSessions().catch(() => {});
     scheduleMicrosoftAutoBackup();
   });
   setTimeout(() => syncPendingLearningGameSessions().catch(() => {}), 1200);
+}
+
+async function startMicrosoftLoginRedirect(action = "connect") {
+  const pca = await getMsalClient(true);
+  rememberMicrosoftRedirectAction(action);
+  syncRuntime.msStatus = "working";
+  syncRuntime.msMessage = "Weiter zu Microsoft …";
+  render();
+  await pca.loginRedirect({
+    scopes: LK_GRAPH_SCOPES,
+    prompt: "select_account",
+    redirectUri: currentMicrosoftSettings().redirectUri || currentRedirectUri()
+  });
 }
 
 function renderCloudSyncPanel() {
@@ -295,34 +384,10 @@ async function saveMicrosoftSyncSettings() {
 async function connectMicrosoft() {
   try {
     await saveMicrosoftSyncSettings();
-    const pca = await getMsalClient(true);
-    syncRuntime.msStatus = "working";
-    syncRuntime.msMessage = "Microsoft-Anmeldung wird geöffnet …";
-    render();
-    const result = await pca.loginPopup({
-      scopes: LK_GRAPH_SCOPES,
-      prompt: "select_account"
-    });
-    syncRuntime.msAccount = result.account;
-    pca.setActiveAccount(result.account);
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist({
-        ...state,
-        microsoftSync: {
-          ...currentMicrosoftSettings(),
-          connectedAccount: result.account?.username || "",
-          connectedName: result.account?.name || ""
-        }
-      });
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-    syncRuntime.msStatus = "connected";
-    syncRuntime.msMessage = "Microsoft ist verbunden. OneDrive ist bereit.";
-    render();
+    await startMicrosoftLoginRedirect("connect");
   } catch (error) {
-    console.error("Microsoft-Anmeldung fehlgeschlagen", error);
+    console.error("Microsoft-Anmeldung konnte nicht gestartet werden", error);
+    clearMicrosoftRedirectAction();
     syncRuntime.msStatus = "error";
     syncRuntime.msMessage = friendlySyncError(error);
     render();
@@ -333,26 +398,37 @@ async function disconnectMicrosoft() {
   try {
     const pca = syncRuntime.pca || await getMsalClient();
     const account = syncRuntime.msAccount || pca.getActiveAccount() || pca.getAllAccounts()[0];
-    if (account) await pca.logoutPopup({ account, postLogoutRedirectUri: currentMicrosoftSettings().redirectUri || currentRedirectUri() });
+
+    syncRuntime.msAccount = null;
+    syncRuntime.suppressAuto = true;
+    try {
+      await persist({
+        ...state,
+        microsoftSync: {
+          ...currentMicrosoftSettings(),
+          connectedAccount: "",
+          connectedName: "",
+          lastSyncStatus: "Microsoft wurde getrennt"
+        }
+      });
+    } finally {
+      syncRuntime.suppressAuto = false;
+    }
+
+    if (account) {
+      rememberMicrosoftRedirectAction("logout");
+      await pca.logoutRedirect({
+        account,
+        postLogoutRedirectUri: currentMicrosoftSettings().redirectUri || currentRedirectUri()
+      });
+      return;
+    }
   } catch (error) {
     console.warn("Microsoft-Abmeldung nicht vollständig.", error);
   }
-  syncRuntime.msAccount = null;
+  clearMicrosoftRedirectAction();
   syncRuntime.pca = null;
   syncRuntime.pcaClientId = "";
-  syncRuntime.suppressAuto = true;
-  try {
-    await persist({
-      ...state,
-      microsoftSync: {
-        ...currentMicrosoftSettings(),
-        connectedAccount: "",
-        connectedName: ""
-      }
-    });
-  } finally {
-    syncRuntime.suppressAuto = false;
-  }
   syncRuntime.msStatus = "idle";
   syncRuntime.msMessage = "Microsoft wurde getrennt.";
   render();
@@ -361,18 +437,34 @@ async function disconnectMicrosoft() {
 async function acquireGraphToken() {
   const pca = await getMsalClient();
   let account = syncRuntime.msAccount || pca.getActiveAccount() || pca.getAllAccounts()[0];
+
   if (!account) {
-    const login = await pca.loginPopup({ scopes: LK_GRAPH_SCOPES, prompt: "select_account" });
-    account = login.account;
-    syncRuntime.msAccount = account;
-    pca.setActiveAccount(account);
+    rememberMicrosoftRedirectAction("token");
+    syncRuntime.msStatus = "working";
+    syncRuntime.msMessage = "Microsoft-Anmeldung erforderlich …";
+    await pca.loginRedirect({
+      scopes: LK_GRAPH_SCOPES,
+      prompt: "select_account",
+      redirectUri: currentMicrosoftSettings().redirectUri || currentRedirectUri()
+    });
+    throw new Error("Microsoft-Anmeldung wird fortgesetzt.");
   }
+
   try {
     const result = await pca.acquireTokenSilent({ account, scopes: LK_GRAPH_SCOPES });
     return result.accessToken;
   } catch (error) {
-    const result = await pca.acquireTokenPopup({ account, scopes: LK_GRAPH_SCOPES });
-    return result.accessToken;
+    // Kein Popup-Fallback mehr. Wenn Microsoft erneut Interaktion verlangt,
+    // wechseln wir im selben Browserfenster zu Microsoft.
+    rememberMicrosoftRedirectAction("token");
+    syncRuntime.msStatus = "working";
+    syncRuntime.msMessage = "Microsoft-Berechtigung wird erneuert …";
+    await pca.acquireTokenRedirect({
+      account,
+      scopes: LK_GRAPH_SCOPES,
+      redirectUri: currentMicrosoftSettings().redirectUri || currentRedirectUri()
+    });
+    throw error;
   }
 }
 
