@@ -26,6 +26,7 @@
     childPushTimer: null,
     childBootstrapTimer: null,
     teacherPullTimer: null,
+    teacherPullInFlight: null,
     teacherPublishTimer: null,
     lastBootstrapFingerprints: new Map(),
     lastTeacherPullAt: 0,
@@ -434,60 +435,76 @@
 
   async function pullTeacherChildStates({ renderIfSafe = true } = {}) {
     if (!teacherClassSyncReady() || !navigator.onLine) return 0;
-    const settings = currentClassSyncSettings();
-    const bucket = await teacherTransportBucket();
-    const response = await syncFetch(settings.endpoint, bucket, { method: "GET" });
-    const body = await response.json();
-    const items = Array.isArray(body.items) ? body.items : [];
-    let nextState = state;
-    let changed = 0;
 
-    for (const item of items) {
-      if (!String(item?.id || "").startsWith("child-state:")) continue;
-      const animalId = String(item.id).slice("child-state:".length);
-      const animal = (state.animals || []).find((entry) => entry.id === animalId && entry.classId === state.activeClassId && entry.aktiv !== false);
-      if (!animal?.qrToken) continue;
-      try {
-        const incoming = await decryptClassPayload(item.payload, animal.qrToken);
-        const merged = mergeOneChildState(nextState, incoming, animal);
-        nextState = merged.state;
-        changed += merged.changed;
-      } catch (error) {
-        console.warn("Ein Kinder-Datensatz konnte nicht entschlüsselt oder geprüft werden.", error);
+    // Paket 10e: Nach dem Aufwachen konnten Sichtbarkeits-Event und 30-Sekunden-Timer
+    // gleichzeitig denselben großen Sync starten. Es darf immer nur EIN Abruf laufen.
+    if (runtime.teacherPullInFlight) return runtime.teacherPullInFlight;
+
+    const pullPromise = (async () => {
+      const settings = currentClassSyncSettings();
+      const bucket = await teacherTransportBucket();
+      const response = await syncFetch(settings.endpoint, bucket, { method: "GET" });
+      const body = await response.json();
+      const items = Array.isArray(body.items) ? body.items : [];
+      let nextState = state;
+      let changed = 0;
+
+      for (const item of items) {
+        if (!String(item?.id || "").startsWith("child-state:")) continue;
+        const animalId = String(item.id).slice("child-state:".length);
+        const animal = (state.animals || []).find((entry) => entry.id === animalId && entry.classId === state.activeClassId && entry.aktiv !== false);
+        if (!animal?.qrToken) continue;
+        try {
+          const incoming = await decryptClassPayload(item.payload, animal.qrToken);
+          const merged = mergeOneChildState(nextState, incoming, animal);
+          nextState = merged.state;
+          changed += merged.changed;
+        } catch (error) {
+          console.warn("Ein Kinder-Datensatz konnte nicht entschlüsselt oder geprüft werden.", error);
+        }
       }
-    }
 
-    runtime.lastTeacherPullAt = Date.now();
-    const timestamp = nowIso();
-    if (changed) {
-      runtime.applyingRemote = true;
-      try {
-        await basePersist({
-          ...nextState,
+      runtime.lastTeacherPullAt = Date.now();
+      const timestamp = nowIso();
+      if (changed) {
+        runtime.applyingRemote = true;
+        try {
+          await basePersist({
+            ...nextState,
+            classSync: {
+              ...currentClassSyncSettings(),
+              lastPullAt: timestamp,
+              lastError: ""
+            }
+          });
+        } finally {
+          runtime.applyingRemote = false;
+        }
+        globalMessage = `${changed} neue oder aktualisierte Kindmeldung${changed === 1 ? "" : "en"} automatisch übernommen.`;
+        scheduleTeacherPublish();
+        if (renderIfSafe && screen === "teacher" && !userIsEditing()) render();
+      } else {
+        // Vorher wurde hier alle 30 Sekunden der KOMPLETTE App-Zustand erneut in
+        // IndexedDB geschrieben, obwohl sich nichts geändert hatte. Das entfällt.
+        // Für die laufende Sitzung reicht der Zeitstempel im Speicher.
+        state = {
+          ...state,
           classSync: {
             ...currentClassSyncSettings(),
             lastPullAt: timestamp,
             lastError: ""
           }
-        });
-      } finally {
-        runtime.applyingRemote = false;
+        };
       }
-      globalMessage = `${changed} neue oder aktualisierte Kindmeldung${changed === 1 ? "" : "en"} automatisch übernommen.`;
-      scheduleTeacherPublish();
-      if (renderIfSafe && screen === "teacher" && !userIsEditing()) render();
-    } else if (state.classSync?.lastPullAt !== timestamp) {
-      runtime.applyingRemote = true;
-      try {
-        state = await storage.save({
-          ...state,
-          classSync: { ...currentClassSyncSettings(), lastPullAt: timestamp, lastError: "" }
-        });
-      } finally {
-        runtime.applyingRemote = false;
-      }
+      return changed;
+    })();
+
+    runtime.teacherPullInFlight = pullPromise;
+    try {
+      return await pullPromise;
+    } finally {
+      if (runtime.teacherPullInFlight === pullPromise) runtime.teacherPullInFlight = null;
     }
-    return changed;
   }
 
   function mergeBootstrapIntoChildState(snapshot, qrToken) {
@@ -639,17 +656,20 @@
     }, LK_CHILD_BOOTSTRAP_INTERVAL_MS);
   }
 
-  function scheduleTeacherPullLoop() {
+  function scheduleTeacherPullLoop(delayMs = LK_TEACHER_PULL_INTERVAL_MS) {
     if (!teacherClassSyncReady()) return;
     clearTimeout(runtime.teacherPullTimer);
     runtime.teacherPullTimer = setTimeout(async () => {
-      try {
-        await pullTeacherChildStates({ renderIfSafe: true });
-      } catch (error) {
-        console.warn("Automatischer Abruf der Kindmeldungen ist momentan nicht möglich.", error);
+      // Keine großen Sync-/Speicherarbeiten, solange die App im Hintergrund liegt.
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        try {
+          await pullTeacherChildStates({ renderIfSafe: true });
+        } catch (error) {
+          console.warn("Automatischer Abruf der Kindmeldungen ist momentan nicht möglich.", error);
+        }
       }
       scheduleTeacherPullLoop();
-    }, LK_TEACHER_PULL_INTERVAL_MS);
+    }, Math.max(1000, Number(delayMs) || LK_TEACHER_PULL_INTERVAL_MS));
   }
 
   async function initializeAutomaticSync() {
@@ -831,7 +851,7 @@
       if (marker?.qrToken) installOrRefreshChildBootstrap(marker.qrToken, { openChild: false }).catch(() => {});
     } else if (teacherClassSyncReady()) {
       publishAllChildBootstraps().catch(() => {});
-      pullTeacherChildStates({ renderIfSafe: true }).catch(() => {});
+      scheduleTeacherPullLoop(4000);
     }
   });
 
@@ -842,7 +862,9 @@
       if (marker?.qrToken) installOrRefreshChildBootstrap(marker.qrToken, { openChild: false }).catch(() => {});
       pushChildStateNow().catch(() => {});
     } else if (teacherClassSyncReady()) {
-      pullTeacherChildStates({ renderIfSafe: true }).catch(() => {});
+      // Nach Ruhezustand/Tab-Rückkehr kurz warten. So laufen nicht mehrere
+      // aufgestaute Browser-Timer gleichzeitig los.
+      scheduleTeacherPullLoop(5000);
       scheduleTeacherPublish();
     }
   });
