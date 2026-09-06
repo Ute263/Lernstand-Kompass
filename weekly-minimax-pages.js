@@ -33,6 +33,58 @@
     return Math.floor((page - 1) / 20) * 20 + 1;
   }
 
+  function mmAreaKey(item) {
+    const area = String(item?.area || "").trim();
+    return area || "__ohne_bereich__";
+  }
+
+  function mmAreaLabel(itemOrGroup) {
+    const area = String(itemOrGroup?.label || itemOrGroup?.area || "").trim();
+    return area || "ohne Bereich";
+  }
+
+  function mmPageSpanLabel(start, end) {
+    const numericStart = Number(start || 0) || 0;
+    const numericEnd = Number(end || numericStart) || numericStart;
+    if (!numericStart) return "";
+    return numericStart === numericEnd
+      ? `S. ${numericStart}`
+      : `S. ${numericStart}–${numericEnd}`;
+  }
+
+  function mmAreaGroups(items) {
+    const groups = new Map();
+
+    items.forEach((item) => {
+      const key = mmAreaKey(item);
+      const label = mmAreaLabel(item);
+      const start = mmStart(item);
+      const end = Math.max(start, mmEnd(item));
+      if (!start) return;
+
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          key,
+          label,
+          start,
+          end,
+          sortStart: start
+        });
+        return;
+      }
+
+      existing.start = Math.min(existing.start, start);
+      existing.end = Math.max(existing.end, end);
+      existing.sortStart = Math.min(existing.sortStart, start);
+    });
+
+    return [...groups.values()].sort((a, b) =>
+      a.sortStart - b.sortStart
+      || a.label.localeCompare(b.label, "de", { numeric: true })
+    );
+  }
+
   function mmIsMiniMaxWorkbook(workbook) {
     return /mini\s*max/i.test(String(workbook || ""));
   }
@@ -86,9 +138,12 @@
           item,
           sourceId: item.id,
           page: mmStart(item),
+          pageEnd: mmEnd(item),
           exactId: item.id,
-          isVirtual: false
-        }));
+          isVirtual: false,
+          displayLabel: item.displayPages || mmPageSpanLabel(mmStart(item), mmEnd(item))
+        }))
+        .sort((a, b) => a.page - b.page || a.pageEnd - b.pageEnd);
     }
 
     const byPage = new Map();
@@ -111,8 +166,10 @@
           sourceId: exact ? exact.id : item.id,
           sourceRangeId: item.id,
           page,
+          pageEnd: page,
           exactId: exact?.id || "",
-          isVirtual: !exact
+          isVirtual: !exact,
+          displayLabel: mmPageLabel(page)
         };
 
         const previous = byPage.get(page);
@@ -137,6 +194,18 @@
       document.getElementById(`${prefix}${field}${weeklyPickRequest.dayIndex}`)?.value || ""
     );
   }
+
+  window.lkSetPickerArea = function lkSetPickerArea(areaKey) {
+    if (!weeklyPickRequest) return;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        areaKey: String(areaKey || "")
+      }
+    };
+    render();
+  };
 
   window.lkSelectMiniMaxPage = async function lkSelectMiniMaxPage(sourceId, page) {
     const numericPage = Number(page || 0);
@@ -224,12 +293,35 @@
         if (page > 0) allPages.push(page);
       }
     });
+
+    const areaGroups = mmAreaGroups(partItems);
+    const useAreaGrouping = !mmIsMiniMaxWorkbook(selectedWorkbook) && areaGroups.length > 1;
+
+    const requestedAreaKey = String(weeklyPickRequest.filters?.areaKey || "");
+    const selectedAreaGroup = useAreaGrouping
+      ? (areaGroups.find((group) => group.key === requestedAreaKey) || areaGroups[0] || null)
+      : null;
+
     const rangeStarts = mmUnique(allPages.map(mmRangeStart)).sort((a, b) => a - b);
     const requestedRange = Number(weeklyPickRequest.filters?.rangeStart || 0);
     const selectedRange = rangeStarts.includes(requestedRange) ? requestedRange : rangeStarts[0] || 1;
     const rangeEnd = selectedRange + 19;
 
-    const visibleItems = mmCandidates(partItems, selectedWorkbook, selectedRange, rangeEnd);
+    const visibleItems = useAreaGrouping
+      ? mmCandidates(
+          partItems.filter((item) => mmAreaKey(item) === selectedAreaGroup?.key),
+          selectedWorkbook,
+          selectedAreaGroup?.start || 1,
+          selectedAreaGroup?.end || selectedAreaGroup?.start || 1
+        )
+      : mmCandidates(partItems, selectedWorkbook, selectedRange, rangeEnd);
+
+    const hasPartStep = parts.length > 1 || (parts.length === 1 && parts[0]);
+    const groupingStepNumber = hasPartStep ? 3 : 2;
+    const pageStepNumber = useAreaGrouping || rangeStarts.length > 1
+      ? groupingStepNumber + 1
+      : groupingStepNumber;
+
     const selectedIds = mmSelectedIds();
     const selectedSet = new Set(selectedIds);
 
@@ -277,9 +369,24 @@
               </div>
             ` : ""}
 
-            ${rangeStarts.length > 1 ? `
+            ${useAreaGrouping ? `
               <div class="lk-picker-step">
-                <strong>${parts.length > 1 || parts[0] ? "3" : "2"}. Seitenbereich</strong>
+                <strong>${groupingStepNumber}. Bereich</strong>
+                <div class="lk-picker-tabs lk-range-tabs">
+                  ${areaGroups.map((group) => `
+                    <button
+                      class="lk-picker-tab ${selectedAreaGroup?.key === group.key ? "active" : ""}"
+                      type="button"
+                      data-value="${escapeAttribute(group.key)}"
+                      onclick="lkSetPickerArea(this.dataset.value)"
+                      title="${escapeAttribute(`${mmAreaLabel(group)} · ${mmPageSpanLabel(group.start, group.end)}`)}"
+                    >${escapeHtml(mmAreaLabel(group))}<small>${escapeHtml(mmPageSpanLabel(group.start, group.end))}</small></button>
+                  `).join("")}
+                </div>
+              </div>
+            ` : rangeStarts.length > 1 ? `
+              <div class="lk-picker-step">
+                <strong>${groupingStepNumber}. Seitenbereich</strong>
                 <div class="lk-picker-tabs lk-range-tabs">
                   ${rangeStarts.map((start) => `
                     <button
@@ -294,8 +401,8 @@
 
             <div class="lk-picker-step lk-page-step">
               <div class="lk-page-step-head">
-                <strong>${rangeStarts.length > 1 ? "4. Seite" : (parts.length > 1 || parts[0] ? "3. Seite" : "2. Seite")}</strong>
-                <span>${visibleItems.length} Seiten in diesem Bereich</span>
+                <strong>${pageStepNumber}. Seite</strong>
+                <span>${visibleItems.length} ${mmIsMiniMaxWorkbook(selectedWorkbook) ? "Seiten" : "Einträge"}${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
               </div>
 
               <div class="lk-page-grid">
@@ -307,7 +414,7 @@
                   const click = candidate.isVirtual
                     ? `lkSelectMiniMaxPage('${escapeAttribute(candidate.sourceRangeId)}', ${candidate.page})`
                     : `selectWeeklyCatalogItem('${escapeAttribute(candidate.exactId || candidate.sourceId)}')`;
-                  const pageLabel = mmPageLabel(candidate.page);
+                  const pageLabel = candidate.displayLabel || item.displayPages || mmPageSpanLabel(candidate.page, candidate.pageEnd || candidate.page);
                   return `
                     <button
                       class="lk-page-button ${alreadySelected ? "already-selected" : ""}"
@@ -320,14 +427,16 @@
                       ${alreadySelected ? `<small>schon gewählt · nochmals = ⭐</small>` : ""}
                     </button>
                   `;
-                }).join("") || `<div class="empty">In diesem Seitenbereich sind keine Seiten hinterlegt.</div>`}
+                }).join("") || `<div class="empty">${useAreaGrouping ? "In diesem Bereich sind keine Seiten hinterlegt." : "In diesem Seitenbereich sind keine Seiten hinterlegt."}</div>`}
               </div>
             </div>
 
             <p class="message lk-picker-tip">
               ${mmIsMiniMaxWorkbook(selectedWorkbook)
                 ? "Bei MiniMax kannst du jede Seite einzeln auswählen. Das Thema bleibt zur Orientierung sichtbar."
-                : "Du siehst höchstens etwa 20 Seiten gleichzeitig. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
+                : useAreaGrouping
+                  ? "Die Bereiche folgen dem Inhaltsverzeichnis bzw. den Themenabschnitten des Hefts. So findest du Seiten genauer und schneller."
+                  : "Du siehst höchstens etwa 20 Seiten gleichzeitig. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
             </p>
           ` : `
             <div class="empty">
