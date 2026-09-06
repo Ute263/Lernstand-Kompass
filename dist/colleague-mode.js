@@ -158,34 +158,100 @@
   window.connectSharedMicrosoft = async function connectSharedMicrosoft() {
     colleagueSyncMessage = "";
     colleagueSyncStatus = "working";
-    render();
-
     try {
-      const autoBackup =
-        document.querySelector("#colleagueAutoBackup")?.checked !== false;
-      await persistSharedMicrosoftSettings({ autoBackup });
+      if (typeof syncRuntime !== "undefined") {
+        syncRuntime.msStatus = "working";
+        syncRuntime.msMessage = "Microsoft-Anmeldung wird geöffnet …";
+      }
+      render();
 
-      // MSAL-Instanz neu aufbauen, falls zuvor "consumers" aktiv war.
+      // Paket 10f: Direkte Anmeldung mit der gemeinsamen Appregistrierung.
+      // Die alte connectMicrosoft()-Funktion liest Formularfelder aus, die in
+      // dieser vereinfachten Oberfläche absichtlich nicht vorhanden sind.
+      const pca = await getMsalClient(true);
+      const result = await pca.loginPopup({
+        scopes: LK_GRAPH_SCOPES,
+        prompt: "select_account"
+      });
+
+      if (!result?.account) {
+        throw new Error("Microsoft hat kein Konto an die App zurückgegeben.");
+      }
+
+      syncRuntime.msAccount = result.account;
+      pca.setActiveAccount(result.account);
+
+      const autoBackup = state?.microsoftSync?.autoBackup !== false;
+      syncRuntime.suppressAuto = true;
       try {
-        if (typeof syncRuntime !== "undefined") {
-          syncRuntime.pca = null;
-          syncRuntime.pcaClientId = "";
-          syncRuntime.msAccount = null;
-        }
-      } catch {}
+        await persist({
+          ...state,
+          microsoftSync: {
+            ...(state.microsoftSync || {}),
+            clientId: SHARED_MICROSOFT_CLIENT_ID,
+            authority: SHARED_MICROSOFT_AUTHORITY,
+            redirectUri: detectedRedirectUri(),
+            autoBackup,
+            connectedAccount: result.account?.username || "",
+            connectedName: result.account?.name || "",
+            lastSyncStatus: "Microsoft verbunden – OneDrive wird geprüft"
+          }
+        });
+      } finally {
+        syncRuntime.suppressAuto = false;
+      }
 
-      await connectMicrosoft();
+      // Zusätzlich den tatsächlichen OneDrive-Zugriff prüfen.
+      try {
+        await ensureOneDriveFolder();
+      } catch (driveError) {
+        syncRuntime.msStatus = "error";
+        syncRuntime.msMessage = "Microsoft ist angemeldet, aber OneDrive konnte nicht geöffnet werden.";
+        colleagueSyncStatus = "error";
+        const friendly = typeof friendlySyncError === "function"
+          ? friendlySyncError(driveError)
+          : String(driveError?.message || driveError || "OneDrive-Fehler");
+        colleagueSyncMessage = `Microsoft-Anmeldung war erfolgreich, aber OneDrive ist noch nicht nutzbar: ${friendly}`;
+        render();
+        return;
+      }
+
+      syncRuntime.msStatus = "connected";
+      syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden.";
       colleagueSyncStatus = "success";
-      colleagueSyncMessage =
-        "Microsoft ist verbunden. Die Sicherung liegt im OneDrive des angemeldeten Kontos.";
+      colleagueSyncMessage = "Microsoft und OneDrive sind verbunden. Die Sicherung kann jetzt verwendet werden.";
+
+      syncRuntime.suppressAuto = true;
+      try {
+        await persist({
+          ...state,
+          microsoftSync: {
+            ...currentMicrosoftSettings(),
+            connectedAccount: result.account?.username || "",
+            connectedName: result.account?.name || "",
+            lastSyncStatus: "Microsoft und OneDrive verbunden"
+          }
+        });
+      } finally {
+        syncRuntime.suppressAuto = false;
+      }
     } catch (error) {
-      colleagueSyncStatus = "error";
-      const text = String(error?.message || error || "");
-      colleagueSyncMessage =
-        text.includes("AADSTS") || text.toLowerCase().includes("admin")
-          ? "Die Anmeldung wurde von Microsoft bzw. der Schulorganisation abgelehnt. Bei Dienstkonten kann eine Freigabe durch die Schul-IT nötig sein."
-          : "Microsoft konnte nicht verbunden werden. Prüfe das Konto und versuche es erneut.";
       console.warn("Gemeinsame Microsoft-Anmeldung fehlgeschlagen.", error);
+      if (typeof syncRuntime !== "undefined") {
+        syncRuntime.msAccount = null;
+        syncRuntime.msStatus = "error";
+        syncRuntime.msMessage = typeof friendlySyncError === "function"
+          ? friendlySyncError(error)
+          : String(error?.message || error || "Microsoft-Fehler");
+      }
+      colleagueSyncStatus = "error";
+      const raw = String(error?.message || error || "");
+      const friendly = typeof friendlySyncError === "function"
+        ? friendlySyncError(error)
+        : raw;
+      colleagueSyncMessage = raw.includes("AADSTS") || raw.toLowerCase().includes("admin")
+        ? "Die Microsoft-Anmeldung wurde vom Konto bzw. von der Schulorganisation abgelehnt. Bei einem Schulkonto kann eine Freigabe durch die IT nötig sein."
+        : `Microsoft konnte nicht verbunden werden: ${friendly}`;
     }
     render();
   };
@@ -525,33 +591,41 @@
     const msNeedsMigration =
       currentMs.clientId !== SHARED_MICROSOFT_CLIENT_ID ||
       currentMs.authority !== SHARED_MICROSOFT_AUTHORITY ||
-      !currentMs.redirectUri;
-
+      currentMs.redirectUri !== detectedRedirectUri();
     const classNeedsMigration = !currentClass.endpoint;
 
-    if (!msNeedsMigration && !classNeedsMigration) return;
+    if (msNeedsMigration || classNeedsMigration) {
+      await persist({
+        ...state,
+        microsoftSync: {
+          ...currentMs,
+          clientId: SHARED_MICROSOFT_CLIENT_ID,
+          authority: SHARED_MICROSOFT_AUTHORITY,
+          // Immer die tatsächlich geöffnete App-Adresse verwenden. Alte Redirects
+          // von früheren Deployments dürfen die Anmeldung nicht blockieren.
+          redirectUri: detectedRedirectUri()
+        },
+        classSync: {
+          ...currentClass,
+          endpoint: currentClass.endpoint || SHARED_CLASS_SYNC_ENDPOINT
+        }
+      });
 
-    await persist({
-      ...state,
-      microsoftSync: {
-        ...currentMs,
-        clientId: SHARED_MICROSOFT_CLIENT_ID,
-        authority: SHARED_MICROSOFT_AUTHORITY,
-        redirectUri: currentMs.redirectUri || detectedRedirectUri()
-      },
-      classSync: {
-        ...currentClass,
-        endpoint: currentClass.endpoint || SHARED_CLASS_SYNC_ENDPOINT
-      }
-    });
+      try {
+        if (typeof syncRuntime !== "undefined") {
+          syncRuntime.pca = null;
+          syncRuntime.pcaClientId = "";
+        }
+      } catch {}
+    }
 
-    // Eine alte MSAL-Instanz mit "consumers" nicht weiterverwenden.
+    // MSAL im Hintergrund vorbereiten. Der spätere Klick kann den Popup damit
+    // unmittelbar öffnen und gerät weniger leicht in einen Popup-Blocker.
     try {
-      if (typeof syncRuntime !== "undefined" && currentMs.authority === "consumers") {
-        syncRuntime.pca = null;
-        syncRuntime.pcaClientId = "";
-      }
-    } catch {}
+      await getMsalClient();
+    } catch (error) {
+      console.warn("Microsoft-Anmeldung konnte noch nicht vorbereitet werden.", error);
+    }
   }
 
   const style = document.createElement("style");
