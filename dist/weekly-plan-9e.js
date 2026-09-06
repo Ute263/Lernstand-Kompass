@@ -443,7 +443,7 @@
     const primary = normalized[0] || { id: `free-lernwoerter-main-${dayIndex}`, text: "", starred: false };
     return `
       <div class="lk-learning-words-free">
-        <div class="lk-learning-words-free-head"><span>✏️ Lernwörter frei eintragen</span><small>Wörter direkt hier eintragen.</small></div>
+        <div class="lk-learning-words-free-head"><span>✏️ Lernwörter eintragen</span><small>Ein freies Feld reicht für die Wörter der Woche.</small></div>
         <div id="${escapeAttribute(`${prefix}Lernwörter${dayIndex}FreeList`)}" class="lk-learning-words-free-list">
           <div class="lk-learning-words-free-row ${primary.starred ? "is-extra" : ""}" data-free-task-row>
             <input type="hidden" data-free-id value="${escapeAttribute(primary.id)}">
@@ -451,18 +451,15 @@
             ${renderStarButton(scope, animalId, day, "Lernwörter", 0, primary.starred, primary.id)}
             <textarea class="text-input lk-learning-words-textarea" data-free-text rows="3" placeholder="z. B. Haus, Häuser, Maus, Mäuse …">${escapeHtml(primary.text)}</textarea>
           </div>
-          ${normalized.slice(1).map((task, taskIndex) => `
-            <div class="lk-free-task-row ${task.starred ? "is-extra" : ""}" data-free-task-row>
-              <input type="hidden" data-free-id value="${escapeAttribute(task.id)}">
-              <input type="hidden" data-free-star value="${task.starred ? "1" : "0"}">
-              ${renderStarButton(scope, animalId, day, "Lernwörter", 0, task.starred, task.id)}
-              ${renderFreeTaskOrderButtons(scope, animalId, day, "Lernwörter", normalized, taskIndex + 1)}
-              <input class="text-input" data-free-text value="${escapeAttribute(task.text)}" placeholder="Weitere Lernwörter …">
-              <button class="weekly-task-remove" type="button" onclick="removeWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','Lernwörter','${escapeAttribute(task.id)}')">×</button>
-            </div>`).join("")}
         </div>
-        <button class="small-button lk-learning-words-more" type="button" onclick="addWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','Lernwörter')">+ weiteres Feld</button>
       </div>`;
+  }
+
+  function deutschSubareaTitle(subject) {
+    if (subject === "Deutsch") return "Arbeitsaufträge";
+    if (subject === "Lesezeit") return "Deutsch · Lesezeit";
+    if (subject === "Lernwörter") return "Deutsch · Lernwörter";
+    return subject;
   }
 
   renderWeeklyPickCell = function renderWeeklyPickCell9e(
@@ -587,13 +584,16 @@
       sectionData[subject] = { keys, ids: normalizeIdArray(data[keys.ids] || data[keys.legacyId]) };
     });
     const renderSection = (subject) => {
-      const title = subject === "Deutsch" ? "Arbeitsaufträge" : subject;
+      const title = deutschSubareaTitle(subject);
       const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : subject === "Lernwörter" ? "lernwoerter" : "mathe";
       const { keys, ids } = sectionData[subject];
       const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, 0, scope, animalId, "Montag") : renderFreeTaskList(data[keys.free], prefix, subject, 0, scope, animalId, "Montag");
+      const workbookPart = subject === "Lernwörter"
+        ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}0`)}" value="">`
+        : renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
       return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)} lk-week-mode-subject">
         <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>
-        ${renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars])}
+        ${workbookPart}
         ${freePart}
       </section>`;
     };
@@ -637,7 +637,6 @@
           const matheIds = normalizeIdArray(data.matheIds || data.matheId);
           const count = deutschIds.length
             + normalizeIdArray(data.lesezeitIds || data.lesezeitId).length
-            + normalizeIdArray(data.lernwoerterIds || data.lernwoerterId).length
             + matheIds.length
             + data.deutschFreeTasks.length
             + data.lesezeitFreeTasks.length
@@ -656,11 +655,14 @@
                   <div class="lk-deutsch-subarea-stack">
                     ${sectionOrder.map((subject) => {
                       const keys = taskKeys(subject);
-                      const title = subject === "Deutsch" ? "Arbeitsaufträge" : subject;
+                      const title = deutschSubareaTitle(subject);
                       const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : "lernwoerter";
                       const ids = subject === "Deutsch" ? deutschIds : normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
                       const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, dayIndex, scope, animalId, day) : renderFreeTaskList(data[keys.free], prefix, subject, dayIndex, scope, animalId, day);
-                      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)}"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>${renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars])}${freePart}</section>`;
+                      const workbookPart = subject === "Lernwörter"
+                        ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}${dayIndex}`)}" value="">`
+                        : renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
+                      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)}"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>${workbookPart}${freePart}</section>`;
                     }).join("")}
                   </div>
                 </div>
@@ -893,7 +895,7 @@
     });
 
     const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
-    ["Lesezeit", "Lernwörter"].forEach((section) => {
+    ["Lesezeit"].forEach((section) => {
       const source = effectiveSubjectDay(plan, day, animalId, section);
       const keys = taskKeys(section);
       const ids = normalizeIdArray(source?.[keys.ids] || source?.[keys.legacyId]);
