@@ -399,9 +399,14 @@
 
   /* ---------- Kompakte Auswahl im Wochenplan ---------- */
 
+  function lkCatalogSubject(subject) {
+    return subject === "Mathe" ? "Mathe" : "Deutsch";
+  }
+
   function lkCatalogForPicker(subject) {
+    const catalogSubject = lkCatalogSubject(subject);
     const all = workbookCatalogForActiveClass()
-      .filter((item) => item.active !== false && item.subject === subject);
+      .filter((item) => item.active !== false && item.subject === catalogSubject);
 
     const activeYear = activeClassSchoolYear(state.activeClassId);
     if (!activeYear || activeYear === "none") return all;
@@ -425,7 +430,9 @@
   function lkSelectedCatalogItem() {
     if (!weeklyPickRequest) return null;
     const prefix = weeklyInputPrefix(weeklyPickRequest.scope, weeklyPickRequest.animalId);
-    const field = weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe";
+    const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(weeklyPickRequest.subject)
+      ? weeklyPickRequest.subject
+      : (weeklyPickRequest.subject === "Mathe" ? "Mathe" : "Deutsch");
     const selectedIds = normalizeIdArray(document.getElementById(`${prefix}${field}${weeklyPickRequest.dayIndex}`)?.value || "");
     const id = selectedIds[selectedIds.length - 1] || "";
     return workbookCatalogForWeeklyPlanClass(state.activeClassId).find((item) => item.id === id)
@@ -438,12 +445,20 @@
     teacherMaterialPicker = null;
 
     const prefix = weeklyInputPrefix(scope, animalId);
-    const field = subject === "Deutsch" ? "Deutsch" : "Mathe";
+    const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(subject)
+      ? subject
+      : (subject === "Mathe" ? "Mathe" : "Deutsch");
+    const catalogSubject = lkCatalogSubject(subject);
     const selectedIds = normalizeIdArray(document.getElementById(`${prefix}${field}${dayIndex}`)?.value || "");
     const catalog = lkCatalogForPicker(subject);
 
+    const preferredReadingBook = subject === "Lesezeit"
+      ? catalog.find((item) => /lesebuch/i.test(String(item.workbook || "")))
+      : null;
+
     const selectedItem = catalog.find((item) => item.id === selectedIds[selectedIds.length - 1])
-      || catalog.find((item) => item.id === defaultWorkbookCatalogIdForSubject(subject, {
+      || preferredReadingBook
+      || catalog.find((item) => item.id === defaultWorkbookCatalogIdForSubject(catalogSubject, {
         animalId: scope === "override" ? animalId : "",
         classId: state.activeClassId
       }))
@@ -499,7 +514,9 @@
     });
 
     const prefix = weeklyInputPrefix(weeklyPickRequest.scope, weeklyPickRequest.animalId);
-    const field = weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe";
+    const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(weeklyPickRequest.subject)
+      ? weeklyPickRequest.subject
+      : (weeklyPickRequest.subject === "Mathe" ? "Mathe" : "Deutsch");
     const selectedIds = normalizeIdArray(
       document.getElementById(`${prefix}${field}${weeklyPickRequest.dayIndex}`)?.value || ""
     );
@@ -513,7 +530,7 @@
           <div class="lk-picker-head">
             <div>
               <span class="weekly-editor-badge">${escapeHtml(weeklyPickRequest.day)}</span>
-              <h2 id="lkWeeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} – Seite auswählen</h2>
+              <h2 id="lkWeeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} – Material auswählen</h2>
             </div>
             <button class="secondary" type="button" onclick="lkOpenWorkbookManagerFromPicker()">Hefte verwalten</button>
           </div>

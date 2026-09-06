@@ -3746,9 +3746,18 @@ function closeWeeklyCatalogPicker() {
 
 function selectWeeklyCatalogItem(catalogId) {
   if (!weeklyPickRequest) return;
-  const field = weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe";
+  const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(weeklyPickRequest.subject)
+    ? weeklyPickRequest.subject
+    : (weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe");
   weeklyPlanDraft = weeklyPlanDraft || collectWeeklyPlanDraftFromDom();
-  setWeeklyDraftValue(weeklyPlanDraft, weeklyPickRequest.scope, weeklyPickRequest.animalId, weeklyPickRequest.day, field, catalogId);
+  setWeeklyDraftValue(
+    weeklyPlanDraft,
+    weeklyPickRequest.scope,
+    weeklyPickRequest.animalId,
+    weeklyPickRequest.day,
+    field,
+    catalogId
+  );
   weeklyPickRequest = null;
   render();
 }
