@@ -577,24 +577,39 @@
 
   function renderWeekLayoutRows(items) {
     if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
-    let previousWorkbook = "";
-    return items.map((item) => {
+
+    const groups = [];
+    items.forEach((item) => {
       const workbook = String(item?.catalogItem?.workbook || "");
-      const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
-      previousWorkbook = workbook;
-      return `
-        <div class="lk-wp-week-row">
-          <div class="lk-wp-week-row-main">
-            ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
-            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover small") : `<span class="lk-wp-book-cover-spacer small" aria-hidden="true"></span>`}
-            <div class="lk-wp-task-copy">
-              <strong>${escapeHtml(pageText(item))}</strong>
+      const key = workbook || `__free__${groups.length}`;
+      const last = groups[groups.length - 1];
+      if (last && last.key === key && workbook) {
+        last.items.push(item);
+      } else {
+        groups.push({ key, workbook, catalogItem: item.catalogItem || null, items: [item] });
+      }
+    });
+
+    return groups.map((group) => `
+      <div class="lk-wp-workbook-group ${group.catalogItem ? "has-cover" : "no-cover"}">
+        ${group.catalogItem
+          ? `<div class="lk-wp-workbook-cover-cell">${renderWorkbookCoverImage(group.catalogItem, "lk-wp-book-cover grouped")}</div>`
+          : ""}
+        <div class="lk-wp-workbook-tasks">
+          ${group.items.map((item) => `
+            <div class="lk-wp-week-row">
+              <div class="lk-wp-week-row-main">
+                ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+                <div class="lk-wp-task-copy">
+                  <strong>${escapeHtml(pageText(item))}</strong>
+                </div>
+              </div>
+              <span class="lk-wp-circle"></span>
             </div>
-          </div>
-          <span class="lk-wp-circle"></span>
+          `).join("")}
         </div>
-      `;
-    }).join("");
+      </div>
+    `).join("");
   }
 
   function renderWeekLayoutSection(title, items, className = "") {
@@ -1077,14 +1092,14 @@
 
         .lk-wp-week-groups {
           display:grid;
-          gap:3mm;
-          margin-top:2mm;
+          gap:2mm;
+          margin-top:1.2mm;
         }
         .lk-wp-week-subject-block {
           display:grid;
-          gap:1.8mm;
-          break-inside:avoid;
-          padding:0 2mm 2mm;
+          gap:1mm;
+          break-inside:auto;
+          padding:0 1.5mm 1.5mm;
           border:.4mm solid #777;
           border-radius:4mm;
           background:#fff;
@@ -1096,9 +1111,9 @@
           display:flex !important;
           align-items:center;
           gap:2.2mm;
-          min-height:10mm;
-          margin:0 -2mm;
-          padding:1.6mm 3mm;
+          min-height:8.5mm;
+          margin:0 -1.5mm;
+          padding:1mm 3mm;
           border-bottom:.35mm solid currentColor;
         }
         .lk-wp-week-subject-head .lk-wp-week-subject-copy {
@@ -1128,17 +1143,17 @@
         }
         .lk-wp-week-subsections {
           display:grid;
-          gap:1.8mm;
+          gap:1mm;
         }
         .lk-wp-week-section {
           border:.35mm solid #6b6b6b;
           border-radius:3.5mm;
           overflow:hidden;
-          break-inside:avoid;
+          break-inside:auto;
         }
         .lk-wp-week-section h2 {
           margin:0;
-          padding:1.8mm 3mm;
+          padding:1.15mm 3mm;
           font-size:11pt;
           font-weight:600;
           border-bottom:.25mm solid #9a9a9a;
@@ -1150,10 +1165,31 @@
         .lk-wp-week-section.star h2 { background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,244,190,.55)); }
         .lk-wp-week-section.extra h2 { background:#f4f4f4; }
         .lk-wp-week-list { display:grid; }
-        .lk-wp-week-row {
-          min-height:8.2mm;
+        .lk-wp-workbook-group {
           display:grid;
-          grid-template-columns:1fr 14mm;
+          grid-template-columns:18mm minmax(0,1fr);
+          border-bottom:.2mm solid #c5c5c5;
+        }
+        .lk-wp-workbook-group:last-child { border-bottom:0; }
+        .lk-wp-workbook-group.no-cover { grid-template-columns:1fr; }
+        .lk-wp-workbook-cover-cell {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:1mm;
+          border-right:.2mm solid #d1d1d1;
+          background:rgba(255,255,255,.56);
+        }
+        .lk-wp-book-cover.grouped {
+          width:14mm;
+          height:20mm;
+          object-fit:contain;
+        }
+        .lk-wp-workbook-tasks { min-width:0; }
+        .lk-wp-week-row {
+          min-height:6.5mm;
+          display:grid;
+          grid-template-columns:1fr 12mm;
           align-items:center;
           border-bottom:.2mm solid #c5c5c5;
         }
@@ -1162,17 +1198,16 @@
           display:flex;
           align-items:center;
           gap:1.5mm;
-          padding:1.2mm 3mm;
+          padding:.65mm 2.5mm;
           font-size:10pt;
         }
         .lk-wp-week-row-main {
           min-width:0;
-          display:grid !important;
-          grid-template-columns:13mm minmax(0,1fr);
+          display:flex !important;
           align-items:center;
-          column-gap:2mm;
+          gap:1.6mm;
         }
-        .lk-wp-week-row-main .lk-wp-task-copy { min-height:10mm; }
+        .lk-wp-week-row-main .lk-wp-task-copy { min-height:0; }
         .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:9.5pt; }
         .lk-wp-week-row .lk-wp-circle {
           position:static;
