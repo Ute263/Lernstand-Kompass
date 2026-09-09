@@ -99,14 +99,25 @@
   }
 
   function mmIsSupportWorkbook(item) {
-    const haystack = [
-      item?.workbook,
-      item?.part,
-      item?.area,
-      item?.title,
-      item?.category
-    ].filter(Boolean).join(" ").toLowerCase();
-    return /inklus|förder|foerder|forder|fordern|förderung|foerderung/.test(haystack);
+    const workbook = String(item?.workbook || "").trim();
+    const part = String(item?.part || "").trim();
+    const category = String(item?.category || "").trim();
+
+    // Reguläre Klassenlehrwerke bleiben im normalen Bereich. Wichtig:
+    // einzelne Aufgabentitel wie „Aufforderungssatz“ dürfen NICHT dazu führen,
+    // dass z. B. ABC der Tiere 2 Teil B als Förderheft einsortiert wird.
+    if (/^ABC der Tiere\s*2/i.test(workbook)) return false;
+    if (/^MiniMax/i.test(workbook)) return false;
+
+    // Diese Reihen sind ausdrücklich als inklusive/Fördermaterialien gedacht
+    // und dürfen schuljahrübergreifend verwendet werden.
+    if (/^Flex und Flora/i.test(workbook)) return true;
+    if (/^Welt der Zahl inklusiv/i.test(workbook)) return true;
+
+    // Bei eigenen Materialien wird nur die Bezeichnung des HEFTES ausgewertet,
+    // nicht der Titel einzelner Aufgaben oder Bereiche.
+    const haystack = [workbook, part, category].filter(Boolean).join(" ").toLowerCase();
+    return /inklus(?:iv|ion)|förder(?:heft|material|ung)?|foerder(?:heft|material|ung)?|forder(?:heft|material)?/.test(haystack);
   }
 
   function mmCatalog(subject, supportOnly = false) {

@@ -8466,7 +8466,9 @@ function weeklyCatalogTopicLabel(catalogItem) {
 
 function workbookCoverForCatalogItem(catalogItem) {
   const workbook = String(catalogItem?.workbook || "");
+  const part = String(catalogItem?.part || "");
   const bookType = String(catalogItem?.bookType || catalogItem?.category || catalogItem?.part || "");
+
   if (workbook === "ABC der Tiere 1") {
     return { src: "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
   }
@@ -8476,11 +8478,36 @@ function workbookCoverForCatalogItem(catalogItem) {
   if (workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
     return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2 – Lernstandsheft" };
   }
-  if (workbook === "MiniMax 1") {
-    return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
+  if (workbook === "MiniMax 1") return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
+  if (workbook === "MiniMax 2" || workbook === "MiniMax") return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
+
+  if (workbook === "Flex und Flora A") {
+    if (/Buchstabenheft 1/i.test(part)) return { src: "./materials/cover-flex-a-bh1.jpg", alt: part };
+    if (/Buchstabenheft 2/i.test(part)) return { src: "./materials/cover-flex-a-bh2.jpg", alt: part };
+    if (/Buchstabenheft 3/i.test(part)) return { src: "./materials/cover-flex-a-bh3.jpg", alt: part };
+    if (/Gut-starten/i.test(part)) return { src: "./materials/cover-flex-a-gut-starten.jpg", alt: part };
   }
-  if (workbook === "MiniMax 2" || workbook === "MiniMax") {
-    return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
+  if (workbook === "Flex und Flora B") {
+    if (/Buchstabenheft 4/i.test(part)) return { src: "./materials/cover-flex-b-bh4.jpg", alt: part };
+    if (/Buchstabenheft 5/i.test(part)) return { src: "./materials/cover-flex-b-bh5.jpg", alt: part };
+    if (/Buchstabenheft 6/i.test(part)) return { src: "./materials/cover-flex-b-bh6.jpg", alt: part };
+    if (/Buchstabenheft 7/i.test(part)) return { src: "./materials/cover-flex-b-bh7.jpg", alt: part };
+  }
+  if (workbook === "Flex und Flora C") {
+    if (/^Lesen$/i.test(part)) return { src: "./materials/cover-flex-c-lesen.jpg", alt: part };
+    if (/Texte schreiben/i.test(part)) return { src: "./materials/cover-flex-c-texte.jpg", alt: part };
+    if (/Richtig schreiben/i.test(part)) return { src: "./materials/cover-flex-c-richtig.jpg", alt: part };
+    if (/Sprache untersuchen/i.test(part)) return { src: "./materials/cover-flex-c-sprache.jpg", alt: part };
+  }
+
+  const wdz = workbook.match(/^Welt der Zahl inklusiv ([ABCD])$/i);
+  if (wdz) {
+    const pack = wdz[1].toLowerCase();
+    const match = part.match(/^([ABCD])(\d)\s*[–-]/i) || part.match(/^([ABCD])(\d)\b/i);
+    if (match) {
+      const unit = match[2];
+      return { src: `./materials/cover-wdz-${pack}${unit}.jpg`, alt: `${workbook} ${match[1].toUpperCase()}${unit}` };
+    }
   }
   return null;
 }
