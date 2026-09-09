@@ -66,8 +66,22 @@ function copyFile(relativePath) {
   fs.copyFileSync(source, target);
 }
 
+function copyDirectory(relativeDir) {
+  const sourceDir = path.join(root, relativeDir);
+  if (!fs.existsSync(sourceDir)) return;
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const relativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) copyDirectory(relativePath);
+    else copyFile(relativePath);
+  }
+}
+
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 files.forEach(copyFile);
+
+// Materialien werden vollständig übernommen. So müssen neue Lehrwerks-Cover
+// nicht bei jeder Ergänzung einzeln in der Build-Liste nachgetragen werden.
+copyDirectory("materials");
 
 console.log(`Build fertig: ${path.relative(root, dist)}`);

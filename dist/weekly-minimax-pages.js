@@ -52,49 +52,87 @@
       : `S. ${numericStart}–${numericEnd}`;
   }
 
+  function mmInferredEnd(items, index) {
+    const item = items[index];
+    const start = mmStart(item);
+    if (!start) return 0;
+    const explicitEnd = Math.max(start, mmEnd(item));
+    if (explicitEnd > start) return explicitEnd;
+    const next = items[index + 1];
+    const nextStart = mmStart(next);
+    if (nextStart > start) return nextStart - 1;
+    return start;
+  }
+
   function mmAreaGroups(items) {
-    const groups = new Map();
+    const sorted = [...items].sort((a, b) => mmStart(a) - mmStart(b));
+    const groups = [];
+    let current = null;
 
-    items.forEach((item) => {
-      const key = mmAreaKey(item);
-      const label = mmAreaLabel(item);
+    sorted.forEach((item, index) => {
       const start = mmStart(item);
-      const end = Math.max(start, mmEnd(item));
       if (!start) return;
+      const end = mmInferredEnd(sorted, index);
+      const areaKey = mmAreaKey(item);
+      const label = mmAreaLabel(item);
 
-      const existing = groups.get(key);
-      if (!existing) {
-        groups.set(key, {
-          key,
+      if (!current || current.areaKey !== areaKey || start > current.end + 1) {
+        current = {
+          key: `${areaKey}__${start}`,
+          areaKey,
           label,
           start,
           end,
           sortStart: start
-        });
-        return;
+        };
+        groups.push(current);
+      } else {
+        current.end = Math.max(current.end, end);
       }
-
-      existing.start = Math.min(existing.start, start);
-      existing.end = Math.max(existing.end, end);
-      existing.sortStart = Math.min(existing.sortStart, start);
     });
 
-    return [...groups.values()].sort((a, b) =>
-      a.sortStart - b.sortStart
-      || a.label.localeCompare(b.label, "de", { numeric: true })
-    );
+    return groups;
   }
 
   function mmIsMiniMaxWorkbook(workbook) {
     return /mini\s*max/i.test(String(workbook || ""));
   }
 
-  function mmCatalog(subject) {
+  function mmIsSupportWorkbook(item) {
+    const workbook = String(item?.workbook || "").trim();
+    const part = String(item?.part || "").trim();
+    const category = String(item?.category || "").trim();
+
+    // Reguläre Klassenlehrwerke bleiben im normalen Bereich. Wichtig:
+    // einzelne Aufgabentitel wie „Aufforderungssatz“ dürfen NICHT dazu führen,
+    // dass z. B. ABC der Tiere 2 Teil B als Förderheft einsortiert wird.
+    if (/^ABC der Tiere\s*2/i.test(workbook)) return false;
+    if (/^MiniMax/i.test(workbook)) return false;
+
+    // Diese Reihen sind ausdrücklich als inklusive/Fördermaterialien gedacht
+    // und dürfen schuljahrübergreifend verwendet werden.
+    if (/^Flex und Flora/i.test(workbook)) return true;
+    if (/^Welt der Zahl inklusiv/i.test(workbook)) return true;
+
+    // Bei eigenen Materialien wird nur die Bezeichnung des HEFTES ausgewertet,
+    // nicht der Titel einzelner Aufgaben oder Bereiche.
+    const haystack = [workbook, part, category].filter(Boolean).join(" ").toLowerCase();
+    return /inklus(?:iv|ion)|förder(?:heft|material|ung)?|foerder(?:heft|material|ung)?|forder(?:heft|material)?/.test(haystack);
+  }
+
+  function mmCatalog(subject, supportOnly = false) {
     // Lesezeit und Lernwörter sind Wochenplan-Bereiche, aber keine eigenen
     // Fächer im Arbeitsmaterial-Katalog. Beide verwenden den Deutsch-Katalog.
     const catalogSubject = subject === "Mathe" ? "Mathe" : "Deutsch";
     const all = workbookCatalogForActiveClass()
       .filter((item) => item.active !== false && item.subject === catalogSubject);
+
+    if (supportOnly) {
+      // Förder-/Inklusions-/Forderhefte sollen bewusst schuljahrübergreifend
+      // auswählbar sein. Ihre formale Klassenstufenzuordnung bleibt im Katalog
+      // erhalten, wird in dieser Ansicht aber nicht als Filter verwendet.
+      return all.filter(mmIsSupportWorkbook);
+    }
 
     let activeYear = "";
     try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
@@ -128,29 +166,12 @@
   }
 
   function mmCandidates(items, workbook, selectedRange, rangeEnd) {
-    if (!mmIsMiniMaxWorkbook(workbook)) {
-      return items
-        .filter((item) => {
-          const page = mmStart(item);
-          return page >= selectedRange && page <= rangeEnd;
-        })
-        .map((item) => ({
-          item,
-          sourceId: item.id,
-          page: mmStart(item),
-          pageEnd: mmEnd(item),
-          exactId: item.id,
-          isVirtual: false,
-          displayLabel: item.displayPages || mmPageSpanLabel(mmStart(item), mmEnd(item))
-        }))
-        .sort((a, b) => a.page - b.page || a.pageEnd - b.pageEnd);
-    }
-
     const byPage = new Map();
+    const sorted = [...items].sort((a, b) => mmStart(a) - mmStart(b));
 
-    items.forEach((item) => {
+    sorted.forEach((item, index) => {
       const start = mmStart(item);
-      const end = Math.max(start, mmEnd(item));
+      const end = Math.max(start, mmInferredEnd(sorted, index));
       if (!start) return;
 
       const from = Math.max(start, selectedRange);
@@ -194,6 +215,69 @@
       document.getElementById(`${prefix}${field}${weeklyPickRequest.dayIndex}`)?.value || ""
     );
   }
+
+  window.lkSetPickerSupportMode = function lkSetPickerSupportMode(enabled) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(enabled);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .sort((a, b) =>
+        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+        || mmStart(a) - mmStart(b)
+      );
+    const first = items[0] || null;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        supportMode,
+        workbook: first?.workbook || "",
+        part: first?.part || "",
+        areaKey: "",
+        rangeStart: first ? mmRangeStart(mmStart(first)) : 1
+      }
+    };
+    render();
+  };
+
+  window.lkSetPickerWorkbook = function lkSetPickerWorkbook(workbook) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .filter((item) => item.workbook === workbook)
+      .sort((a, b) => mmStart(a) - mmStart(b));
+    const first = items[0] || null;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        workbook,
+        part: first?.part || "",
+        areaKey: "",
+        rangeStart: first ? mmRangeStart(mmStart(first)) : 1
+      }
+    };
+    render();
+  };
+
+  window.lkSetPickerPart = function lkSetPickerPart(part) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .filter((item) => item.workbook === (weeklyPickRequest.filters?.workbook || ""))
+      .filter((item) => (item.part || "") === part)
+      .sort((a, b) => mmStart(a) - mmStart(b));
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        part,
+        areaKey: "",
+        rangeStart: items[0] ? mmRangeStart(mmStart(items[0])) : 1
+      }
+    };
+    render();
+  };
 
   window.lkSetPickerArea = function lkSetPickerArea(areaKey) {
     if (!weeklyPickRequest) return;
@@ -265,7 +349,8 @@
   renderWeeklyCatalogPicker = function renderWeeklyCatalogPickerMiniMaxPages() {
     if (!weeklyPickRequest) return "";
 
-    const catalog = mmCatalog(weeklyPickRequest.subject)
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const catalog = mmCatalog(weeklyPickRequest.subject, supportMode)
       .sort((a, b) =>
         a.workbook.localeCompare(b.workbook, "de", { numeric: true })
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
@@ -309,7 +394,10 @@
 
     const visibleItems = useAreaGrouping
       ? mmCandidates(
-          partItems.filter((item) => mmAreaKey(item) === selectedAreaGroup?.key),
+          partItems.filter((item) => {
+            const start = mmStart(item);
+            return start >= (selectedAreaGroup?.start || 1) && start <= (selectedAreaGroup?.end || selectedAreaGroup?.start || 1);
+          }),
           selectedWorkbook,
           selectedAreaGroup?.start || 1,
           selectedAreaGroup?.end || selectedAreaGroup?.start || 1
@@ -341,6 +429,19 @@
           ${workbooks.length ? `
             <div class="lk-picker-step">
               <strong>1. Heft</strong>
+              <div class="lk-picker-tabs lk-workbook-tabs lk-support-filter-tabs">
+                <button
+                  class="lk-picker-tab ${supportMode ? "" : "active"}"
+                  type="button"
+                  onclick="lkSetPickerSupportMode(false)"
+                >Klassenhefte</button>
+                <button
+                  class="lk-picker-tab lk-support-tab ${supportMode ? "active" : ""}"
+                  type="button"
+                  onclick="lkSetPickerSupportMode(true)"
+                  title="Förder-, Inklusions- und Forderhefte aus allen Schuljahren anzeigen"
+                >Förderhefte</button>
+              </div>
               <div class="lk-picker-tabs lk-workbook-tabs">
                 ${workbooks.map((workbook) => `
                   <button
@@ -402,7 +503,7 @@
             <div class="lk-picker-step lk-page-step">
               <div class="lk-page-step-head">
                 <strong>${pageStepNumber}. Seite</strong>
-                <span>${visibleItems.length} ${mmIsMiniMaxWorkbook(selectedWorkbook) ? "Seiten" : "Einträge"}${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
+                <span>${visibleItems.length} Seiten${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
               </div>
 
               <div class="lk-page-grid">
@@ -432,11 +533,11 @@
             </div>
 
             <p class="message lk-picker-tip">
-              ${mmIsMiniMaxWorkbook(selectedWorkbook)
-                ? "Bei MiniMax kannst du jede Seite einzeln auswählen. Das Thema bleibt zur Orientierung sichtbar."
+              ${supportMode
+                ? "Förderhefte werden hier schuljahrübergreifend angezeigt. Jede Seite bleibt einzeln auswählbar."
                 : useAreaGrouping
-                  ? "Die Bereiche folgen dem Inhaltsverzeichnis bzw. den Themenabschnitten des Hefts. So findest du Seiten genauer und schneller."
-                  : "Du siehst höchstens etwa 20 Seiten gleichzeitig. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
+                  ? "Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts."
+                  : "Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
             </p>
           ` : `
             <div class="empty">

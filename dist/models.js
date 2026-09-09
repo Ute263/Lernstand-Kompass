@@ -267,6 +267,269 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
   ...abcCatalog("Teil B", "Fantasie und Wirklichkeit", [
     ["82", "Fantasie und Wirklichkeit"], ["84", "Eine Einladung schreiben"], ["85", "Einen Vorgang beschreiben"], ["86", "Einen Text überarbeiten: Wortfeld „gehen“"], ["87", "Einen Text überarbeiten: Wortfeld „sagen“"], ["88", "Wörter mit h vor l, m, n, r"], ["90", "Einen Text überarbeiten: ihm, ihnen, ihn"], ["91", "Wegbeschreibung"], ["92", "Zusammengesetzte Nomen"], ["44-48", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
   ]),
+
+  // Flex und Flora inklusiv – zusätzliche Förderhefte
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora A", "1", "Buchstabenheft 1 (Grundschrift)", [
+    ["4", "U/u auditiv analysieren", "U/u"],
+    ["6", "U/u motorisch erfassen und schreiben", "U/u"],
+    ["8", "U/u visuell diskriminieren", "U/u"],
+    ["10", "Silben schwingen", "U/u"],
+    ["11", "U/u visuell diskriminieren und handlungsorientiert erarbeiten", "U/u"],
+    ["12", "U/u lesen und schreiben (Silben und Wörter)", "U/u"],
+    ["14", "E/e auditiv analysieren", "E/e"],
+    ["16", "E/e motorisch erfassen und schreiben", "E/e"],
+    ["18", "E/e visuell diskriminieren", "E/e"],
+    ["20", "Silben schwingen", "E/e"],
+    ["21", "E/e visuell diskriminieren und handlungsorientiert erarbeiten", "E/e"],
+    ["22", "E/e lesen und schreiben (Silben und Wörter)", "E/e"],
+    ["24", "S/s auditiv analysieren", "S/s"],
+    ["26", "S/s motorisch erfassen und schreiben", "S/s"],
+    ["28", "S/s visuell diskriminieren", "S/s"],
+    ["30", "Silben schwingen", "S/s"],
+    ["31", "S/s visuell diskriminieren und handlungsorientiert erarbeiten", "S/s"],
+    ["32", "S/s lesen und schreiben (Silben und Wörter)", "S/s"],
+    ["34", "F/f auditiv analysieren", "F/f"],
+    ["36", "F/f motorisch erfassen und schreiben", "F/f"],
+    ["38", "F/f visuell diskriminieren", "F/f"],
+    ["40", "Silben schwingen", "F/f"],
+    ["41", "F/f visuell diskriminieren und handlungsorientiert erarbeiten", "F/f"],
+    ["42", "F/f lesen und schreiben (Silben und Wörter)", "F/f"],
+    ["44", "Wörterliste", "Abschluss"],
+    ["46", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora A", "1", "Buchstabenheft 2 (Grundschrift)", [
+    ["4", "Wege nachspuren 1", "Graphomotorik"], ["6", "Wege nachspuren 2", "Graphomotorik"],
+    ["8", "Formen nachspuren", "Graphomotorik"], ["10", "Formen in Lineatur nachspuren", "Graphomotorik"],
+    ["12", "Silbenbögen nachspuren", "Graphomotorik"], ["14", "Silben schwingen", "Phonologische Bewusstheit"],
+    ["16", "Reime finden", "Phonologische Bewusstheit"], ["18", "Anlaute hören 1", "Phonologische Bewusstheit"],
+    ["20", "Anlaute hören 2", "Phonologische Bewusstheit"], ["22", "Bilder vergleichen 1", "Visuelle Wahrnehmung"],
+    ["24", "Bilder vergleichen 2", "Visuelle Wahrnehmung"], ["26", "Fehler im Suchbild finden", "Visuelle Wahrnehmung"],
+    ["28", "Reihen fortsetzen", "Visuelle Wahrnehmung"], ["30", "Schattenbilder erkennen", "Visuelle Wahrnehmung"],
+    ["32", "Anlautbilder kennenlernen 1", "Visuelle Wahrnehmung"], ["34", "Anlautbilder kennenlernen 2", "Visuelle Wahrnehmung"],
+    ["36", "Anlautbilder der Schreibtabelle kennenlernen", "Visuelle Wahrnehmung"], ["38", "Buchstaben der Schreibtabelle kennenlernen", "Visuelle Wahrnehmung"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora A", "1", "Buchstabenheft 3 (Grundschrift)", [
+    ["4", "N/n auditiv analysieren", "N/n"], ["6", "N/n motorisch erfassen und schreiben", "N/n"],
+    ["8", "N/n visuell diskriminieren", "N/n"], ["10", "N/n auditiv analysieren: Lautposition", "N/n"],
+    ["11", "Silben schwingen und N/n handlungsorientiert erarbeiten", "N/n"], ["12", "N/n lesen und schreiben (Silben, Wörter und Sätze)", "N/n"],
+    ["14", "W/w auditiv analysieren", "W/w"], ["16", "W/w motorisch erfassen und schreiben", "W/w"],
+    ["18", "W/w visuell diskriminieren", "W/w"], ["20", "W/w auditiv analysieren: Lautposition", "W/w"],
+    ["21", "Silben schwingen und W/w handlungsorientiert erarbeiten", "W/w"], ["22", "W/w lesen und schreiben (Silben, Wörter und Halbsätze)", "W/w"],
+    ["24", "R/r auditiv analysieren", "R/r"], ["26", "R/r motorisch erfassen und schreiben", "R/r"],
+    ["28", "R/r visuell diskriminieren", "R/r"], ["30", "R/r auditiv analysieren: Lautposition", "R/r"],
+    ["31", "Silben schwingen und R/r handlungsorientiert erarbeiten", "R/r"], ["32", "R/r lesen und schreiben (Silben, Wörter und Halbsätze)", "R/r"],
+    ["34", "T/t auditiv analysieren", "T/t"], ["36", "T/t motorisch erfassen und schreiben", "T/t"],
+    ["38", "T/t visuell diskriminieren", "T/t"], ["40", "T/t auditiv analysieren: Lautposition", "T/t"],
+    ["41", "Silben schwingen und T/t handlungsorientiert erarbeiten", "T/t"], ["42", "T/t lesen und schreiben (Silben, Wörter und Halbsätze)", "T/t"],
+    ["44", "Wörterliste", "Abschluss"], ["46", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora B", "1", "Buchstabenheft 4 (Grundschrift)", [
+    ["4", "Au/au auditiv analysieren", "Au/au"], ["6", "Au/au motorisch erfassen und schreiben", "Au/au"],
+    ["8", "Au/au visuell diskriminieren", "Au/au"], ["10", "Au/au auditiv analysieren: Lautposition", "Au/au"],
+    ["11", "Silben schwingen und Au/au handlungsorientiert erarbeiten", "Au/au"], ["12", "Au/au lesen und schreiben (Silben, Wörter und Sätze)", "Au/au"],
+    ["14", "P/p auditiv analysieren", "P/p"], ["16", "P/p motorisch erfassen und schreiben", "P/p"],
+    ["18", "P/p visuell diskriminieren", "P/p"], ["20", "P/p auditiv analysieren: Lautposition", "P/p"],
+    ["21", "Silben schwingen und P/p handlungsorientiert erarbeiten", "P/p"], ["22", "P/p lesen und schreiben (Silben, Wörter und Sätze)", "P/p"],
+    ["24", "Ei/ei auditiv analysieren", "Ei/ei"], ["26", "Ei/ei motorisch erfassen und schreiben", "Ei/ei"],
+    ["28", "Ei/ei visuell diskriminieren", "Ei/ei"], ["30", "Ei/ei auditiv analysieren: Lautposition", "Ei/ei"],
+    ["31", "Silben schwingen und Ei/ei handlungsorientiert erarbeiten", "Ei/ei"], ["32", "Ei/ei lesen und schreiben (Silben, Wörter und Sätze)", "Ei/ei"],
+    ["34", "D/d auditiv analysieren", "D/d"], ["36", "D/d motorisch erfassen und schreiben", "D/d"],
+    ["38", "D/d visuell diskriminieren", "D/d"], ["40", "D/d auditiv analysieren: Lautposition", "D/d"],
+    ["41", "Silben schwingen und D/d handlungsorientiert erarbeiten", "D/d"], ["42", "D/d lesen und schreiben (Silben, Wörter und Sätze)", "D/d"],
+    ["44", "Wörterliste", "Abschluss"], ["46", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora B", "1", "Buchstabenheft 5 (Grundschrift)", [
+    ["4", "Sch/sch auditiv analysieren", "Sch/sch"], ["6", "Sch/sch motorisch erfassen und schreiben", "Sch/sch"],
+    ["8", "Sch/sch visuell diskriminieren und Silben schwingen", "Sch/sch"], ["9", "Sch/sch auditiv analysieren und Bildwörter verschriften", "Sch/sch"],
+    ["10", "Sch/sch lesen (Silben, Wörter, Halbsätze und Sätze)", "Sch/sch"],
+    ["12", "K/k auditiv analysieren", "K/k"], ["14", "K/k motorisch erfassen und schreiben", "K/k"],
+    ["16", "K/k visuell diskriminieren und Silben schwingen", "K/k"], ["17", "K/k auditiv analysieren und Bildwörter verschriften", "K/k"],
+    ["18", "K/k lesen (Silben, Wörter, Halbsätze und Sätze)", "K/k"],
+    ["20", "H/h auditiv analysieren", "H/h"], ["22", "H/h motorisch erfassen und schreiben", "H/h"],
+    ["24", "H/h visuell diskriminieren und Silben schwingen", "H/h"], ["25", "H/h auditiv analysieren und Bildwörter verschriften", "H/h"],
+    ["26", "H/h lesen (Silben, Wörter, Halbsätze und Sätze)", "H/h"],
+    ["28", "B/b auditiv analysieren", "B/b"], ["30", "B/b motorisch erfassen und schreiben", "B/b"],
+    ["32", "B/b visuell diskriminieren und Silben schwingen", "B/b"], ["33", "B/b auditiv analysieren und Bildwörter verschriften", "B/b"],
+    ["34", "B/b lesen (Silben, Wörter, Halbsätze und Sätze)", "B/b"], ["36", "Wörterliste", "Abschluss"], ["38", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora B", "1", "Buchstabenheft 6 (Grundschrift)", [
+    ["4", "G/g auditiv analysieren und Silben schwingen", "G/g"], ["6", "G/g motorisch erfassen und schreiben", "G/g"],
+    ["8", "G/g visuell diskriminieren und Bildwörter frei verschriften", "G/g"], ["9", "G/g lesen", "G/g"], ["10", "G/g lesen", "G/g"],
+    ["12", "Z/z auditiv analysieren und Silben schwingen", "Z/z"], ["14", "Z/z motorisch erfassen und schreiben", "Z/z"],
+    ["16", "Z/z visuell diskriminieren und Bildwörter frei verschriften", "Z/z"], ["17", "Z/z lesen", "Z/z"], ["18", "Z/z lesen", "Z/z"],
+    ["20", "Eu/eu auditiv analysieren und Silben schwingen", "Eu/eu"], ["22", "Eu/eu motorisch erfassen und schreiben", "Eu/eu"],
+    ["24", "Eu/eu visuell diskriminieren und Bildwörter frei verschriften", "Eu/eu"], ["25", "Eu/eu lesen", "Eu/eu"], ["26", "Eu/eu lesen", "Eu/eu"],
+    ["28", "ch auditiv analysieren", "ch"], ["30", "ch auditiv analysieren und Silben schwingen", "ch"],
+    ["31", "ch motorisch erfassen und schreiben", "ch"], ["32", "ch visuell diskriminieren und Bildwörter frei verschriften", "ch"], ["33", "ch lesen", "ch"], ["34", "ch lesen", "ch"],
+    ["36", "ie auditiv analysieren, motorisch erfassen und schreiben", "ie"], ["37", "ie schreiben, visuell diskriminieren und Silben schwingen", "ie"], ["38", "ie lesen", "ie"],
+    ["40", "Sp/sp auditiv analysieren, motorisch erfassen und schreiben", "Sp/sp"], ["41", "Sp/sp schreiben, visuell diskriminieren und auditiv analysieren", "Sp/sp"], ["42", "Sp/sp lesen", "Sp/sp"],
+    ["44", "St/st auditiv analysieren, motorisch erfassen und schreiben", "St/st"], ["45", "St/st schreiben, visuell diskriminieren und auditiv analysieren", "St/st"], ["46", "St/st lesen", "St/st"],
+    ["48", "J/j auditiv analysieren", "J/j"], ["49", "J/j motorisch erfassen, schreiben und visuell diskriminieren", "J/j"], ["50", "J/j lesen", "J/j"],
+    ["52", "Wörterliste", "Abschluss"], ["54", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora B", "1", "Buchstabenheft 7 (Grundschrift)", [
+    ["4", "V/v motorisch und visuell erfassen, V/v schreiben", "V/v"], ["5", "V/v schreiben, visuell diskriminieren und Merkwörter üben", "V/v"], ["6", "V/v lesen", "V/v"],
+    ["8", "Ö/ö auditiv analysieren", "Ö/ö + Ü/ü"], ["9", "Ö/ö motorisch erfassen, schreiben und visuell diskriminieren", "Ö/ö + Ü/ü"],
+    ["10", "Ü/ü auditiv analysieren", "Ö/ö + Ü/ü"], ["11", "Ü/ü motorisch erfassen, schreiben und visuell diskriminieren", "Ö/ö + Ü/ü"], ["12", "Ö/ö und Ü/ü lesen", "Ö/ö + Ü/ü"],
+    ["14", "Ä/ä motorisch und visuell erfassen, Ä/ä schreiben", "Ä/ä + äu"], ["15", "Ä/ä schreiben, visuell diskriminieren und ableiten", "Ä/ä + äu"],
+    ["16", "äu motorisch und visuell erfassen, äu schreiben", "Ä/ä + äu"], ["17", "äu schreiben, visuell diskriminieren und ableiten", "Ä/ä + äu"], ["18", "Ä/ä und äu lesen", "Ä/ä + äu"],
+    ["20", "Pf/pf motorisch und visuell erfassen, Pf/pf schreiben", "Pf/pf"], ["21", "Pf/pf schreiben, visuell diskriminieren und auditiv analysieren", "Pf/pf"], ["22", "Pf/pf lesen", "Pf/pf"],
+    ["24", "Qu/qu motorisch und visuell erfassen, Qu/qu schreiben", "Qu/qu"], ["25", "Qu/qu schreiben, visuell diskriminieren und auditiv analysieren", "Qu/qu"], ["26", "Qu/qu lesen", "Qu/qu"],
+    ["28", "ß motorisch und visuell erfassen, ß schreiben", "ß"], ["29", "ß schreiben, visuell diskriminieren und Silben schwingen", "ß"], ["30", "ß lesen", "ß"],
+    ["32", "C/c motorisch und visuell erfassen, C/c schreiben", "C/c"], ["33", "C/c schreiben, visuell diskriminieren und Merkwörter üben", "C/c"], ["34", "C/c lesen", "C/c"],
+    ["36", "Y/y motorisch und visuell erfassen, Y/y schreiben", "Y/y"], ["37", "Y/y schreiben, visuell diskriminieren und Merkwörter üben", "Y/y"], ["38", "Y/y lesen", "Y/y"],
+    ["40", "X/x motorisch und visuell erfassen, X/x schreiben", "X/x"], ["41", "X/x schreiben, visuell diskriminieren und Merkwörter üben", "X/x"], ["42", "X/x lesen", "X/x"],
+    ["44", "ng und tz motorisch und visuell erfassen, ng und tz schreiben", "ng + tz"], ["46", "ng und tz lesen", "ng + tz"],
+    ["48", "ck und nk motorisch und visuell erfassen, ck und nk schreiben", "ck + nk"], ["50", "ck und nk lesen", "ck + nk"],
+    ["52", "Wörterliste", "Abschluss"], ["54", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora C", "2", "Lesen", [
+    ["4", "Gut starten", "Gut starten"], ["8", "Lesen üben mit Wörtern und Sätzen", "Lesen üben mit Wörtern und Sätzen"],
+    ["9", "Passende Wörter finden", "Lesen üben mit Wörtern und Sätzen"], ["10", "Wörter und Sätze mit Bildern vergleichen", "Lesen üben mit Wörtern und Sätzen"],
+    ["11", "Lesen und malen", "Lesen üben mit Wörtern und Sätzen"], ["13", "Handelnd lesen und zuordnen 1", "Lesen üben mit Wörtern und Sätzen"],
+    ["14", "Handelnd lesen und zuordnen 2", "Lesen üben mit Wörtern und Sätzen"], ["15", "Leserätsel lösen", "Lesen üben mit Wörtern und Sätzen"],
+    ["16", "Lesen üben mit Texten", "Lesen üben mit Texten"], ["17", "Handelnd Bilder und Texte ordnen 1", "Lesen üben mit Texten"],
+    ["18", "Handelnd Bilder und Texte ordnen 2", "Lesen üben mit Texten"], ["19", "Eine Geschichte mit Bildern lesen", "Lesen üben mit Texten"],
+    ["20", "Genau lesen", "Genau lesen"], ["21", "Buchstaben und Wörter finden", "Genau lesen"], ["22", "Wörter erschließen", "Genau lesen"],
+    ["23", "Handelnd Wörter lesen 1", "Genau lesen"], ["24", "Handelnd Wörter lesen 2", "Genau lesen"], ["25", "Stolperwörter finden", "Genau lesen"],
+    ["26", "Tabellen lesen", "Tabellen lesen"], ["28", "Einen Stundenplan lesen", "Tabellen lesen"],
+    ["30", "Fachbegriffe zu Texten kennenlernen", "Fachbegriffe zu Texten kennenlernen"], ["31", "Fachbegriffe zuordnen", "Fachbegriffe zu Texten kennenlernen"], ["32", "Fachbegriffe anwenden", "Fachbegriffe zu Texten kennenlernen"],
+    ["34", "Einen Text lesen und verstehen", "Einen Text lesen und verstehen"], ["36", "Fragen zu Texten beantworten", "Einen Text lesen und verstehen"], ["37", "Über Texte nachdenken und sprechen", "Einen Text lesen und verstehen"], ["38", "Einen Sachtext lesen und Fragen beantworten", "Einen Text lesen und verstehen"],
+    ["40", "Medien kennenlernen und nutzen", "Medien kennenlernen und nutzen"], ["41", "Über Leseinteresse nachdenken", "Medien kennenlernen und nutzen"], ["42", "Über Mediennutzung nachdenken", "Medien kennenlernen und nutzen"],
+    ["44", "Ein Kinderbuch lesen und vorstellen", "Ein Kinderbuch lesen und vorstellen"], ["46", "Ein Buch vorstellen", "Ein Kinderbuch lesen und vorstellen"], ["47", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora C", "2", "Texte schreiben", [
+    ["4", "Gut starten", "Gut starten"], ["10", "Listen schreiben", "Listen schreiben"], ["11", "Packlisten schreiben", "Listen schreiben"], ["12", "Wunschlisten zuordnen und schreiben", "Listen schreiben"],
+    ["14", "Genau beschreiben", "Genau beschreiben"], ["15", "Tiere beschreiben", "Genau beschreiben"], ["16", "Einen Steckbrief schreiben", "Genau beschreiben"], ["17", "Einen eigenen Steckbrief schreiben", "Genau beschreiben"],
+    ["18", "Die Reihenfolge beachten", "Die Reihenfolge beachten"], ["19", "Handelnd Bilder ordnen 1", "Die Reihenfolge beachten"], ["20", "Handelnd Bilder ordnen 2", "Die Reihenfolge beachten"], ["21", "Eine Reihenfolge finden", "Die Reihenfolge beachten"],
+    ["22", "Schreibideen sammeln und Geschichten schreiben", "Schreibideen sammeln und Geschichten schreiben"], ["24", "Mit einem Gedankenschwarm arbeiten", "Schreibideen sammeln und Geschichten schreiben"], ["25", "Handelnd einen Gedankenschwarm ergänzen", "Schreibideen sammeln und Geschichten schreiben"], ["26", "Handelnd einen Gedankenschwarm erstellen und eine Geschichte schreiben", "Schreibideen sammeln und Geschichten schreiben"],
+    ["28", "Gedichte schreiben", "Gedichte schreiben"], ["29", "Ein Akrostichon schreiben", "Gedichte schreiben"], ["30", "Ein Bildgedicht untersuchen", "Gedichte schreiben"], ["31", "Ein Bildgedicht schreiben", "Gedichte schreiben"],
+    ["32", "An andere schreiben", "An andere schreiben"], ["33", "Nachrichten erkennen", "An andere schreiben"], ["34", "Nachrichten schreiben", "An andere schreiben"],
+    ["36", "Digitale Nachrichten schreiben", "Digitale Nachrichten schreiben"], ["38", "Emojis und Abkürzungen kennenlernen", "Digitale Nachrichten schreiben"], ["39", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora C", "2", "Richtig schreiben", [
+    ["4", "Gut starten", "Gut starten"], ["8", "Abschreiben mit Silbenbögen", "Abschreiben mit Silbenbögen"], ["9", "Mit Silbenbögen kontrollieren", "Abschreiben mit Silbenbögen"], ["10", "Mit dem Abschreibpfeil arbeiten", "Abschreiben mit Silbenbögen"],
+    ["12", "Wörter mit St st schreiben und Wörter mit Sp sp schreiben", "St st / Sp sp"], ["14", "St st üben", "St st / Sp sp"], ["15", "Handelnd Sp sp üben", "St st / Sp sp"], ["16", "Handelnd St st und Sp sp üben", "St st / Sp sp"], ["17", "St st und Sp sp üben", "St st / Sp sp"],
+    ["18", "Wörter mit ie schreiben", "Wörter mit ie schreiben"], ["19", "Wörter mit ie üben", "Wörter mit ie schreiben"], ["20", "Wörter mit ie schreiben", "Wörter mit ie schreiben"], ["21", "Handelnd Wörter mit ie bilden 1", "Wörter mit ie schreiben"], ["22", "Handelnd Wörter mit ie bilden 2", "Wörter mit ie schreiben"], ["23", "Wörter mit ie erkennen", "Wörter mit ie schreiben"],
+    ["24", "Mit der Wörterliste arbeiten", "Mit der Wörterliste arbeiten"], ["25", "Teile der Wörterliste kennenlernen", "Mit der Wörterliste arbeiten"], ["26", "Wörter aus der Wörterliste abschreiben", "Mit der Wörterliste arbeiten"], ["27", "Wörter nachschlagen", "Mit der Wörterliste arbeiten"], ["28", "Die ganze Wörterliste nutzen", "Mit der Wörterliste arbeiten"],
+    ["30", "Merkwörter üben", "Merkwörter üben"], ["31", "Schwierige Stellen markieren", "Merkwörter üben"], ["32", "Wörter auswählen und üben", "Merkwörter üben"],
+    ["34", "Wörter mit ä ableiten und schreiben", "Ableiten"], ["36", "Wörter mit äu ableiten und schreiben", "Ableiten"],
+    ["38", "Nomen großschreiben", "Nomen großschreiben"], ["39", "Nomen schreiben", "Nomen großschreiben"], ["40", "Nomen in der Wörterliste suchen", "Nomen großschreiben"], ["41", "Nomen erkennen", "Nomen großschreiben"],
+    ["42", "Satzanfänge großschreiben", "Satzanfänge großschreiben"], ["44", "Satzanfänge erkennen und schreiben", "Satzanfänge großschreiben"], ["45", "Punkte setzen und markieren", "Satzanfänge großschreiben"], ["46", "Satzanfänge und Satzenden erkennen und verbessern", "Satzanfänge großschreiben"], ["48", "Sätze bilden und schreiben", "Satzanfänge großschreiben"],
+    ["49", "Wörterliste", "Wörterliste"], ["56", "Das kann ich jetzt", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Deutsch", "Flex und Flora C", "2", "Sprache untersuchen", [
+    ["4", "Gut starten", "Gut starten"], ["8", "Selbstlaute erkennen", "Selbstlaute erkennen"], ["9", "Selbstlaute suchen", "Selbstlaute erkennen"], ["10", "Selbstlaute einsetzen", "Selbstlaute erkennen"], ["11", "Mit Selbstlauten spielen", "Selbstlaute erkennen"],
+    ["12", "Mit Umlauten arbeiten und mit Zwielauten arbeiten", "Umlaute und Zwielaute"], ["14", "Umlaute und Zwielaute suchen", "Umlaute und Zwielaute"], ["15", "Umlaute und Zwielaute einsetzen", "Umlaute und Zwielaute"], ["16", "Umlaute erkennen und Zwielaute erkennen", "Umlaute und Zwielaute"],
+    ["18", "Silben erkennen", "Silben erkennen"], ["20", "Wörter in Silben zerlegen", "Silben erkennen"], ["21", "Handelnd Wörter bilden 1", "Silben erkennen"], ["22", "Handelnd Wörter bilden 2", "Silben erkennen"], ["23", "Wörter aus Silben bilden", "Silben erkennen"],
+    ["24", "Mit dem ABC arbeiten", "Mit dem ABC arbeiten"], ["25", "ABCDE und FGHIJK üben", "Mit dem ABC arbeiten"], ["26", "LMNOPQu, RSTUVW, XYZ üben", "Mit dem ABC arbeiten"], ["27", "Das ganze ABC üben", "Mit dem ABC arbeiten"],
+    ["28", "Wörter nach dem ABC ordnen", "Wörter nach dem ABC ordnen"], ["29", "Nach Teilen des ABC ordnen 1", "Wörter nach dem ABC ordnen"], ["30", "Nach Teilen des ABC ordnen 2", "Wörter nach dem ABC ordnen"], ["31", "Handelnd Wörter ordnen 1", "Wörter nach dem ABC ordnen"], ["32", "Handelnd Wörter ordnen 2", "Wörter nach dem ABC ordnen"], ["33", "Wörter nach dem ABC ordnen", "Wörter nach dem ABC ordnen"],
+    ["34", "Nomen erkennen und Nomen ordnen", "Nomen"], ["36", "Nomen: Wörter für Menschen", "Nomen"], ["37", "Nomen: Wörter für Tiere", "Nomen"], ["38", "Nomen: Wörter für Pflanzen", "Nomen"], ["39", "Nomen: Wörter für Dinge", "Nomen"], ["40", "Nomen und Namen erkennen", "Nomen"], ["41", "Handelnd Nomen ordnen 1", "Nomen"], ["42", "Handelnd Nomen ordnen 2", "Nomen"], ["43", "Mit Nomen arbeiten", "Nomen"],
+    ["44", "Artikel erkennen", "Artikel"], ["45", "Artikel zuordnen", "Artikel"], ["46", "Nomen mit Artikeln schreiben", "Artikel"], ["47", "Artikel in Sätzen erkennen", "Artikel"],
+    ["48", "Verben erkennen", "Verben"], ["49", "Handelnd Verben zuordnen 1", "Verben"], ["50", "Handelnd Verben zuordnen 2", "Verben"], ["51", "Verben zuordnen", "Verben"], ["52", "Verben Oberbegriffen zuordnen", "Verben"], ["53", "Verben in Sätzen ergänzen", "Verben"], ["54", "Verben in Sätzen erkennen", "Verben"], ["55", "Das kann ich jetzt", "Abschluss"]
+  ]),
+
+  // Welt der Zahl inklusiv – Pakete A bis D
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv A", "1", "A1 – Zahlen bis 6", [
+    ["2", "Die Zahlen 1 bis 3", "Zahlen bis 3"], ["6", "Die Zahl 1 schreiben", "Zahlen bis 3"], ["8", "Die Zahl 2 schreiben", "Zahlen bis 3"], ["10", "Die Zahl 3 schreiben", "Zahlen bis 3"], ["12", "Die Zahlen 1 bis 3 schreiben und Anzahlen bestimmen", "Zahlen bis 3"], ["14", "Mengen einkreisen (bis 3)", "Zahlen bis 3"], ["15", "Mengen erfassen (Zählbild bis 3)", "Zahlen bis 3"],
+    ["16", "Die Zahlen 4 bis 6", "Zahlen bis 6"], ["18", "Die Zahlen 1 bis 6", "Zahlen bis 6"], ["20", "Die Zahl 4 schreiben", "Zahlen bis 6"], ["22", "Die Zahl 5 schreiben", "Zahlen bis 6"], ["24", "Die Zahl 6 schreiben", "Zahlen bis 6"], ["26", "Die Zahlen 1 bis 6 schreiben und Anzahlen bestimmen", "Zahlen bis 6"], ["28", "Mengen einkreisen (bis 6)", "Zahlen bis 6"], ["29", "Mengen erfassen (Zählbild bis 6)", "Zahlen bis 6"],
+    ["30", "Mengen in Rechenschiffen (bis 5)", "Mengen in Rechenschiffen"], ["31", "Mengen in Rechenschiffen (bis 6)", "Mengen in Rechenschiffen"], ["32", "Wie viele Plättchen sind es?", "Mengen in Rechenschiffen"], ["33", "Die Zahl 0 schreiben", "Mengen in Rechenschiffen"], ["34", "Mengen vergleichen: Wo sind mehr Plättchen?", "Mengen in Rechenschiffen"],
+    ["36-37", "Zahlenreihe bis 6", "Zahlenreihe bis 6"], ["38", "Zerlegen", "Zerlegen"], ["40", "Zerlegen an Rechenschiffen", "Zerlegen"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv A", "1", "A2 – Rechnen bis 6", [
+    ["2", "Zahlen-Freunde der 5", "Zerlegen"], ["3", "Zahlen-Freunde der 2, 3 und 4", "Zerlegen"], ["4", "Zahlen-Freunde der 6", "Zerlegen"], ["5", "Zahlen-Freunde der 3, 4 und 5 (ungeordnet)", "Zerlegen"], ["7", "Zahlen-Freunde der 6 (ungeordnet)", "Zerlegen"],
+    ["8", "Addieren als Hinzukommen (3-Bild-Darstellung)", "Addieren"], ["10", "Addieren als Hinzukommen (1-Bild-Darstellung)", "Addieren"], ["12", "Plus-Geschichten", "Addieren"], ["14", "Addieren mit Plättchen", "Addieren"], ["16", "Addieren mit Rechenschiffen", "Addieren"],
+    ["20", "Subtrahieren als Weggehen (3-Bild-Darstellung)", "Subtrahieren"], ["22", "Subtrahieren als Weggehen (1-Bild-Darstellung)", "Subtrahieren"], ["24", "Minus-Geschichten", "Subtrahieren"], ["26", "Subtrahieren mit Plättchen", "Subtrahieren"], ["28", "Subtrahieren mit Rechenschiffen", "Subtrahieren"], ["32-35", "Übungen zum Addieren und Subtrahieren", "Subtrahieren"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv A", "1", "A3 – Zahlen bis 10", [
+    ["2", "Die Zahlen 1 bis 10", "Zahlen bis 10"], ["6", "Die Zahl 7 schreiben", "Zahlen bis 10"], ["8", "Die Zahl 8 schreiben", "Zahlen bis 10"], ["10", "Die Zahlen 7 und 8 schreiben und Anzahlen bestimmen", "Zahlen bis 10"], ["12", "Die Zahl 9 schreiben", "Zahlen bis 10"], ["14", "Die Zahl 10 schreiben", "Zahlen bis 10"], ["15", "Die Zahlen 9 und 10 schreiben und Anzahlen bestimmen", "Zahlen bis 10"],
+    ["16", "Mengen in Rechenschiffen (bis 10)", "Mengen in Rechenschiffen"], ["18", "Zerlegungen mit 5", "Mengen in Rechenschiffen"], ["20", "Mengen vergleichen: Wo sind mehr Plättchen?", "Mengen in Rechenschiffen"], ["21", "Mengen vergleichen: Wie viele Plättchen sind es mehr?", "Mengen in Rechenschiffen"],
+    ["22", "Zahlenreihe bis 10", "Zahlenreihe bis 10"], ["24", "Vorgänger und Nachfolger", "Zahlenreihe bis 10"],
+    ["26", "Zahlen bis 10 am Rechenrahmen", "Zahlen am Rechenrahmen"], ["29", "Übungen am Rechenrahmen", "Zahlen am Rechenrahmen"], ["30-32", "Größer als – kleiner als", "Größer als – kleiner als"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv A", "1", "A4 – Rechnen bis 10", [
+    ["2", "Zahlen-Freunde der 7", "Zerlegen"], ["3", "Zahlen-Freunde der 8", "Zerlegen"], ["4", "Zahlen-Freunde der 9", "Zerlegen"], ["5", "Zahlen-Freunde der 10", "Zerlegen"],
+    ["6", "Addieren als Hinzukommen", "Addieren (im Zahlenraum bis 10)"], ["8", "Addieren mit Rechenschiffen", "Addieren (im Zahlenraum bis 10)"], ["10", "Ergänzen", "Addieren (im Zahlenraum bis 10)"], ["12", "Addieren am Rechenrahmen", "Addieren (im Zahlenraum bis 10)"], ["16", "Ergänzen zur 10 am Rechenrahmen", "Addieren (im Zahlenraum bis 10)"],
+    ["18", "Subtrahieren als Weggehen", "Subtrahieren (im Zahlenraum bis 10)"], ["20", "Subtrahieren mit Rechenschiffen", "Subtrahieren (im Zahlenraum bis 10)"], ["22", "Subtrahend gesucht", "Subtrahieren (im Zahlenraum bis 10)"], ["24", "Subtrahieren am Rechenrahmen", "Subtrahieren (im Zahlenraum bis 10)"], ["28", "Subtrahieren von 10 am Rechenrahmen", "Subtrahieren (im Zahlenraum bis 10)"],
+    ["30", "Geschichten zu Aufgabe und Umkehraufgabe", "Verwandte Aufgaben"], ["32", "Aufgabe und Umkehraufgabe am Rechenrahmen", "Verwandte Aufgaben"], ["34", "Aufgabe und Umkehraufgabe", "Verwandte Aufgaben"], ["36", "Aufgabe und Tauschaufgabe", "Verwandte Aufgaben"], ["38", "Verwandte Aufgaben (Pluminchen)", "Verwandte Aufgaben"], ["40", "Übungen zum Addieren und Subtrahieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv B", "1", "B1 – Zahlen bis 20", [
+    ["2", "Die Zahlen 11 bis 20", "Zahlen bis 20"], ["4", "Zehner und Einer (Bündeln)", "Zahlen bis 20"], ["6", "Zehner und Einer in Rechenschiffen (Bündeln)", "Zahlen bis 20"], ["8", "Geschicktes Zählen", "Zahlen bis 20"],
+    ["10", "Zahlenreihe bis 20", "Zahlenreihe bis 20"], ["12", "Vorgänger und Nachfolger", "Zahlenreihe bis 20"],
+    ["14", "Mengen vergleichen: Wo sind mehr Plättchen?", "Mengen in Rechenschiffen"], ["15", "Mengen vergleichen: Wie viele Plättchen sind es mehr?", "Mengen in Rechenschiffen"], ["16", "Die Zahlen 11 bis 20 in Rechenschiffen", "Mengen in Rechenschiffen"], ["18", "Subtrahieren mit 10 in Rechenschiffen", "Mengen in Rechenschiffen"], ["19", "Addieren mit 10 in Rechenschiffen", "Mengen in Rechenschiffen"],
+    ["20", "Zahlen bis 20 am Rechenrahmen", "Zahlen am Rechenrahmen"], ["23", "Übungen am Rechenrahmen", "Zahlen am Rechenrahmen"], ["24", "Mengen bis 20 (am Rechenrahmen und in Rechenschiffen)", "Zahlen am Rechenrahmen"], ["26", "Addieren mit 10 am Rechenrahmen", "Zahlen am Rechenrahmen"], ["28", "Subtrahieren zur 10 am Rechenrahmen", "Zahlen am Rechenrahmen"],
+    ["30-31", "Größer als – kleiner als", "Größer als – kleiner als"],
+    ["32", "Geld kennenlernen", "Geld"], ["34", "Wie viel Geld ist es?", "Geld"], ["36", "Geld-Beträge einkreisen", "Geld"], ["38", "Geld-Beträge legen", "Geld"], ["40", "Das kannst du schon!", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv B", "1", "B2 – Rechnen bis 20", [
+    ["2", "Wiederholung: Addieren und Subtrahieren bis 10", "Wiederholung: Rechnen bis 10"], ["3", "Wiederholung: Ergänzen im Zahlenraum bis 10", "Wiederholung: Rechnen bis 10"],
+    ["4", "Schwester-Aufgabe als Lösungshilfe beim Addieren", "Schwester-Aufgabe"], ["6", "Schwester-Aufgabe als Lösungshilfe beim Subtrahieren", "Schwester-Aufgabe"], ["8", "Schwester-Aufgabe beim Addieren und Subtrahieren", "Schwester-Aufgabe"], ["10", "Beziehungsreiches Üben: Zahlenmauern", "Schwester-Aufgabe"],
+    ["12", "Übungen zum Addieren", "Aufgabenfolgen"], ["13", "Übungen zum Subtrahieren", "Aufgabenfolgen"], ["14", "Muster und Strukturen: Entdecker-Päckchen (zum Addieren)", "Aufgabenfolgen"], ["16", "Muster und Strukturen: Entdecker-Päckchen (zum Subtrahieren)", "Aufgabenfolgen"],
+    ["18", "Übungen zum Addieren", "Addieren und Subtrahieren bis 20"], ["19", "Übungen zum Subtrahieren", "Addieren und Subtrahieren bis 20"], ["20", "Aufgabe und Tauschaufgabe", "Addieren und Subtrahieren bis 20"], ["22", "Verdoppeln", "Addieren und Subtrahieren bis 20"], ["24", "Ergänzen", "Addieren und Subtrahieren bis 20"], ["28", "Verwandte Aufgaben (Pluminchen)", "Addieren und Subtrahieren bis 20"], ["30", "Beziehungsreiches Üben: Zahlenmauern (Ergänzen)", "Addieren und Subtrahieren bis 20"],
+    ["32", "Geld-Beträge vergleichen", "Geld"], ["34", "Ein Preis – verschiedene Möglichkeiten", "Geld"], ["36", "Einkaufen – passend zahlen", "Geld"], ["38", "Einkaufen – Geld zurück", "Geld"], ["40", "Übungen zum Addieren und Subtrahieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv B", "1", "B3 – Weiter im Rechnen bis 20", [
+    ["2", "Wiederholung: Zahlen-Freunde bis 10", "Wiederholung: Addieren bis 20 (ohne Zehnerübergang)"], ["3", "Wiederholung: Addieren bis 20 am Rechenrahmen", "Wiederholung: Addieren bis 20 (ohne Zehnerübergang)"], ["4", "Wiederholung: Ergänzen zur 10 am Rechenrahmen", "Wiederholung: Addieren bis 20 (ohne Zehnerübergang)"], ["5", "Wiederholung: Addieren mit 10 am Rechenrahmen", "Wiederholung: Addieren bis 20 (ohne Zehnerübergang)"],
+    ["6", "Schrittweises Addieren am Rechenrahmen", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["8", "Schrittweises Addieren am Rechenrahmen – immer plus 6", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["9", "Schrittweises Addieren am Rechenrahmen – immer plus 7", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["10", "Schrittweises Addieren am Rechenrahmen – immer plus 8", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["11", "Schrittweises Addieren am Rechenrahmen – immer plus 9", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["12", "Schrittweises Addieren am Rechenrahmen – gemischt", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"], ["14", "Schrittweises Addieren", "Rechnen über 10 – Schrittweises Addieren am Rechenrahmen"],
+    ["16", "Wiederholung: Subtrahieren bis 20 am Rechenrahmen", "Wiederholung: Subtrahieren bis 20 (ohne Zehnerübergang)"], ["17", "Wiederholung: Subtrahieren zur 10 am Rechenrahmen (Subtrahend gesucht)", "Wiederholung: Subtrahieren bis 20 (ohne Zehnerübergang)"], ["18", "Wiederholung: Subtrahieren von 10 am Rechenrahmen", "Wiederholung: Subtrahieren bis 20 (ohne Zehnerübergang)"], ["19", "Wiederholung: Subtrahieren von 20 am Rechenrahmen", "Wiederholung: Subtrahieren bis 20 (ohne Zehnerübergang)"],
+    ["20", "Schrittweises Subtrahieren am Rechenrahmen", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["22", "Schrittweises Subtrahieren am Rechenrahmen – immer minus 6", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["23", "Schrittweises Subtrahieren am Rechenrahmen – immer minus 7", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["24", "Schrittweises Subtrahieren am Rechenrahmen – immer minus 8", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["25", "Schrittweises Subtrahieren am Rechenrahmen – immer minus 9", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["26", "Schrittweises Subtrahieren am Rechenrahmen – gemischt", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"], ["28", "Schrittweises Subtrahieren", "Rechnen über 10 – Schrittweises Subtrahieren am Rechenrahmen"],
+    ["30", "Zehnerübergang beim Addieren und Subtrahieren erkennen", "Abschluss"], ["32", "Übungen zum Addieren und Subtrahieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv B", "1", "B4 – Geometrie 1", [
+    ["2", "Linke Hand", "Links und rechts"], ["3", "Rechte Hand", "Links und rechts"], ["4", "Links und rechts am eigenen Körper", "Links und rechts"], ["6", "Links oder rechts?", "Links und rechts"],
+    ["8", "Muster fortsetzen", "Muster"], ["9", "Grundmuster erkennen", "Muster"], ["10", "Körper in der Umwelt", "Körper"], ["12", "Körpereigenschaften", "Körper"],
+    ["14", "Oben oder unten?", "Lagebeziehungen"], ["16", "Oben, in der Mitte oder unten?", "Lagebeziehungen"],
+    ["18", "Symmetrische Figuren", "Achsensymmetrie"], ["20", "Spiegeln", "Achsensymmetrie"], ["22", "Spiegelbilder finden", "Achsensymmetrie"],
+    ["24", "Ebene Figuren", "Ebene Figuren"], ["25", "Freihandzeichnen", "Ebene Figuren"], ["26", "Falten und schneiden", "Ebene Figuren"], ["28", "Mit Formenplättchen auslegen", "Ebene Figuren"], ["32", "Wortspeicher und Bausteine des Wissens", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv C", "2", "C1 – Zahlen bis 100", [
+    ["2", "Wiederholung: Die Zahlen bis 20", "Wiederholung"], ["3", "Die Zehnerzahlen bis 100", "Zehnerzahlen bis 100"], ["6", "Zehnerkartons und Zehnerstangen", "Zehnerzahlen bis 100"],
+    ["8", "Zehnerzahlen addieren", "Zehnerzahlen addieren und subtrahieren"], ["10", "Zehnerzahlen subtrahieren", "Zehnerzahlen addieren und subtrahieren"], ["12-13", "Zehnerzahlen bis 100 am Zahlenstrahl", "Zahlenstrahl"],
+    ["14", "Zehner und Einer (Bündeln)", "Zahlen bis 100"], ["16", "Zehnerstangen und Einerwürfel", "Zahlen bis 100"], ["18", "Geheimschrift lesen und zeichnen", "Zahlen bis 100"], ["20", "Was gehört zusammen?", "Zahlen bis 100"],
+    ["22-23", "Wiederholung: Rechnen bis 20", "Wiederholung"], ["24", "Zahlen bis 100 am Zahlenstrahl", "Zahlenstrahl"], ["26", "Zahlen und zeigen am Zahlenstrahl", "Zahlenstrahl"], ["28", "Vorgänger und Nachfolger", "Zahlenstrahl"], ["30", "Nachbarzehner", "Zahlenstrahl"],
+    ["32-33", "Größer als – kleiner als", "Vergleichen"], ["34-35", "Hundertertafel", "Hundertertafel"], ["36", "Zahlen bis 100 am Rechenrahmen", "Zahlen am Rechenrahmen"], ["38-39", "Übungen am Rechenrahmen", "Zahlen am Rechenrahmen"], ["40", "Das kannst du schon!", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv C", "2", "C2 – Rechnen bis 100", [
+    ["2", "Wiederholung: Zehnerzahlen addieren und subtrahieren", "Wiederholung: Zahlen bis 100"], ["3", "Wiederholung: Geheimschrift lesen", "Wiederholung: Zahlen bis 100"],
+    ["4", "Zehner zu gemischten Zehnern addieren", "Addieren und Subtrahieren mit Zehnerzahlen"], ["6", "Zehner von gemischten Zehnern subtrahieren", "Addieren und Subtrahieren mit Zehnerzahlen"], ["8", "Muster und Strukturen: Entdecker-Päckchen (mit Zehnerzahlen)", "Addieren und Subtrahieren mit Zehnerzahlen"],
+    ["10", "Addieren in einem Zehner", "Addieren und Subtrahieren in einem Zehner"], ["12", "Subtrahieren in einem Zehner", "Addieren und Subtrahieren in einem Zehner"], ["14", "Muster und Strukturen: Entdecker-Päckchen (in einem Zehner)", "Addieren und Subtrahieren in einem Zehner"], ["16", "Aufgabe und Tauschaufgabe", "Addieren und Subtrahieren in einem Zehner"], ["17", "Übungen zum Subtrahieren", "Addieren und Subtrahieren in einem Zehner"], ["18", "Ergänzen (ohne Zehnerübergang)", "Addieren und Subtrahieren in einem Zehner"], ["20", "Beziehungsreiches Üben: Zahlenmauern (Ergänzen)", "Addieren und Subtrahieren in einem Zehner"],
+    ["22-23", "Wiederholung: Addieren und Subtrahieren bis 20", "Wiederholung"], ["24", "Ergänzen zum Nachbarzehner", "Addieren und Subtrahieren mit Überschreiten"], ["25", "Vom Zehner aus weiter (Addieren)", "Addieren und Subtrahieren mit Überschreiten"], ["26", "Schrittweises Addieren am Rechenrahmen", "Addieren und Subtrahieren mit Überschreiten"], ["28", "Schrittweises Addieren", "Addieren und Subtrahieren mit Überschreiten"], ["30", "Subtrahieren zum Nachbarzehner (Subtrahend gesucht)", "Addieren und Subtrahieren mit Überschreiten"], ["31", "Vom Zehner aus weiter (Subtrahieren)", "Addieren und Subtrahieren mit Überschreiten"], ["32", "Schrittweises Subtrahieren am Rechenrahmen", "Addieren und Subtrahieren mit Überschreiten"], ["34", "Schrittweises Subtrahieren", "Addieren und Subtrahieren mit Überschreiten"], ["36", "Übungen zum Addieren und Subtrahieren", "Addieren und Subtrahieren mit Überschreiten"], ["38-39", "Zehnerübergang beim Addieren und Subtrahieren erkennen", "Abschluss"], ["40", "Übungen zum Addieren und Subtrahieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv C", "2", "C3 – Weiter im Rechnen bis 100", [
+    ["2", "Wiederholung: Zehner zu gemischten Zehnern addieren", "Addieren zweistelliger Zahlen ohne Zehnerübergang"], ["3", "Wiederholung: Einer zu gemischten Zehnern addieren", "Addieren zweistelliger Zahlen ohne Zehnerübergang"], ["4", "Schrittweises Addieren zweistelliger Zahlen mit Geheimschrift", "Addieren zweistelliger Zahlen ohne Zehnerübergang"], ["6", "Schrittweises Addieren zweistelliger Zahlen", "Addieren zweistelliger Zahlen ohne Zehnerübergang"], ["8", "Beziehungsreiches Üben: Zahlenmauern", "Addieren zweistelliger Zahlen ohne Zehnerübergang"],
+    ["10", "Wiederholung: Zehner von gemischten Zehnern subtrahieren", "Subtrahieren zweistelliger Zahlen ohne Zehnerübergang"], ["11", "Wiederholung: Einer von gemischten Zehnern subtrahieren", "Subtrahieren zweistelliger Zahlen ohne Zehnerübergang"], ["12", "Schrittweises Subtrahieren zweistelliger Zahlen mit Geheimschrift", "Subtrahieren zweistelliger Zahlen ohne Zehnerübergang"], ["14", "Schrittweises Subtrahieren zweistelliger Zahlen", "Subtrahieren zweistelliger Zahlen ohne Zehnerübergang"], ["16", "Muster und Strukturen: Entdecker-Päckchen", "Subtrahieren zweistelliger Zahlen ohne Zehnerübergang"],
+    ["18", "Wiederholung: Ergänzen zum Nachbarzehner / Vom Zehner aus weiter", "Addieren zweistelliger Zahlen mit Zehnerübergang"], ["19", "Wiederholung: Schrittweises Addieren mit Überschreiten (ZE + E)", "Addieren zweistelliger Zahlen mit Zehnerübergang"], ["20", "Schrittweises Addieren zweistelliger Zahlen (3-schrittig)", "Addieren zweistelliger Zahlen mit Zehnerübergang"], ["22", "Schrittweises Addieren zweistelliger Zahlen (2-schrittig)", "Addieren zweistelliger Zahlen mit Zehnerübergang"],
+    ["24", "Wiederholung: Subtrahieren zum Nachbarzehner / Vom Zehner aus weiter", "Subtrahieren zweistelliger Zahlen mit Zehnerübergang"], ["25", "Wiederholung: Schrittweises Subtrahieren mit Überschreiten (ZE – E)", "Subtrahieren zweistelliger Zahlen mit Zehnerübergang"], ["26", "Schrittweises Subtrahieren zweistelliger Zahlen (3-schrittig)", "Subtrahieren zweistelliger Zahlen mit Zehnerübergang"], ["28", "Schrittweises Subtrahieren zweistelliger Zahlen (2-schrittig)", "Subtrahieren zweistelliger Zahlen mit Zehnerübergang"],
+    ["30-31", "Zehnerübergang beim Addieren und Subtrahieren erkennen", "Rechnen bis 100 mit und ohne Zehnerübergang – Zahlenblick"], ["32", "Im Kopf oder in Schritten?", "Rechnen bis 100 mit und ohne Zehnerübergang – Zahlenblick"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv C", "2", "C4 – Sachrechnen und Größen 1", [
+    ["2", "Längen messen – Zentimeter", "Längen"], ["4", "Strecken mit dem Lineal zeichnen", "Längen"], ["5", "Meter und Zentimeter", "Längen"],
+    ["6", "Uhrzeiten in der ersten Tageshälfte – Volle Stunden", "Zeit"], ["8", "Uhrzeiten in der zweiten Tageshälfte – Volle Stunden", "Zeit"], ["10", "Uhrzeiten in beiden Tageshälften – Halbe Stunden", "Zeit"], ["12", "Uhrzeiten in beiden Tageshälften – Viertelstunden", "Zeit"], ["14", "Uhrzeiten in beiden Tageshälften – Dreiviertelstunden", "Zeit"], ["16", "Uhrzeiten in beiden Tageshälften – gemischte Uhrzeiten", "Zeit"],
+    ["18", "Plus-Geschichten", "Sachrechnen"], ["20", "Minus-Geschichten", "Sachrechnen"], ["22", "Passende Lösung finden", "Sachrechnen"], ["24", "Passende Frage finden", "Sachrechnen"], ["26", "Passende Antwort finden", "Sachrechnen"], ["28", "Sachaufgaben", "Sachrechnen"],
+    ["30", "Cent-Münzen kennenlernen", "Geld"], ["31", "Wie viel Cent sind es?", "Geld"], ["33", "1 Euro sind 100 Cent", "Geld"], ["34", "Cent-Beträge legen", "Geld"], ["36", "Euro-Münzen und -Scheine", "Geld"], ["38", "Sachrechnen mit Euro", "Geld"], ["40", "Wortspeicher", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv D", "2", "D1 – Malnehmen und Teilen; Einmaleins mit 2, 10 und 5", [
+    ["2", "Mal-Aufgaben", "Multiplizieren"], ["6", "Mal-Aufgaben in der Umwelt", "Multiplizieren"], ["8", "Mal-Aufgaben als Punktemuster", "Multiplizieren"], ["10", "Aufgabe und Tauschaufgabe", "Multiplizieren"], ["12", "Mal-Aufgaben am Punktefeld", "Multiplizieren"],
+    ["14", "Einmaleins mit 2", "Einmaleins mit 2, 10 und 5"], ["15", "Einmaleins mit 2 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 2, 10 und 5"], ["16", "Einmaleins mit 10", "Einmaleins mit 2, 10 und 5"], ["17", "Einmaleins mit 10 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 2, 10 und 5"], ["18", "Einmaleins mit 5", "Einmaleins mit 2, 10 und 5"], ["19", "Einmaleins mit 5 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 2, 10 und 5"], ["20-21", "Einmaleins mit 2, 5, 10 – gemischte Übungen", "Einmaleins mit 2, 10 und 5"],
+    ["22", "Dividieren", "Dividieren"], ["24", "Aufteilen", "Dividieren"], ["26", "Verteilen", "Dividieren"], ["28", "Aufgabe und Umkehraufgabe", "Multiplizieren und Dividieren"], ["30", "Springen am Zahlenstrahl", "Multiplizieren und Dividieren"], ["34", "Muster und Strukturen: Entdecker-Päckchen", "Multiplizieren und Dividieren"], ["36", "Verdoppeln und Halbieren", "Multiplizieren und Dividieren"], ["38", "Besondere Aufgaben: Multiplizieren mit 0 und 1", "Besondere Aufgaben"], ["39-40", "Übungen zum Multiplizieren und Dividieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv D", "2", "D2 – Einmaleins mit 3, 6 und 4", [
+    ["2-3", "Wiederholung: Addieren und Subtrahieren mit Überschreiten", "Wiederholung"], ["4", "Wiederholung: Einmaleins mit 2, 5 und 10", "Sonnenaufgaben als Helferaufgaben"], ["5", "Sonnenaufgaben", "Sonnenaufgaben als Helferaufgaben"], ["6", "Sonnenaufgaben als Helferaufgaben – 1 mal mehr", "Sonnenaufgaben als Helferaufgaben"], ["8", "Sonnenaufgaben als Helferaufgaben – 1 mal weniger", "Sonnenaufgaben als Helferaufgaben"], ["10", "Sonnenaufgaben als Helferaufgaben – 2 mal mehr", "Sonnenaufgaben als Helferaufgaben"], ["11", "Sonnenaufgaben als Helferaufgaben – 2 mal weniger", "Sonnenaufgaben als Helferaufgaben"],
+    ["12", "Einmaleins mit 3", "Einmaleins mit 3"], ["13", "Einmaleins mit 3 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 3"], ["14", "Einmaleins mit 3 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 3"], ["15", "Einmaleins mit 3 – Springen am Zahlenstrahl", "Einmaleins mit 3"], ["16", "Einmaleins mit 3 – Geteilt-Aufgaben", "Einmaleins mit 3"], ["17", "Einmaleins mit 3 – Gemischte Übungen", "Einmaleins mit 3"],
+    ["18-21", "Wiederholung: Addieren und Subtrahieren bis 100", "Wiederholung"], ["22", "Einmaleins mit 6", "Einmaleins mit 6"], ["23", "Einmaleins mit 6 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 6"], ["24", "Einmaleins mit 6 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 6"], ["25", "Einmaleins mit 6 – Springen am Zahlenstrahl", "Einmaleins mit 6"], ["26", "Einmaleins mit 6 – Geteilt-Aufgaben", "Einmaleins mit 6"], ["27", "Einmaleins mit 6 – Gemischte Übungen", "Einmaleins mit 6"],
+    ["28", "Einmaleins mit 4", "Einmaleins mit 4"], ["29", "Einmaleins mit 4 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 4"], ["30", "Einmaleins mit 4 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 4"], ["31", "Einmaleins mit 4 – Springen am Zahlenstrahl", "Einmaleins mit 4"], ["32", "Einmaleins mit 4 – Geteilt-Aufgaben", "Einmaleins mit 4"], ["33", "Einmaleins mit 4 – Gemischte Übungen", "Einmaleins mit 4"], ["34-35", "Quadratzahlen", "Weitere Aufgaben"], ["36-37", "Verwandte Aufgaben: Malduin", "Weitere Aufgaben"], ["38-39", "Sachaufgaben", "Weitere Aufgaben"], ["40", "Übungen zum Multiplizieren und Dividieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv D", "2", "D3 – Einmaleins mit 8, 9 und 7", [
+    ["2-5", "Wiederholung: Addieren und Subtrahieren", "Wiederholung"], ["6", "Einmaleins mit 8", "Einmaleins mit 8"], ["7", "Einmaleins mit 8 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 8"], ["8", "Einmaleins mit 8 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 8"], ["9", "Einmaleins mit 8 – Springen am Zahlenstrahl", "Einmaleins mit 8"], ["10", "Einmaleins mit 8 – Geteilt-Aufgaben", "Einmaleins mit 8"], ["11", "Einmaleins mit 8 – Gemischte Übungen", "Einmaleins mit 8"], ["12-13", "Verwandtschaft in den Einmaleins-Reihen", "Verwandte Aufgaben"],
+    ["14", "Einmaleins mit 9", "Einmaleins mit 9"], ["15", "Einmaleins mit 9 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 9"], ["16", "Einmaleins mit 9 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 9"], ["17", "Einmaleins mit 9 – Springen am Zahlenstrahl", "Einmaleins mit 9"], ["18", "Einmaleins mit 9 – Geteilt-Aufgaben", "Einmaleins mit 9"], ["19", "Einmaleins mit 9 – Gemischte Übungen", "Einmaleins mit 9"], ["20-21", "Verwandte Aufgaben: Malduin", "Verwandte Aufgaben"],
+    ["22", "Einmaleins mit 7", "Einmaleins mit 7"], ["23", "Einmaleins mit 7 – Mal-Aufgaben am Punktefeld", "Einmaleins mit 7"], ["24", "Einmaleins mit 7 – Von Sonnen- zu Nachbaraufgaben", "Einmaleins mit 7"], ["25", "Einmaleins mit 7 – Springen am Zahlenstrahl", "Einmaleins mit 7"], ["26", "Einmaleins mit 7 – Geteilt-Aufgaben", "Einmaleins mit 7"], ["27", "Einmaleins mit 7 – Gemischte Übungen", "Einmaleins mit 7"], ["28-31", "Muster und Strukturen: Entdecker-Päckchen", "Muster und Strukturen"], ["32", "Übungen zum Multiplizieren und Dividieren", "Abschluss"]
+  ]),
+  ...inclusiveWorkbookCatalog("Mathe", "Welt der Zahl inklusiv D", "2", "D4 – Geometrie 2", [
+    ["2", "Links oder rechts vom Weg", "Orientierung im Raum"], ["4", "Links oder rechts am Tisch", "Orientierung im Raum"], ["6", "Vorne oder hinten am Tisch", "Orientierung im Raum"],
+    ["8", "Formenplättchen", "Formenplättchen und Achsensymmetrie"], ["10", "Achsensymmetrische Figuren", "Formenplättchen und Achsensymmetrie"], ["12", "Spiegelachsen", "Formenplättchen und Achsensymmetrie"], ["14", "Achsensymmetrie in der Umwelt", "Formenplättchen und Achsensymmetrie"],
+    ["16", "Ebene Figuren", "Ebene Figuren"], ["18", "Vierecke und Rechtecke", "Ebene Figuren"], ["19", "Rechtecke und Quadrate", "Ebene Figuren"], ["20", "Zeichnen mit dem Lineal", "Ebene Figuren"], ["22", "Ebene Figuren am Geobrett", "Ebene Figuren"],
+    ["26", "Körper", "Körper"], ["28", "Ecke, Kante, Fläche", "Körper"], ["30", "Würfelgebäude", "Körper"], ["32", "Wortspeicher und Bausteine des Wissens", "Abschluss"]
+  ]),
   ...miniMaxCatalog("Teil 1", [
     ["Wiederholung", "", "2-5", "", "", ""],
     ["Zahlen bis 100", "", "6-7", "8", "9", "1"],
@@ -393,6 +656,21 @@ function abc1CatalogItem({ bookType, part, pageSpec, topicTitle, focus = "", anc
     fibelPages,
     displayTitle
   });
+}
+
+function inclusiveWorkbookCatalog(subject, workbook, schoolYear, part, rows) {
+  return rows.map(([pageSpec, title, area = ""]) => catalogItem(
+    subject,
+    workbook,
+    part,
+    area || part,
+    "Inklusivheft",
+    pageSpec,
+    title,
+    subject,
+    "",
+    { schoolYear }
+  ));
 }
 
 function miniMaxCatalog(part, rows) {
@@ -1354,6 +1632,10 @@ function inferSchoolYearFromWorkbook(workbook) {
   if (/MiniMax\s*2\b/i.test(text)) return "2";
   if (/MiniMax\s*3\b/i.test(text)) return "3";
   if (/MiniMax\s*4\b/i.test(text)) return "4";
+  if (/Flex und Flora\s*[AB]\b/i.test(text)) return "1";
+  if (/Flex und Flora\s*C\b/i.test(text)) return "2";
+  if (/Welt der Zahl inklusiv\s*[AB]\b/i.test(text)) return "1";
+  if (/Welt der Zahl inklusiv\s*[CD]\b/i.test(text)) return "2";
   return "";
 }
 

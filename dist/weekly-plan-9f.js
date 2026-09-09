@@ -456,7 +456,6 @@
     let page = "";
     try { page = pageRangeLabel(catalog); } catch {}
     const bits = [
-      catalog.workbook || item.subject || "",
       page,
       item.taskNumber ? `Nr. ${item.taskNumber}` : ""
     ].filter(Boolean);
@@ -465,9 +464,11 @@
 
   function detailText(item) {
     if (!item.catalogItem) return "";
-    const title = String(item.catalogItem.title || "").trim();
-    if (!title) return "";
-    return title;
+    const bits = [
+      String(item.catalogItem.title || item.catalogItem.area || "").trim(),
+      String(item.catalogItem.workbook || "").trim()
+    ].filter(Boolean);
+    return bits.join(" · ");
   }
 
   function printSubjectClass(subject) {
@@ -494,7 +495,7 @@
     return `<span class="lk-wp-subject-badge extra" aria-hidden="true">✏️</span>`;
   }
 
-  function printTaskRow(item = null, previousSubject = "") {
+  function printTaskRow(item = null, previousSubject = "", previousWorkbook = "") {
     if (!item) {
       return `
         <div class="lk-wp-task-row blank">
@@ -508,6 +509,9 @@
     const subjectClass = printSubjectClass(subject);
     const parentSubject = printParentSubject(subject);
     const subjectLabel = printTaskSubjectLabel(subject);
+    const detail = detailText(item);
+    const workbook = String(item?.catalogItem?.workbook || "");
+    const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
@@ -515,8 +519,14 @@
             ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
             ${printSubjectBadge(parentSubject)}
             <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
-            <span>${escapeHtml(pageText(item))}</span>
           </span>
+          <div class="lk-wp-task-assignment ${item.catalogItem ? "with-cover" : ""}">
+            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
+            <div class="lk-wp-task-copy">
+              <strong>${escapeHtml(pageText(item))}</strong>
+              ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+            </div>
+          </div>
         </div>
         <span class="lk-wp-circle"></span>
       </div>
@@ -528,10 +538,12 @@
     const minimumRows = 5;
     const rows = [];
     let previousSubject = "";
+    let previousWorkbook = "";
 
     items.forEach((item) => {
-      rows.push(printTaskRow(item, previousSubject));
+      rows.push(printTaskRow(item, previousSubject, previousWorkbook));
       previousSubject = printDisplaySection(item);
+      previousWorkbook = String(item?.catalogItem?.workbook || "");
     });
 
     while (rows.length < minimumRows) rows.push(printTaskRow(null));
@@ -567,15 +579,25 @@
 
   function renderWeekLayoutRows(items) {
     if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
-    return items.map((item) => `
-      <div class="lk-wp-week-row">
-        <div>
-          ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
-          <span>${escapeHtml(pageText(item))}</span>
+    let previousWorkbook = "";
+    return items.map((item) => {
+      const workbook = String(item?.catalogItem?.workbook || "");
+      const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
+      previousWorkbook = workbook;
+      return `
+        <div class="lk-wp-week-row">
+          <div class="lk-wp-week-row-main">
+            ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover small") : `<span class="lk-wp-book-cover-spacer small" aria-hidden="true"></span>`}
+            <div class="lk-wp-task-copy">
+              <strong>${escapeHtml(pageText(item))}</strong>
+              ${detailText(item) ? `<small>${escapeHtml(detailText(item))}</small>` : ""}
+            </div>
+          </div>
+          <span class="lk-wp-circle"></span>
         </div>
-        <span class="lk-wp-circle"></span>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   }
 
   function renderWeekLayoutSection(title, items, className = "") {
@@ -912,6 +934,52 @@
           min-width: 0;
           overflow-wrap: anywhere;
         }
+        .lk-wp-task-assignment {
+          display:flex;
+          align-items:center;
+          gap:2mm;
+          min-width:0;
+          margin-top:.6mm;
+        }
+        .lk-wp-task-copy {
+          display:flex;
+          flex-direction:column;
+          min-width:0;
+          gap:.2mm;
+        }
+        .lk-wp-task-copy strong {
+          font-size:9.7pt;
+          line-height:1.1;
+          font-weight:700;
+        }
+        .lk-wp-task-copy small {
+          display:block;
+          margin:0;
+          color:#666;
+          font-family:Arial, sans-serif;
+          font-size:6.6pt;
+          line-height:1.2;
+          white-space:nowrap;
+          overflow:hidden;
+          text-overflow:ellipsis;
+        }
+        .lk-wp-book-cover {
+          width:10mm;
+          height:14mm;
+          flex:none;
+        }
+        .lk-wp-book-cover.small {
+          width:8mm;
+          height:11mm;
+        }
+        .lk-wp-book-cover-spacer {
+          width:10mm;
+          height:1px;
+          flex:none;
+        }
+        .lk-wp-book-cover-spacer.small {
+          width:8mm;
+        }
         .lk-wp-subject-badge {
           display:inline-flex;
           align-items:center;
@@ -1106,6 +1174,9 @@
           padding:1.2mm 3mm;
           font-size:10pt;
         }
+        .lk-wp-week-row-main { min-width:0; }
+        .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:9.5pt; }
+        .lk-wp-week-row-main .lk-wp-task-copy small { font-size:6.5pt; }
         .lk-wp-week-row .lk-wp-circle {
           position:static;
           grid-column:2;

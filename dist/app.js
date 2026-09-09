@@ -610,10 +610,10 @@ function renderSubjectSelection() {
   const hasDeutschAssignments = animal && workbookAssignmentsForChild(animal.id, "Deutsch").length > 0;
   const hasMatheAssignments = animal && workbookAssignmentsForChild(animal.id, "Mathe").length > 0;
   if (settings.abcVisibility === "always" || (settings.abcVisibility === "assigned" && hasDeutschAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>ABC der Tiere</button>`);
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>`);
   }
   if (settings.minimaxVisibility === "always" || (settings.minimaxVisibility === "assigned" && hasMatheAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>MiniMax</button>`);
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>`);
   }
   if (settings.showSelfReports && settings.allowSelfReports) {
     cards.push(`<button class="subject-button" type="button" onclick="openChildSelfReport()"><span class="subject-icon">✅</span>Das habe ich geschafft</button>`);
@@ -903,7 +903,7 @@ function renderChildWorkbookTasks() {
   const animal = selectedAnimal();
   const subject = childDraft.workbookSubject || "Deutsch";
   const rows = animal ? workbookAssignmentsForChild(animal.id, subject) : [];
-  const title = subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const title = subject === "Deutsch" ? "Deutsch" : "Mathe";
   return `
     <section class="step-wrap child-week-wrap">
       ${renderBackButton("childSubject")}
@@ -918,7 +918,7 @@ function renderChildWorkbookTasks() {
 
 function renderChildWorkbookAssignmentItem(row) {
   const done = row.status === "fertig";
-  const label = row.catalog.subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const label = row.catalog.workbook || (row.catalog.subject === "Deutsch" ? "Deutsch" : "Mathe");
   const cover = renderWorkbookCoverImage(row.catalog, "weekly-child-cover");
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
@@ -939,7 +939,7 @@ function renderChildWorkbookAssignmentItem(row) {
 
 function childWorkbookCatalogShortLabel(item) {
   if (!item) return "";
-  const family = item.subject === "Deutsch" ? "ABC der Tiere" : item.subject === "Mathe" ? "MiniMax" : item.workbook || "Material";
+  const family = item.workbook || (item.subject === "Deutsch" ? "Deutsch" : item.subject === "Mathe" ? "Mathe" : "Material");
   return [family, pageRangeLabel(item)].filter(Boolean).join(" · ");
 }
 
@@ -1863,14 +1863,14 @@ function renderChildViewSettingsPanel() {
           <input type="checkbox" id="childSettingShowWeek" ${settings.showWeek ? "checked" : ""}>
           Meine Woche anzeigen
         </label>
-        <label class="field">ABC der Tiere anzeigen
+        <label class="field">Deutsch-Arbeitshefte anzeigen
           <select class="select-input" id="childSettingAbcVisibility">
             <option value="assigned" ${settings.abcVisibility === "assigned" ? "selected" : ""}>nur bei Zuweisung</option>
             <option value="always" ${settings.abcVisibility === "always" ? "selected" : ""}>ja</option>
             <option value="hidden" ${settings.abcVisibility === "hidden" ? "selected" : ""}>nein</option>
           </select>
         </label>
-        <label class="field">MiniMax anzeigen
+        <label class="field">Mathe-Arbeitshefte anzeigen
           <select class="select-input" id="childSettingMinimaxVisibility">
             <option value="assigned" ${settings.minimaxVisibility === "assigned" ? "selected" : ""}>nur bei Zuweisung</option>
             <option value="always" ${settings.minimaxVisibility === "always" ? "selected" : ""}>ja</option>
@@ -8466,17 +8466,48 @@ function weeklyCatalogTopicLabel(catalogItem) {
 
 function workbookCoverForCatalogItem(catalogItem) {
   const workbook = String(catalogItem?.workbook || "");
+  const part = String(catalogItem?.part || "");
+  const bookType = String(catalogItem?.bookType || catalogItem?.category || catalogItem?.part || "");
+
   if (workbook === "ABC der Tiere 1") {
-    return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
+    return { src: "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
   }
-  if (workbook === "ABC der Tiere 2" || workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
-    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2" };
+  if (workbook === "ABC der Tiere 2") {
+    return { src: "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png", alt: "ABC der Tiere 2 – Spracharbeitsheft" };
   }
-  if (workbook === "MiniMax 1") {
-    return { src: "./materials/cover-minimax-1.svg", alt: "MiniMax 1" };
+  if (workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
+    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2 – Lernstandsheft" };
   }
-  if (workbook === "MiniMax 2" || workbook === "MiniMax") {
-    return { src: "./materials/cover-minimax-2.svg", alt: "MiniMax 2" };
+  if (workbook === "MiniMax 1") return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
+  if (workbook === "MiniMax 2" || workbook === "MiniMax") return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
+
+  if (workbook === "Flex und Flora A") {
+    if (/Buchstabenheft 1/i.test(part)) return { src: "./materials/cover-flex-a-bh1.jpg", alt: part };
+    if (/Buchstabenheft 2/i.test(part)) return { src: "./materials/cover-flex-a-bh2.jpg", alt: part };
+    if (/Buchstabenheft 3/i.test(part)) return { src: "./materials/cover-flex-a-bh3.jpg", alt: part };
+    if (/Gut-starten/i.test(part)) return { src: "./materials/cover-flex-a-gut-starten.jpg", alt: part };
+  }
+  if (workbook === "Flex und Flora B") {
+    if (/Buchstabenheft 4/i.test(part)) return { src: "./materials/cover-flex-b-bh4.jpg", alt: part };
+    if (/Buchstabenheft 5/i.test(part)) return { src: "./materials/cover-flex-b-bh5.jpg", alt: part };
+    if (/Buchstabenheft 6/i.test(part)) return { src: "./materials/cover-flex-b-bh6.jpg", alt: part };
+    if (/Buchstabenheft 7/i.test(part)) return { src: "./materials/cover-flex-b-bh7.jpg", alt: part };
+  }
+  if (workbook === "Flex und Flora C") {
+    if (/^Lesen$/i.test(part)) return { src: "./materials/cover-flex-c-lesen.jpg", alt: part };
+    if (/Texte schreiben/i.test(part)) return { src: "./materials/cover-flex-c-texte.jpg", alt: part };
+    if (/Richtig schreiben/i.test(part)) return { src: "./materials/cover-flex-c-richtig.jpg", alt: part };
+    if (/Sprache untersuchen/i.test(part)) return { src: "./materials/cover-flex-c-sprache.jpg", alt: part };
+  }
+
+  const wdz = workbook.match(/^Welt der Zahl inklusiv ([ABCD])$/i);
+  if (wdz) {
+    const pack = wdz[1].toLowerCase();
+    const match = part.match(/^([ABCD])(\d)\s*[–-]/i) || part.match(/^([ABCD])(\d)\b/i);
+    if (match) {
+      const unit = match[2];
+      return { src: `./materials/cover-wdz-${pack}${unit}.jpg`, alt: `${workbook} ${match[1].toUpperCase()}${unit}` };
+    }
   }
   return null;
 }
