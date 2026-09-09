@@ -98,12 +98,30 @@
     return /mini\s*max/i.test(String(workbook || ""));
   }
 
-  function mmCatalog(subject) {
+  function mmIsSupportWorkbook(item) {
+    const haystack = [
+      item?.workbook,
+      item?.part,
+      item?.area,
+      item?.title,
+      item?.category
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /inklus|förder|foerder|forder|fordern|förderung|foerderung/.test(haystack);
+  }
+
+  function mmCatalog(subject, supportOnly = false) {
     // Lesezeit und Lernwörter sind Wochenplan-Bereiche, aber keine eigenen
     // Fächer im Arbeitsmaterial-Katalog. Beide verwenden den Deutsch-Katalog.
     const catalogSubject = subject === "Mathe" ? "Mathe" : "Deutsch";
     const all = workbookCatalogForActiveClass()
       .filter((item) => item.active !== false && item.subject === catalogSubject);
+
+    if (supportOnly) {
+      // Förder-/Inklusions-/Forderhefte sollen bewusst schuljahrübergreifend
+      // auswählbar sein. Ihre formale Klassenstufenzuordnung bleibt im Katalog
+      // erhalten, wird in dieser Ansicht aber nicht als Filter verwendet.
+      return all.filter(mmIsSupportWorkbook);
+    }
 
     let activeYear = "";
     try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
@@ -187,6 +205,69 @@
     );
   }
 
+  window.lkSetPickerSupportMode = function lkSetPickerSupportMode(enabled) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(enabled);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .sort((a, b) =>
+        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+        || mmStart(a) - mmStart(b)
+      );
+    const first = items[0] || null;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        supportMode,
+        workbook: first?.workbook || "",
+        part: first?.part || "",
+        areaKey: "",
+        rangeStart: first ? mmRangeStart(mmStart(first)) : 1
+      }
+    };
+    render();
+  };
+
+  window.lkSetPickerWorkbook = function lkSetPickerWorkbook(workbook) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .filter((item) => item.workbook === workbook)
+      .sort((a, b) => mmStart(a) - mmStart(b));
+    const first = items[0] || null;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        workbook,
+        part: first?.part || "",
+        areaKey: "",
+        rangeStart: first ? mmRangeStart(mmStart(first)) : 1
+      }
+    };
+    render();
+  };
+
+  window.lkSetPickerPart = function lkSetPickerPart(part) {
+    if (!weeklyPickRequest) return;
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+      .filter((item) => item.workbook === (weeklyPickRequest.filters?.workbook || ""))
+      .filter((item) => (item.part || "") === part)
+      .sort((a, b) => mmStart(a) - mmStart(b));
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        part,
+        areaKey: "",
+        rangeStart: items[0] ? mmRangeStart(mmStart(items[0])) : 1
+      }
+    };
+    render();
+  };
+
   window.lkSetPickerArea = function lkSetPickerArea(areaKey) {
     if (!weeklyPickRequest) return;
     weeklyPickRequest = {
@@ -257,7 +338,8 @@
   renderWeeklyCatalogPicker = function renderWeeklyCatalogPickerMiniMaxPages() {
     if (!weeklyPickRequest) return "";
 
-    const catalog = mmCatalog(weeklyPickRequest.subject)
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const catalog = mmCatalog(weeklyPickRequest.subject, supportMode)
       .sort((a, b) =>
         a.workbook.localeCompare(b.workbook, "de", { numeric: true })
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
@@ -336,6 +418,19 @@
           ${workbooks.length ? `
             <div class="lk-picker-step">
               <strong>1. Heft</strong>
+              <div class="lk-picker-tabs lk-workbook-tabs lk-support-filter-tabs">
+                <button
+                  class="lk-picker-tab ${supportMode ? "" : "active"}"
+                  type="button"
+                  onclick="lkSetPickerSupportMode(false)"
+                >Klassenhefte</button>
+                <button
+                  class="lk-picker-tab lk-support-tab ${supportMode ? "active" : ""}"
+                  type="button"
+                  onclick="lkSetPickerSupportMode(true)"
+                  title="Förder-, Inklusions- und Forderhefte aus allen Schuljahren anzeigen"
+                >Förderhefte</button>
+              </div>
               <div class="lk-picker-tabs lk-workbook-tabs">
                 ${workbooks.map((workbook) => `
                   <button
@@ -427,9 +522,11 @@
             </div>
 
             <p class="message lk-picker-tip">
-              ${useAreaGrouping
-                ? "Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts."
-                : "Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
+              ${supportMode
+                ? "Förderhefte werden hier schuljahrübergreifend angezeigt. Jede Seite bleibt einzeln auswählbar."
+                : useAreaGrouping
+                  ? "Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts."
+                  : "Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
             </p>
           ` : `
             <div class="empty">
