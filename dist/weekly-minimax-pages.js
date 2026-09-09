@@ -216,6 +216,47 @@
     );
   }
 
+  function mmCollectPlanIds(day, target) {
+    if (!day || typeof day !== "object") return;
+    [
+      "deutschIds", "deutschId",
+      "lesezeitIds", "lesezeitId",
+      "lernwoerterIds", "lernwoerterId",
+      "matheIds", "matheId"
+    ].forEach((key) => {
+      normalizeIdArray(day[key] || "").forEach((id) => target.add(id));
+    });
+  }
+
+  function mmUsedCatalogItems() {
+    const activeClassId = state.activeClassId;
+    const usedIds = new Set();
+    (state.weeklyPlans || []).forEach((plan) => {
+      if (!plan || (activeClassId && plan.classId && plan.classId !== activeClassId)) return;
+      Object.values(plan.days || {}).forEach((day) => mmCollectPlanIds(day, usedIds));
+      Object.values(plan.overrides || {}).forEach((override) => {
+        Object.values(override?.days || {}).forEach((day) => mmCollectPlanIds(day, usedIds));
+      });
+    });
+
+    const catalog = workbookCatalogForActiveClass();
+    const byId = new Map(catalog.map((item) => [item.id, item]));
+    return [...usedIds].map((id) => byId.get(id)).filter(Boolean);
+  }
+
+  function mmPageWasUsed(candidate, usedItems) {
+    const item = candidate?.item;
+    const page = Number(candidate?.page || 0);
+    if (!item || !page) return false;
+    return usedItems.some((used) =>
+      used.subject === item.subject
+      && used.workbook === item.workbook
+      && String(used.part || "") === String(item.part || "")
+      && page >= mmStart(used)
+      && page <= Math.max(mmStart(used), mmEnd(used))
+    );
+  }
+
   window.lkSetPickerSupportMode = function lkSetPickerSupportMode(enabled) {
     if (!weeklyPickRequest) return;
     const supportMode = Boolean(enabled);
@@ -412,6 +453,7 @@
 
     const selectedIds = mmSelectedIds();
     const selectedSet = new Set(selectedIds);
+    const usedItems = mmUsedCatalogItems();
 
     return `
       <div class="training-modal-overlay lk-weekly-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="lkWeeklyPickerTitle">
@@ -512,20 +554,26 @@
                   const alreadySelected = candidate.exactId
                     ? selectedSet.has(candidate.exactId)
                     : false;
+                  const usedBefore = mmPageWasUsed(candidate, usedItems);
                   const click = candidate.isVirtual
                     ? `lkSelectMiniMaxPage('${escapeAttribute(candidate.sourceRangeId)}', ${candidate.page})`
                     : `selectWeeklyCatalogItem('${escapeAttribute(candidate.exactId || candidate.sourceId)}')`;
                   const pageLabel = candidate.displayLabel || item.displayPages || mmPageSpanLabel(candidate.page, candidate.pageEnd || candidate.page);
+                  const statusText = alreadySelected
+                    ? "schon gewählt · nochmals = ⭐"
+                    : usedBefore
+                      ? "✓ schon in einem Wochenplan verwendet"
+                      : "";
                   return `
                     <button
-                      class="lk-page-button ${alreadySelected ? "already-selected" : ""}"
+                      class="lk-page-button ${alreadySelected ? "already-selected" : ""} ${usedBefore ? "used-before" : ""}"
                       type="button"
                       onclick="${click}"
-                      title="${escapeAttribute([pageLabel, item.title, item.area].filter(Boolean).join(" · "))}"
+                      title="${escapeAttribute([pageLabel, item.title, item.area, usedBefore ? "bereits verwendet" : ""].filter(Boolean).join(" · "))}"
                     >
                       <strong>${escapeHtml(pageLabel)}</strong>
                       ${(item.title || item.area) ? `<span>${escapeHtml(item.title || item.area)}</span>` : ""}
-                      ${alreadySelected ? `<small>schon gewählt · nochmals = ⭐</small>` : ""}
+                      ${statusText ? `<small>${escapeHtml(statusText)}</small>` : ""}
                     </button>
                   `;
                 }).join("") || `<div class="empty">${useAreaGrouping ? "In diesem Bereich sind keine Seiten hinterlegt." : "In diesem Seitenbereich sind keine Seiten hinterlegt."}</div>`}
@@ -549,6 +597,38 @@
       </div>
     `;
   };
+
+  const usedStyle = document.createElement("style");
+  usedStyle.id = "lk-weekly-used-pages-style";
+  usedStyle.textContent = `
+    .lk-page-button.used-before:not(.already-selected) {
+      border-color:#8aa3b8;
+      background:linear-gradient(180deg,#f7fbff 0%,#edf4f9 100%);
+      box-shadow:inset 0 0 0 1px rgba(92,126,151,.12);
+    }
+    .lk-page-button.used-before:not(.already-selected)::after {
+      content:"✓";
+      position:absolute;
+      top:7px;
+      right:8px;
+      width:22px;
+      height:22px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      background:#dcebf4;
+      color:#416a84;
+      font-family:Arial,sans-serif;
+      font-weight:800;
+      font-size:.82rem;
+    }
+    .lk-page-button.used-before { position:relative; }
+    .lk-page-button.used-before > small {
+      color:#486f88;
+      font-weight:700;
+    }
+  `;
+  if (!document.getElementById(usedStyle.id)) document.head.appendChild(usedStyle);
 
   window.LKMiniMaxPages = {
     isMiniMaxWorkbook: mmIsMiniMaxWorkbook,
