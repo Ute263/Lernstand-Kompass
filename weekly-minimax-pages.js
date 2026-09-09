@@ -52,37 +52,46 @@
       : `S. ${numericStart}–${numericEnd}`;
   }
 
+  function mmInferredEnd(items, index) {
+    const item = items[index];
+    const start = mmStart(item);
+    if (!start) return 0;
+    const explicitEnd = Math.max(start, mmEnd(item));
+    if (explicitEnd > start) return explicitEnd;
+    const next = items[index + 1];
+    const nextStart = mmStart(next);
+    if (nextStart > start) return nextStart - 1;
+    return start;
+  }
+
   function mmAreaGroups(items) {
-    const groups = new Map();
+    const sorted = [...items].sort((a, b) => mmStart(a) - mmStart(b));
+    const groups = [];
+    let current = null;
 
-    items.forEach((item) => {
-      const key = mmAreaKey(item);
-      const label = mmAreaLabel(item);
+    sorted.forEach((item, index) => {
       const start = mmStart(item);
-      const end = Math.max(start, mmEnd(item));
       if (!start) return;
+      const end = mmInferredEnd(sorted, index);
+      const areaKey = mmAreaKey(item);
+      const label = mmAreaLabel(item);
 
-      const existing = groups.get(key);
-      if (!existing) {
-        groups.set(key, {
-          key,
+      if (!current || current.areaKey !== areaKey || start > current.end + 1) {
+        current = {
+          key: `${areaKey}__${start}`,
+          areaKey,
           label,
           start,
           end,
           sortStart: start
-        });
-        return;
+        };
+        groups.push(current);
+      } else {
+        current.end = Math.max(current.end, end);
       }
-
-      existing.start = Math.min(existing.start, start);
-      existing.end = Math.max(existing.end, end);
-      existing.sortStart = Math.min(existing.sortStart, start);
     });
 
-    return [...groups.values()].sort((a, b) =>
-      a.sortStart - b.sortStart
-      || a.label.localeCompare(b.label, "de", { numeric: true })
-    );
+    return groups;
   }
 
   function mmIsMiniMaxWorkbook(workbook) {
@@ -128,29 +137,12 @@
   }
 
   function mmCandidates(items, workbook, selectedRange, rangeEnd) {
-    if (!mmIsMiniMaxWorkbook(workbook)) {
-      return items
-        .filter((item) => {
-          const page = mmStart(item);
-          return page >= selectedRange && page <= rangeEnd;
-        })
-        .map((item) => ({
-          item,
-          sourceId: item.id,
-          page: mmStart(item),
-          pageEnd: mmEnd(item),
-          exactId: item.id,
-          isVirtual: false,
-          displayLabel: item.displayPages || mmPageSpanLabel(mmStart(item), mmEnd(item))
-        }))
-        .sort((a, b) => a.page - b.page || a.pageEnd - b.pageEnd);
-    }
-
     const byPage = new Map();
+    const sorted = [...items].sort((a, b) => mmStart(a) - mmStart(b));
 
-    items.forEach((item) => {
+    sorted.forEach((item, index) => {
       const start = mmStart(item);
-      const end = Math.max(start, mmEnd(item));
+      const end = Math.max(start, mmInferredEnd(sorted, index));
       if (!start) return;
 
       const from = Math.max(start, selectedRange);
@@ -309,7 +301,10 @@
 
     const visibleItems = useAreaGrouping
       ? mmCandidates(
-          partItems.filter((item) => mmAreaKey(item) === selectedAreaGroup?.key),
+          partItems.filter((item) => {
+            const start = mmStart(item);
+            return start >= (selectedAreaGroup?.start || 1) && start <= (selectedAreaGroup?.end || selectedAreaGroup?.start || 1);
+          }),
           selectedWorkbook,
           selectedAreaGroup?.start || 1,
           selectedAreaGroup?.end || selectedAreaGroup?.start || 1
@@ -402,7 +397,7 @@
             <div class="lk-picker-step lk-page-step">
               <div class="lk-page-step-head">
                 <strong>${pageStepNumber}. Seite</strong>
-                <span>${visibleItems.length} ${mmIsMiniMaxWorkbook(selectedWorkbook) ? "Seiten" : "Einträge"}${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
+                <span>${visibleItems.length} Seiten${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
               </div>
 
               <div class="lk-page-grid">
@@ -432,11 +427,9 @@
             </div>
 
             <p class="message lk-picker-tip">
-              ${mmIsMiniMaxWorkbook(selectedWorkbook)
-                ? "Bei MiniMax kannst du jede Seite einzeln auswählen. Das Thema bleibt zur Orientierung sichtbar."
-                : useAreaGrouping
-                  ? "Die Bereiche folgen dem Inhaltsverzeichnis bzw. den Themenabschnitten des Hefts. So findest du Seiten genauer und schneller."
-                  : "Du siehst höchstens etwa 20 Seiten gleichzeitig. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
+              ${useAreaGrouping
+                ? "Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts."
+                : "Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
             </p>
           ` : `
             <div class="empty">

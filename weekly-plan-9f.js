@@ -495,7 +495,7 @@
     return `<span class="lk-wp-subject-badge extra" aria-hidden="true">✏️</span>`;
   }
 
-  function printTaskRow(item = null, previousSubject = "") {
+  function printTaskRow(item = null, previousSubject = "", previousWorkbook = "") {
     if (!item) {
       return `
         <div class="lk-wp-task-row blank">
@@ -510,6 +510,8 @@
     const parentSubject = printParentSubject(subject);
     const subjectLabel = printTaskSubjectLabel(subject);
     const detail = detailText(item);
+    const workbook = String(item?.catalogItem?.workbook || "");
+    const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
@@ -519,7 +521,7 @@
             <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
           </span>
           <div class="lk-wp-task-assignment ${item.catalogItem ? "with-cover" : ""}">
-            ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : ""}
+            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
             <div class="lk-wp-task-copy">
               <strong>${escapeHtml(pageText(item))}</strong>
               ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
@@ -536,10 +538,12 @@
     const minimumRows = 5;
     const rows = [];
     let previousSubject = "";
+    let previousWorkbook = "";
 
     items.forEach((item) => {
-      rows.push(printTaskRow(item, previousSubject));
+      rows.push(printTaskRow(item, previousSubject, previousWorkbook));
       previousSubject = printDisplaySection(item);
+      previousWorkbook = String(item?.catalogItem?.workbook || "");
     });
 
     while (rows.length < minimumRows) rows.push(printTaskRow(null));
@@ -575,19 +579,25 @@
 
   function renderWeekLayoutRows(items) {
     if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
-    return items.map((item) => `
-      <div class="lk-wp-week-row">
-        <div class="lk-wp-week-row-main">
-          ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
-          ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover small") : ""}
-          <div class="lk-wp-task-copy">
-            <strong>${escapeHtml(pageText(item))}</strong>
-            ${detailText(item) ? `<small>${escapeHtml(detailText(item))}</small>` : ""}
+    let previousWorkbook = "";
+    return items.map((item) => {
+      const workbook = String(item?.catalogItem?.workbook || "");
+      const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
+      previousWorkbook = workbook;
+      return `
+        <div class="lk-wp-week-row">
+          <div class="lk-wp-week-row-main">
+            ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover small") : `<span class="lk-wp-book-cover-spacer small" aria-hidden="true"></span>`}
+            <div class="lk-wp-task-copy">
+              <strong>${escapeHtml(pageText(item))}</strong>
+              ${detailText(item) ? `<small>${escapeHtml(detailText(item))}</small>` : ""}
+            </div>
           </div>
+          <span class="lk-wp-circle"></span>
         </div>
-        <span class="lk-wp-circle"></span>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   }
 
   function renderWeekLayoutSection(title, items, className = "") {
@@ -961,6 +971,14 @@
         .lk-wp-book-cover.small {
           width:8mm;
           height:11mm;
+        }
+        .lk-wp-book-cover-spacer {
+          width:10mm;
+          height:1px;
+          flex:none;
+        }
+        .lk-wp-book-cover-spacer.small {
+          width:8mm;
         }
         .lk-wp-subject-badge {
           display:inline-flex;
