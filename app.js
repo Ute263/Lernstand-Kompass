@@ -610,10 +610,10 @@ function renderSubjectSelection() {
   const hasDeutschAssignments = animal && workbookAssignmentsForChild(animal.id, "Deutsch").length > 0;
   const hasMatheAssignments = animal && workbookAssignmentsForChild(animal.id, "Mathe").length > 0;
   if (settings.abcVisibility === "always" || (settings.abcVisibility === "assigned" && hasDeutschAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>ABC der Tiere</button>`);
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>`);
   }
   if (settings.minimaxVisibility === "always" || (settings.minimaxVisibility === "assigned" && hasMatheAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>MiniMax</button>`);
+    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>`);
   }
   if (settings.showSelfReports && settings.allowSelfReports) {
     cards.push(`<button class="subject-button" type="button" onclick="openChildSelfReport()"><span class="subject-icon">✅</span>Das habe ich geschafft</button>`);
@@ -903,7 +903,7 @@ function renderChildWorkbookTasks() {
   const animal = selectedAnimal();
   const subject = childDraft.workbookSubject || "Deutsch";
   const rows = animal ? workbookAssignmentsForChild(animal.id, subject) : [];
-  const title = subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const title = subject === "Deutsch" ? "Deutsch" : "Mathe";
   return `
     <section class="step-wrap child-week-wrap">
       ${renderBackButton("childSubject")}
@@ -918,7 +918,7 @@ function renderChildWorkbookTasks() {
 
 function renderChildWorkbookAssignmentItem(row) {
   const done = row.status === "fertig";
-  const label = row.catalog.subject === "Deutsch" ? "ABC der Tiere" : "MiniMax";
+  const label = row.catalog.workbook || (row.catalog.subject === "Deutsch" ? "Deutsch" : "Mathe");
   const cover = renderWorkbookCoverImage(row.catalog, "weekly-child-cover");
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
@@ -939,7 +939,7 @@ function renderChildWorkbookAssignmentItem(row) {
 
 function childWorkbookCatalogShortLabel(item) {
   if (!item) return "";
-  const family = item.subject === "Deutsch" ? "ABC der Tiere" : item.subject === "Mathe" ? "MiniMax" : item.workbook || "Material";
+  const family = item.workbook || (item.subject === "Deutsch" ? "Deutsch" : item.subject === "Mathe" ? "Mathe" : "Material");
   return [family, pageRangeLabel(item)].filter(Boolean).join(" · ");
 }
 
@@ -1863,14 +1863,14 @@ function renderChildViewSettingsPanel() {
           <input type="checkbox" id="childSettingShowWeek" ${settings.showWeek ? "checked" : ""}>
           Meine Woche anzeigen
         </label>
-        <label class="field">ABC der Tiere anzeigen
+        <label class="field">Deutsch-Arbeitshefte anzeigen
           <select class="select-input" id="childSettingAbcVisibility">
             <option value="assigned" ${settings.abcVisibility === "assigned" ? "selected" : ""}>nur bei Zuweisung</option>
             <option value="always" ${settings.abcVisibility === "always" ? "selected" : ""}>ja</option>
             <option value="hidden" ${settings.abcVisibility === "hidden" ? "selected" : ""}>nein</option>
           </select>
         </label>
-        <label class="field">MiniMax anzeigen
+        <label class="field">Mathe-Arbeitshefte anzeigen
           <select class="select-input" id="childSettingMinimaxVisibility">
             <option value="assigned" ${settings.minimaxVisibility === "assigned" ? "selected" : ""}>nur bei Zuweisung</option>
             <option value="always" ${settings.minimaxVisibility === "always" ? "selected" : ""}>ja</option>
