@@ -268,7 +268,6 @@ async function initApp() {
   }
   screen = state.setupComplete ? "start" : "setup";
   render();
-  startMultiDeviceReminderTimer();
 }
 
 async function migrateSecurityState() {
@@ -5737,19 +5736,9 @@ function renderBackup() {
         <button class="secondary" type="button" onclick="startMultiDeviceSyncGuide()">Mehrgeräte-Abgleich starten</button>
       </div>
       <input class="visually-hidden" id="backupFile" type="file" accept="application/json,.json" onchange="handleBackupFileSelected(event)">
-      <p class="message">Automatische Erinnerung um ${escapeHtml(settings.time)} Uhr bedeutet: Die App erinnert dich an den manuellen Abgleich. Für automatischen bzw. direkten Abgleich richte „Microsoft & Sync“ ein.</p>
       ${renderPendingBackupChoice()}
       ${renderMergeReport()}
       ${renderSyncGuide()}
-    </section>
-    <section class="panel">
-      <h2>Täglicher Mehrgeräte-Hinweis</h2>
-      <form class="filters" onsubmit="event.preventDefault();">
-        <label class="toggle-label"><input type="checkbox" ${settings.enabled ? "checked" : ""} onchange="updateMultiDeviceReminderSetting('multiDeviceReminderEnabled', this.checked)"> aktiv</label>
-        <label class="field">Uhrzeit
-          <input class="text-input" type="time" value="${escapeAttribute(settings.time)}" onchange="updateMultiDeviceReminderSetting('multiDeviceReminderTime', this.value)">
-        </label>
-      </form>
     </section>
     ${renderFactoryResetPanel()}
   `;
@@ -7431,8 +7420,6 @@ function renderStorageStatus() {
         <div>assessmentTasks vorhanden</div><strong>${(state.assessmentTasks || []).length ? "ja" : "nein"}</strong>
         <div>assessmentResults vorhanden</div><strong>${(state.assessmentResults || []).length ? "ja" : "nein"}</strong>
         <div>letzte lokale Speicherung</div><strong>${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}</strong>
-        <div>Mehrgeräte-Hinweis aktiviert</div><strong>${state.multiDeviceReminderEnabled !== false ? "ja" : "nein"}</strong>
-        <div>Mehrgeräte-Hinweis Uhrzeit</div><strong>${escapeHtml(state.multiDeviceReminderTime || "13:00")}</strong>
       </div>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="saveCurrentData()">Daten speichern</button>
