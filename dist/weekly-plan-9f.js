@@ -509,7 +509,6 @@
     const subjectClass = printSubjectClass(subject);
     const parentSubject = printParentSubject(subject);
     const subjectLabel = printTaskSubjectLabel(subject);
-    const detail = detailText(item);
     const workbook = String(item?.catalogItem?.workbook || "");
     const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
     return `
@@ -524,7 +523,6 @@
             ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
             <div class="lk-wp-task-copy">
               <strong>${escapeHtml(pageText(item))}</strong>
-              ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
             </div>
           </div>
         </div>
@@ -591,7 +589,6 @@
             ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover small") : `<span class="lk-wp-book-cover-spacer small" aria-hidden="true"></span>`}
             <div class="lk-wp-task-copy">
               <strong>${escapeHtml(pageText(item))}</strong>
-              ${detailText(item) ? `<small>${escapeHtml(detailText(item))}</small>` : ""}
             </div>
           </div>
           <span class="lk-wp-circle"></span>
@@ -935,50 +932,44 @@
           overflow-wrap: anywhere;
         }
         .lk-wp-task-assignment {
-          display:flex;
+          display:grid;
+          grid-template-columns:16mm minmax(0,1fr);
           align-items:center;
-          gap:2mm;
+          column-gap:2.5mm;
           min-width:0;
-          margin-top:.6mm;
+          margin-top:.4mm;
         }
         .lk-wp-task-copy {
           display:flex;
-          flex-direction:column;
+          align-items:center;
           min-width:0;
-          gap:.2mm;
+          min-height:12mm;
         }
         .lk-wp-task-copy strong {
           font-size:9.7pt;
-          line-height:1.1;
+          line-height:1.05;
           font-weight:700;
-        }
-        .lk-wp-task-copy small {
-          display:block;
-          margin:0;
-          color:#666;
-          font-family:Arial, sans-serif;
-          font-size:6.6pt;
-          line-height:1.2;
           white-space:nowrap;
-          overflow:hidden;
-          text-overflow:ellipsis;
         }
         .lk-wp-book-cover {
-          width:10mm;
-          height:14mm;
+          width:14mm;
+          height:20mm;
+          object-fit:contain;
+          justify-self:center;
+          align-self:center;
           flex:none;
         }
         .lk-wp-book-cover.small {
-          width:8mm;
-          height:11mm;
+          width:11mm;
+          height:16mm;
         }
         .lk-wp-book-cover-spacer {
-          width:10mm;
+          width:16mm;
           height:1px;
-          flex:none;
+          display:block;
         }
         .lk-wp-book-cover-spacer.small {
-          width:8mm;
+          width:13mm;
         }
         .lk-wp-subject-badge {
           display:inline-flex;
@@ -1174,9 +1165,15 @@
           padding:1.2mm 3mm;
           font-size:10pt;
         }
-        .lk-wp-week-row-main { min-width:0; }
+        .lk-wp-week-row-main {
+          min-width:0;
+          display:grid !important;
+          grid-template-columns:13mm minmax(0,1fr);
+          align-items:center;
+          column-gap:2mm;
+        }
+        .lk-wp-week-row-main .lk-wp-task-copy { min-height:10mm; }
         .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:9.5pt; }
-        .lk-wp-week-row-main .lk-wp-task-copy small { font-size:6.5pt; }
         .lk-wp-week-row .lk-wp-circle {
           position:static;
           grid-column:2;
