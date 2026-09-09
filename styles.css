@@ -486,6 +486,61 @@ button:disabled {
   align-self: start;
 }
 
+.workbook-cover-fallback {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 3px;
+  padding: 6px;
+  overflow: hidden;
+  color: #24425d;
+  background: linear-gradient(180deg, #ffffff 0%, #eef5fb 100%);
+}
+
+.workbook-cover-fallback.deutsch {
+  background: linear-gradient(180deg, #fffef8 0%, #fff2bd 100%);
+  color: #4d430d;
+}
+
+.workbook-cover-fallback.mathe {
+  background: linear-gradient(180deg, #f8fdff 0%, #dff3ff 100%);
+  color: #1d5875;
+}
+
+.workbook-cover-fallback.neutral {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f4f8 100%);
+  color: #3a4a57;
+}
+
+.workbook-cover-fallback-top {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .65;
+}
+
+.workbook-cover-fallback strong {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.workbook-cover-fallback small,
+.workbook-cover-fallback em {
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1.2;
+  opacity: .82;
+  overflow-wrap: anywhere;
+}
+
+.workbook-cover-fallback em {
+  margin-top: auto;
+  font-weight: 700;
+}
+
 .weekly-child-main {
   display: grid;
   gap: 4px;

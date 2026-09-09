@@ -8466,17 +8466,21 @@ function weeklyCatalogTopicLabel(catalogItem) {
 
 function workbookCoverForCatalogItem(catalogItem) {
   const workbook = String(catalogItem?.workbook || "");
+  const bookType = String(catalogItem?.bookType || catalogItem?.category || catalogItem?.part || "");
   if (workbook === "ABC der Tiere 1") {
-    return { src: "./materials/cover-abc-der-tiere-1.svg", alt: "ABC der Tiere 1" };
+    return { src: "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
   }
-  if (workbook === "ABC der Tiere 2" || workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
-    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2" };
+  if (workbook === "ABC der Tiere 2") {
+    return { src: "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png", alt: "ABC der Tiere 2 – Spracharbeitsheft" };
+  }
+  if (workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
+    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2 – Lernstandsheft" };
   }
   if (workbook === "MiniMax 1") {
-    return { src: "./materials/cover-minimax-1.svg", alt: "MiniMax 1" };
+    return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
   }
   if (workbook === "MiniMax 2" || workbook === "MiniMax") {
-    return { src: "./materials/cover-minimax-2.svg", alt: "MiniMax 2" };
+    return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
   }
   return null;
 }

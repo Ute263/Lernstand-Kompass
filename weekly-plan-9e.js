@@ -22,6 +22,41 @@
   const baseRenderWorkbookCatalogManager = typeof renderWorkbookCatalogManager === "function"
     ? renderWorkbookCatalogManager : null;
 
+  function workbookFallbackTheme(catalogItem) {
+    const workbook = String(catalogItem?.workbook || "").toLowerCase();
+    const subject = String(catalogItem?.subject || "").toLowerCase();
+    if (subject === "mathe" || workbook.includes("mathe") || workbook.includes("minimax") || workbook.includes("welt der zahl")) return "mathe";
+    if (subject === "deutsch" || workbook.includes("deutsch") || workbook.includes("abc") || workbook.includes("fibel") || workbook.includes("lesebuch")) return "deutsch";
+    return "neutral";
+  }
+
+  function workbookFallbackShortTitle(catalogItem) {
+    const workbook = String(catalogItem?.workbook || catalogItem?.subject || "Heft").trim();
+    if (!workbook) return "Heft";
+    return workbook.length > 20 ? `${workbook.slice(0, 18).trim()}…` : workbook;
+  }
+
+  renderWorkbookCoverImage = function renderWorkbookCoverImage9e(catalogItem, className = "") {
+    if (!catalogItem) return "";
+    const cover = typeof workbookCoverForCatalogItem === "function" ? workbookCoverForCatalogItem(catalogItem) : null;
+    const classes = ["workbook-cover", className].filter(Boolean).join(" ");
+    if (cover?.src) {
+      return `<img class="${escapeAttribute(classes)}" src="${escapeAttribute(cover.src)}" alt="${escapeAttribute(cover.alt || catalogItem.workbook || "Lehrwerk")}">`;
+    }
+    const workbook = workbookFallbackShortTitle(catalogItem);
+    const part = String(catalogItem?.part || "").trim();
+    const page = typeof pageRangeLabel === "function" ? pageRangeLabel(catalogItem) : "";
+    const theme = workbookFallbackTheme(catalogItem);
+    return `
+      <div class="${escapeAttribute(classes)} workbook-cover-fallback ${escapeAttribute(theme)}" aria-label="${escapeAttribute(catalogItem.workbook || "Lehrwerk")}">
+        <span class="workbook-cover-fallback-top">Lehrwerk</span>
+        <strong>${escapeHtml(workbook)}</strong>
+        ${part ? `<small>${escapeHtml(part)}</small>` : ""}
+        ${page ? `<em>${escapeHtml(page)}</em>` : ""}
+      </div>
+    `;
+  };
+
   let lkChildWeekDay = "";
   let lkChildWeekPlanId = "";
   let lkWeeklyOpenDay = "Montag";
@@ -1127,21 +1162,25 @@
       const partial = status === "teilweise";
       const subject = item.weeklySection || (item.subject === "Deutsch" ? "Arbeitsaufträge" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe");
       const icon = weeklySubjectBadgeHtml(item.weeklySection || item.subject, true);
+      const cover = item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover lk-child-task-cover") : "";
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
       if (item.catalogItem) {
-        const workbook = item.catalogItem.workbook || subject;
-        let page = "";
-        try { page = pageRangeLabel(item.catalogItem); } catch {}
-        mainText = [workbook, page, item.taskNumber ? `Nr. ${item.taskNumber}` : ""].filter(Boolean).join(" · ");
+        try {
+          mainText = weeklyPageNumberLabel(item.catalogItem, item.taskNumber) || stripStar(item.text || "");
+        } catch {
+          let page = "";
+          try { page = pageRangeLabel(item.catalogItem); } catch {}
+          mainText = [page, item.taskNumber ? `Nr. ${item.taskNumber}` : ""].filter(Boolean).join(" · ") || stripStar(item.text || "");
+        }
         detail = item.catalogItem.title || item.catalogItem.area || detail || "";
       }
       return `
-        <article class="lk-child-task ${done ? "done" : partial ? "partial" : ""} ${item.isExtraTask ? "starred" : ""}">
-          <div class="lk-child-task-icon">${icon}</div>
+        <article class="lk-child-task ${done ? "done" : partial ? "partial" : ""} ${item.isExtraTask ? "starred" : ""} ${cover ? "has-cover" : ""}">
+          ${cover ? `<div class="lk-child-task-cover-wrap">${cover}</div>` : `<div class="lk-child-task-icon">${icon}</div>`}
           <div class="lk-child-task-body">
             <div class="lk-child-task-meta">
-              <strong>${escapeHtml(subject)}</strong>
+              <span class="lk-child-task-subject">${icon}<strong>${escapeHtml(subject)}</strong></span>
               ${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}
               <span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span>
             </div>
@@ -1507,8 +1546,12 @@
       background:#fff;
       font-size:1rem;
     }
+    .lk-child-task-cover-wrap { align-self:start; }
+    .lk-child-task-cover { width:54px; height:76px; }
     .lk-child-task-body { min-width:0; }
     .lk-child-task-meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .lk-child-task-subject { display:inline-flex; align-items:center; gap:6px; }
+    .lk-child-task-subject .lk-subject-badge { transform:scale(.9); transform-origin:left center; }
     .lk-child-task-meta > strong { font-size:.78rem; }
     .lk-child-star-badge { padding:3px 6px; border-radius:999px; background:#ffe99b; font-size:.7rem; font-weight:800; }
     .lk-child-status { margin-left:auto; font-size:.7rem; font-weight:750; }
@@ -1544,6 +1587,7 @@
       .lk-child-day-tab { padding:10px 3px; }
       .lk-child-day-panel { padding:10px; }
       .lk-child-task { grid-template-columns:auto minmax(0,1fr); align-items:start; }
+      .lk-child-task-cover { width:48px; height:68px; }
       .lk-child-task-actions { grid-column:1 / -1; justify-content:flex-end; }
       .lk-child-task-actions button { min-height:38px; }
       .lk-child-status { margin-left:0; }
