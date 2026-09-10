@@ -3686,3 +3686,11 @@ th {
   .child-week-subject-buttons { grid-template-columns: 1fr; }
   .child-week-subject-button { min-height: 74px; }
 }
+
+/* Kinder-Wochenplan: Status kann durch erneutes Antippen zurückgenommen werden */
+.weekly-status-actions .small-button.active {
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+.weekly-status-actions .child-status-done {
+  font-weight: 900;
+}

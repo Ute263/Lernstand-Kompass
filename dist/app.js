@@ -964,8 +964,8 @@ function renderChildWeeklyPlanItem(plan, animal, day, item, showDay = false) {
       </div>
       <em>${escapeHtml(status)}</em>
       <div class="weekly-status-actions">
-        ${status === "offen" ? `<button class="small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'teilweise')">teilweise</button>` : ""}
-        ${!done ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', 'fertig')">fertig</button>` : ""}
+        <button class="small-button ${status === "teilweise" ? "active" : ""}" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', '${status === "teilweise" ? "offen" : "teilweise"}')">teilweise</button>
+        <button class="primary small-button ${done ? "active child-status-done" : ""}" type="button" onclick="updateChildWeeklyStatus('${plan.id}', '${escapeAttribute(day)}', '${escapeAttribute(item.field)}', '${done ? "offen" : "fertig"}')">${done ? "✓ fertig" : "fertig"}</button>
       </div>
     </div>
   `;
@@ -1100,7 +1100,7 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
     reviewStatus: weeklyPlanProgressMode(plan) === "auto" ? "bestätigt" : "wartet",
     completedPages: childCompletedPages,
     openPages: pages.filter((page) => !childCompletedPages.includes(page)),
-    completedAt: status === "fertig" ? timestamp : existing?.completedAt || "",
+    completedAt: status === "fertig" ? timestamp : "",
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp
   };
