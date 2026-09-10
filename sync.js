@@ -200,7 +200,7 @@ async function initCloudSync() {
           try {
             await ensureOneDriveFolder();
             syncRuntime.msStatus = "connected";
-            syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden. Daten werden abgeglichen …";
+            syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden.";
             syncRuntime.suppressAuto = true;
             try {
               await persist({
@@ -215,9 +215,6 @@ async function initCloudSync() {
             } finally {
               syncRuntime.suppressAuto = false;
             }
-            // Auf einem zweiten Gerät nach erfolgreicher Anmeldung sofort den
-            // vorhandenen OneDrive-Stand holen und anschließend zusammenführen.
-            await syncWithOneDriveNow();
           } catch (driveError) {
             console.warn("Microsoft ist angemeldet, aber OneDrive konnte nicht geprüft werden.", driveError);
             syncRuntime.msStatus = "error";
