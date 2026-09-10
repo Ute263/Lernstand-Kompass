@@ -3740,12 +3740,18 @@ function weeklyCarryoverForAnimal(animalId, draft = {}) {
   const previous = candidates[0];
   if (!previous) return null;
   const rows = [];
-  const days = previous.planningMode === "week" ? ["Woche"] : ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  // Ältere Pläne können Aufgaben unter „Woche“ oder unter einzelnen Tagen gespeichert haben.
+  // Deshalb immer beide Varianten prüfen. Ein fehlender Status bedeutet ausdrücklich „offen“.
+  const days = ["Woche", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const seen = new Set();
   days.forEach((day) => {
     weeklyPlanItemsForDay(previous, day, animalId).forEach((item) => {
+      const key = `${day}::${item.field}`;
+      if (seen.has(key)) return;
+      seen.add(key);
       const status = weeklyPlanItemStatus(previous.id, animalId, day, item.field);
       if (status === "fertig") return;
-      rows.push({ day, item, status });
+      rows.push({ day, item, status: status || "offen" });
     });
   });
   return { plan: previous, rows };
@@ -3769,7 +3775,10 @@ function renderWeeklyCarryoverCheck(draft, animals) {
           const more = carry.rows.length > 4 ? ` · +${carry.rows.length - 4} weitere` : "";
           return `<div class="weekly-carryover-child">
             <div><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong><small>${carry.rows.length} ${carry.rows.length === 1 ? "Aufgabe" : "Aufgaben"} offen aus ${escapeHtml(carry.plan.title || weeklyPlanPeriodLabel(carry.plan))}</small><span>${escapeHtml(preview + more)}</span></div>
-            <button class="secondary" type="button" onclick="openWeeklyIndividualAdjustment('${escapeAttribute(animal.id)}')">Plan anpassen</button>
+            <div class="weekly-carryover-actions">
+              <button class="secondary" type="button" onclick="previewWeeklyDraftAsChild('${escapeAttribute(animal.id)}')">Kinderansicht</button>
+              <button class="secondary" type="button" onclick="openWeeklyIndividualAdjustment('${escapeAttribute(animal.id)}')">Plan anpassen</button>
+            </div>
           </div>`;
         }).join("")}
       </div>
@@ -3781,6 +3790,31 @@ function openWeeklyIndividualAdjustment(animalId) {
   weeklyPlanFocusAnimalId = animalId || "";
   weeklyOverrideAnimalId = animalId || "";
   render();
+}
+
+function previewWeeklyDraftAsChild(animalId) {
+  const animal = animalsForActiveClass().find((item) => item.id === animalId);
+  if (!animal) return;
+  const draft = collectWeeklyPlanDraftFromDom();
+  // Für die Vorschau braucht der noch nicht gespeicherte Plan eine temporäre ID.
+  const previewPlan = { ...draft, id: draft.id || "weekly-preview", classId: draft.classId || state.activeClassId, active: true };
+  document.getElementById("weeklyChildPreview")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "weeklyChildPreview";
+  overlay.className = "weekly-child-preview-overlay";
+  overlay.innerHTML = `
+    <div class="weekly-child-preview-dialog" role="dialog" aria-modal="true" aria-label="Kinderansicht Wochenplan">
+      <div class="weekly-child-preview-head">
+        <div><strong>Kinderansicht · ${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong><small>So sieht der individuell angepasste Plan für dieses Kind aus.</small></div>
+        <button class="secondary" type="button" onclick="closeWeeklyChildPreview()">Schließen</button>
+      </div>
+      <div class="weekly-child-preview-body">${renderChildWeeklyPlan(previewPlan, animal)}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeWeeklyChildPreview() {
+  document.getElementById("weeklyChildPreview")?.remove();
 }
 
 function renderWeeklyPlanEditor(plan, focusAnimal = null) {
