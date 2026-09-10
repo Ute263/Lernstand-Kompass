@@ -3629,3 +3629,60 @@ th {
   .weekly-class-subject { grid-template-columns: 76px minmax(0, 1fr); }
   .weekly-class-child-title { align-items: flex-start; }
 }
+
+/* Kinder-Wochenplan: Fachbereiche zuerst, Aufgaben erst nach dem Öffnen */
+.child-week-subject-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.child-week-subject-button {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "icon name arrow"
+    "icon progress arrow";
+  align-items: center;
+  gap: 2px 10px;
+  min-height: 88px;
+  padding: 14px 16px;
+  border: 2px solid #dbe7f0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 5px 14px rgba(40, 74, 105, 0.07);
+}
+
+.child-week-subject-button.deutsch { background: #fff9dc; border-color: #eadb8a; }
+.child-week-subject-button.mathe { background: #eaf8ff; border-color: #aadbed; }
+.child-week-subject-button.sonstiges { background: #f3efff; border-color: #cfc1ef; }
+.child-week-subject-button.open { box-shadow: 0 0 0 3px rgba(64, 126, 169, 0.12); }
+
+.child-week-subject-icon { grid-area: icon; font-size: 2rem; line-height: 1; }
+.child-week-subject-name { grid-area: name; font-size: 1.2rem; font-weight: 900; }
+.child-week-subject-progress { grid-area: progress; font-size: .9rem; font-weight: 750; color: var(--muted); }
+.child-week-subject-arrow { grid-area: arrow; font-size: .9rem; color: var(--muted); }
+
+.child-week-subject-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.child-week-subject-panel h4 { margin: 0; font-size: 1.1rem; }
+.child-week-subject-panel.deutsch { background: #fffdf2; }
+.child-week-subject-panel.mathe { background: #f4fbff; }
+.child-week-subject-panel.sonstiges { background: #faf8ff; }
+.child-week-subject-list { display: grid; gap: 10px; }
+.weekly-child-day-label { display: inline-flex; min-width: 52px; justify-content: center; padding: 4px 8px; border-radius: 999px; background: #eef3f7; font-size: .82rem; }
+
+@media (max-width: 760px) {
+  .child-week-subject-buttons { grid-template-columns: 1fr; }
+  .child-week-subject-button { min-height: 74px; }
+}

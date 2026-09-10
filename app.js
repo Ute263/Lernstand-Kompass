@@ -883,8 +883,37 @@ function renderChildWeek() {
   `;
 }
 
+function childWeeklySectionKey(planId, section) {
+  return `${planId}:${section}`;
+}
+
+function childWeeklySectionOpen(planId, section) {
+  return childDraft.weeklyOpenSection === childWeeklySectionKey(planId, section);
+}
+
+function toggleChildWeeklySection(planId, section) {
+  const key = childWeeklySectionKey(planId, section);
+  childDraft.weeklyOpenSection = childDraft.weeklyOpenSection === key ? "" : key;
+  render();
+}
+
 function renderChildWeeklyPlan(plan, animal) {
   const isCurrent = weeklyPlanIsCurrent(plan);
+  const sections = [
+    { key: "Deutsch", label: "Deutsch", icon: "📘" },
+    { key: "Mathe", label: "Mathe", icon: "🔢" },
+    { key: "Sonstiges", label: "Sonstiges", icon: "✨" }
+  ].map((section) => {
+    const rows = [];
+    WEEK_DAYS.forEach((day) => {
+      weeklyPlanItemsForDay(plan, day, animal.id).forEach((item) => {
+        const sectionKey = item.label === "Deutsch" ? "Deutsch" : item.label === "Mathe" ? "Mathe" : "Sonstiges";
+        if (sectionKey === section.key) rows.push({ day, item });
+      });
+    });
+    return { ...section, rows };
+  }).filter((section) => section.rows.length);
+
   return `
     <article class="weekly-child-plan ${isCurrent ? "current" : ""}">
       <div class="weekly-child-plan-header">
@@ -894,20 +923,32 @@ function renderChildWeeklyPlan(plan, animal) {
         </div>
         <span class="weekly-child-plan-badge ${isCurrent ? "current" : ""}">${isCurrent ? "Aktueller Wochenplan" : "Weiterer Wochenplan"}</span>
       </div>
-      ${WEEK_DAYS.map((day) => {
-        const items = weeklyPlanItemsForDay(plan, day, animal.id);
-        return `
-          <section class="weekly-day-card">
-            <h4>${escapeHtml(day)}</h4>
-            ${items.length ? items.map((item) => renderChildWeeklyPlanItem(plan, animal, day, item)).join("") : `<p class="message">Heute ist nichts eingetragen.</p>`}
-          </section>
-        `;
+      <div class="child-week-subject-buttons">
+        ${sections.map((section) => {
+          const doneCount = section.rows.filter(({ day, item }) => normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field)) === "fertig").length;
+          const open = childWeeklySectionOpen(plan.id, section.key);
+          return `<button class="child-week-subject-button ${section.key.toLowerCase()} ${open ? "open" : ""}" type="button" onclick="toggleChildWeeklySection('${escapeAttribute(plan.id)}','${escapeAttribute(section.key)}')">
+            <span class="child-week-subject-icon">${section.icon}</span>
+            <span class="child-week-subject-name">${escapeHtml(section.label)}</span>
+            <span class="child-week-subject-progress">${doneCount}/${section.rows.length} fertig</span>
+            <span class="child-week-subject-arrow">${open ? "▲" : "▼"}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      ${sections.map((section) => {
+        if (!childWeeklySectionOpen(plan.id, section.key)) return "";
+        return `<section class="child-week-subject-panel ${section.key.toLowerCase()}">
+          <h4>${section.icon} ${escapeHtml(section.label)}</h4>
+          <div class="child-week-subject-list">
+            ${section.rows.map(({ day, item }) => renderChildWeeklyPlanItem(plan, animal, day, item, true)).join("")}
+          </div>
+        </section>`;
       }).join("")}
     </article>
   `;
 }
 
-function renderChildWeeklyPlanItem(plan, animal, day, item) {
+function renderChildWeeklyPlanItem(plan, animal, day, item, showDay = false) {
   const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
   const done = status === "fertig";
   const childText = item.catalogItem ? weeklyWorkbookPlanLabel(item.catalogItem, item.taskNumber) : item.text;
@@ -916,7 +957,7 @@ function renderChildWeeklyPlanItem(plan, animal, day, item) {
   return `
     <div class="weekly-child-item ${done ? "completed" : ""}">
       ${cover}
-      <strong>${escapeHtml(item.label)}</strong>
+      <strong>${showDay ? `<span class="weekly-child-day-label">${escapeHtml(day)}</span>` : escapeHtml(item.label)}</strong>
       <div class="weekly-child-main">
         <span>${escapeHtml(childText)}</span>
         ${childDetail ? `<small>${escapeHtml(childDetail)}</small>` : ""}
