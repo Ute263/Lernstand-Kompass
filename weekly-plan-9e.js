@@ -1053,7 +1053,9 @@
 
       return `
         <section class="step-wrap child-week-wrap lk-child-week-wrap">
-          ${renderBackButton("childSubject")}
+          <div class="lk-child-week-home-row">
+            <button class="secondary lk-child-week-home" type="button" onclick="setChildScreen('childSubject')">⌂ Zur Startseite</button>
+          </div>
           <div class="lk-child-week-hero">
             <div class="lk-child-week-icon">🗓️</div>
             <div>
@@ -1527,6 +1529,8 @@
       background:#fff;
       font-size:1rem;
     }
+    .lk-child-week-home-row { display:flex; justify-content:flex-start; margin-bottom:10px; }
+    .lk-child-week-home { min-height:44px; font-weight:800; }
     .lk-child-task-cover-wrap { align-self:start; }
     .lk-child-task-cover { width:54px; height:76px; }
     .lk-child-task-body { min-width:0; }
