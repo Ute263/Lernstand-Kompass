@@ -918,9 +918,19 @@
       );
       const starred = Boolean(stars[index]);
       const taskNumber = numbers[index] || "";
+      const catalogId = String(item?.workbookCatalogId || item?.catalogItem?.id || "");
+      const duplicateCount = catalogId ? ids.filter((id) => String(id) === catalogId).length : 0;
+      // Wird dieselbe Seite mehrfach gewählt (z. B. Pflicht Nr. 1 und ⭐ Nr. 2),
+      // braucht jede Auswahl einen eigenen Status-Schlüssel. Sonst markiert ein Haken
+      // beide Aufgaben gleichzeitig als erledigt. Einzelne Aufgaben behalten ihren
+      // bisherigen Schlüssel, damit vorhandene Kinder-Haken erhalten bleiben.
+      const uniqueField = duplicateCount > 1
+        ? `Aufgabe:${subject}:${catalogId}:${starred ? "stern" : "pflicht"}:${String(taskNumber || "ohne-nr").trim()}:${index}`
+        : item.field;
 
       return {
         ...item,
+        field: uniqueField,
         subject,
         taskNumber,
         text: `${starred ? "⭐ " : ""}${stripStar(item.text)}`,

@@ -43,6 +43,7 @@
   const baseFindAnimalForQrValue = typeof findAnimalForQrValue === "function" ? findAnimalForQrValue : null;
   const baseRenderQrCards = typeof renderQrCards === "function" ? renderQrCards : null;
   const baseRenderConfirmation = typeof renderConfirmation === "function" ? renderConfirmation : null;
+  const baseHandleScannedQrToken = typeof handleScannedQrToken === "function" ? handleScannedQrToken : null;
 
   function normalizedAppBaseUrl() {
     if (location.protocol !== "http:" && location.protocol !== "https:") return "";
@@ -817,6 +818,41 @@
         if (animal) return animal;
       }
       return baseFindAnimalForQrValue(value);
+    };
+  }
+
+
+  // Auf einem gemeinsam genutzten Kinder-iPad kennt der lokale Zustand nach dem
+  // ersten QR-Zugang nur dieses eine Tier. Der eingebaute QR-Reader muss deshalb
+  // bei einem neuen #k-Zugang nicht lokal nach dem Tier suchen, sondern dessen
+  // freigegebenen Kinderstand direkt vom Sync-Endpunkt laden.
+  if (baseHandleScannedQrToken) {
+    handleScannedQrToken = async function automaticChildQrSwitch(value) {
+      const raw = String(value || "").trim();
+      const token = validQrToken(raw) ? raw : qrTokenFromUrl(raw);
+      if (token && validQrToken(token) && scannerMode !== "test") {
+        try {
+          stopQrScanner();
+          // Vor einem Wechsel noch ausstehende Eingaben des vorherigen Kindes senden.
+          if (isChildDevice()) {
+            try { await pushChildStateNow(); } catch {}
+          }
+          const ok = await installOrRefreshChildBootstrap(token, { openChild: true });
+          if (ok) {
+            try { history.replaceState(null, "", `${location.pathname}${location.search}`); } catch {}
+            scheduleChildPush();
+            scheduleChildBootstrapRefresh();
+            return;
+          }
+        } catch (error) {
+          console.warn("Kinder-QR-Zugang konnte nicht geöffnet werden.", error);
+        }
+        qrErrorMessage = "Dieser Zugang wurde nicht gefunden. Bitte frage deine Lehrkraft.";
+        screen = "qrInvalid";
+        render();
+        return;
+      }
+      return baseHandleScannedQrToken(value);
     };
   }
 

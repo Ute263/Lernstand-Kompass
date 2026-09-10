@@ -355,13 +355,16 @@ function render() {
 }
 
 function renderTopbar(subtitle) {
+  const isChildArea = screen === "childStart" || screen === "qrScanner" || screen.startsWith("child");
   return `
     <header class="topbar">
       <div class="brand">
         <h1 class="brand-title">${APP_NAME}</h1>
         <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
       </div>
-      <button class="secondary" type="button" onclick="goHome()">Start</button>
+      ${isChildArea
+        ? `<button class="secondary" type="button" onclick="childLogout()">Abmelden</button>`
+        : `<button class="secondary" type="button" onclick="goHome()">Start</button>`}
     </header>
   `;
 }
@@ -509,6 +512,22 @@ function goHome() {
   loginError = "";
   qrErrorMessage = "";
   screen = "start";
+  render();
+}
+
+function childLogout() {
+  stopQrScanner();
+  if (typeof resetNomenRuntime === "function") resetNomenRuntime();
+  childDraft = {};
+  pendingTrainingTaskCode = "";
+  childMessage = "";
+  qrErrorMessage = "";
+  // Einen QR-Zugang aus der Adresszeile entfernen, damit das Kind nach dem
+  // Abmelden nicht beim nächsten Laden sofort wieder angemeldet wird.
+  try {
+    if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
+  } catch {}
+  screen = "childStart";
   render();
 }
 
