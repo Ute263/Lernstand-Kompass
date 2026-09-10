@@ -38,6 +38,7 @@ let progressFilters = {
   comparison: "both"
 };
 let progressAnimalTab = "overview";
+let classOverviewFilter = "all";
 let workDoneFilters = { subject: "", status: "", source: "" };
 let hasUnsavedChanges = false;
 
@@ -1933,34 +1934,98 @@ function renderTeacherHome() {
   `;
 }
 
+function compactWeeklyTaskLabel(row) {
+  const catalog = row?.item?.catalogItem;
+  if (!catalog) return escapeHtml(row?.item?.text || "Aufgabe");
+  return escapeHtml(weeklyPageNumberLabel(catalog, row.item.taskNumber || "") || row.pagesLabel || "Aufgabe");
+}
+
+function compactWeeklyTaskStatus(row) {
+  const status = normalizeSimpleWorkStatus(row?.status || "offen");
+  if (status === "fertig") return { symbol: "✓", label: "fertig", css: "done" };
+  if (status === "teilweise") return { symbol: "◐", label: "teilweise", css: "partial" };
+  return { symbol: "○", label: "nicht fertig", css: "open" };
+}
+
+function compactWeeklyTaskList(rows) {
+  if (!rows.length) return `<span class="weekly-compact-empty">–</span>`;
+  return rows.map((row) => {
+    const status = compactWeeklyTaskStatus(row);
+    return `<span class="weekly-compact-task ${status.css}" title="${escapeAttribute(status.label)}">${compactWeeklyTaskLabel(row)} <strong>${status.symbol}</strong></span>`;
+  }).join(`<span class="weekly-compact-separator"> · </span>`);
+}
+
+function weeklyAnimalOverviewState(rows) {
+  const required = rows.filter((row) => !row.item?.isExtraTask);
+  const done = required.filter((row) => normalizeSimpleWorkStatus(row.status) === "fertig").length;
+  const started = required.filter((row) => normalizeSimpleWorkStatus(row.status) !== "offen").length;
+  if (!required.length) return { key: "none", label: "kein Wochenplan", done: 0, total: 0 };
+  if (done === required.length) return { key: "done", label: "fertig", done, total: required.length };
+  if (!started) return { key: "not-started", label: "nicht begonnen", done, total: required.length };
+  return { key: "incomplete", label: "nicht fertig", done, total: required.length };
+}
+
+function setClassOverviewFilter(value) {
+  classOverviewFilter = ["all", "incomplete", "not-started"].includes(value) ? value : "all";
+  render();
+}
+
 function renderOverview() {
-  const rows = animalsForActiveClass().filter((animal) => animal.aktiv).map((animal) => {
-    const deutsch = latestEntry(animal.id, "Deutsch");
-    const mathe = latestEntry(animal.id, "Mathe");
-    const latest = latestEntry(animal.id);
-    const open = entriesForActiveClass()
-      .filter((entry) => entry.tierID === animal.id && !entry.erledigt && entry.status !== "fertig")
-      .sort(sortNewest)[0];
-    const statusEntry = open || latest;
-    return `
-      <tr>
-        <td><strong>${teacherAnimalLabel(animal)}</strong></td>
-        <td>${deutsch ? escapeHtml(entryStandLabel(deutsch)) : "noch kein Eintrag"}</td>
-        <td>${mathe ? escapeHtml(entryStandLabel(mathe)) : "noch kein Eintrag"}</td>
-        <td>${latest ? formatSmartDate(latest.datumUhrzeit) : "noch kein Eintrag"}</td>
-        <td>${statusEntry ? statusBadge(statusEntry.status, statusEntry.erledigt) : "noch kein Eintrag"}</td>
-      </tr>
-    `;
-  }).join("");
+  const classId = state.activeClassId;
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+  const allWeeklyRows = buildWeeklyProgressRows(classId);
+  const summaries = animals.map((animal) => {
+    const rows = allWeeklyRows.filter((row) => row.animal.id === animal.id);
+    const required = rows.filter((row) => !row.item?.isExtraTask);
+    const stars = rows.filter((row) => row.item?.isExtraTask);
+    const deutsch = required.filter((row) => row.subject === "Deutsch");
+    const mathe = required.filter((row) => row.subject === "Mathe");
+    const stateInfo = weeklyAnimalOverviewState(rows);
+    return { animal, rows, required, stars, deutsch, mathe, stateInfo };
+  });
+
+  const counts = {
+    done: summaries.filter((item) => item.stateInfo.key === "done").length,
+    incomplete: summaries.filter((item) => item.stateInfo.key === "incomplete").length,
+    notStarted: summaries.filter((item) => item.stateInfo.key === "not-started").length
+  };
+
+  const visible = summaries.filter((item) => {
+    if (classOverviewFilter === "incomplete") return item.stateInfo.key === "incomplete" || item.stateInfo.key === "not-started";
+    if (classOverviewFilter === "not-started") return item.stateInfo.key === "not-started";
+    return true;
+  });
 
   return `
-    <section class="panel">
-      <h2>Klassenübersicht</h2>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Tier</th><th>Deutsch: letzter Stand</th><th>Mathe: letzter Stand</th><th>letzter Eintrag</th><th>offener Status</th></tr></thead>
-          <tbody>${rows || `<tr><td colspan="5">noch kein Eintrag</td></tr>`}</tbody>
-        </table>
+    <section class="panel weekly-class-overview">
+      <div class="weekly-class-overview-head">
+        <div>
+          <h2>Wochenplan – Klassenübersicht</h2>
+          <p class="message">Kompakt nach Kind: ✓ fertig · ◐ teilweise · ○ noch offen. Sternchen zählen nicht dafür, ob der Wochenplan geschafft ist.</p>
+        </div>
+        <div class="weekly-class-counts" aria-label="Wochenplan-Zusammenfassung">
+          <span><strong>${counts.done}</strong> fertig</span>
+          <span><strong>${counts.incomplete}</strong> nicht fertig</span>
+          <span><strong>${counts.notStarted}</strong> nicht begonnen</span>
+        </div>
+      </div>
+      <div class="weekly-class-filter" role="group" aria-label="Wochenplan filtern">
+        <button class="small-button ${classOverviewFilter === "all" ? "active" : ""}" type="button" onclick="setClassOverviewFilter('all')">Alle</button>
+        <button class="small-button ${classOverviewFilter === "incomplete" ? "active" : ""}" type="button" onclick="setClassOverviewFilter('incomplete')">Nicht fertig</button>
+        <button class="small-button ${classOverviewFilter === "not-started" ? "active" : ""}" type="button" onclick="setClassOverviewFilter('not-started')">Nicht begonnen</button>
+      </div>
+      <div class="weekly-class-list">
+        ${visible.map(({ animal, deutsch, mathe, stars, stateInfo }) => `
+          <article class="weekly-class-child ${stateInfo.key}">
+            <div class="weekly-class-child-title">
+              <strong>${teacherAnimalLabel(animal)}</strong>
+              <span class="weekly-class-progress ${stateInfo.key}">${stateInfo.total ? `${stateInfo.done}/${stateInfo.total} Pflicht · ` : ""}${escapeHtml(stateInfo.label)}</span>
+            </div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}</div></div>
+            ${stars.length ? `<div class="weekly-class-subject star"><span class="weekly-class-subject-label">⭐ Sternchen</span><div>${compactWeeklyTaskList(stars)}</div></div>` : ""}
+          </article>
+        `).join("") || `<div class="empty">Für diesen Filter gibt es keine Kinder.</div>`}
       </div>
     </section>
   `;

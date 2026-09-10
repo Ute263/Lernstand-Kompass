@@ -3547,3 +3547,85 @@ th {
   justify-content: center;
   cursor: pointer;
 }
+
+/* Kompakte Lehrerübersicht zum Wochenplan */
+.weekly-class-overview-head {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.weekly-class-counts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.weekly-class-counts span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f5f7f8;
+  border: 1px solid #dfe5e8;
+  white-space: nowrap;
+}
+.weekly-class-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 14px;
+}
+.weekly-class-list {
+  display: grid;
+  gap: 9px;
+}
+.weekly-class-child {
+  border: 1px solid #dfe5e8;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.weekly-class-child-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.weekly-class-progress {
+  font-size: .9rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f5f6;
+  white-space: nowrap;
+}
+.weekly-class-progress.done { background: #eaf6ec; }
+.weekly-class-progress.incomplete { background: #fff4df; }
+.weekly-class-progress.not-started { background: #f2f3f5; }
+.weekly-class-subject {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 3px 0;
+  line-height: 1.45;
+}
+.weekly-class-subject-label {
+  font-weight: 700;
+}
+.weekly-class-subject.star {
+  margin-top: 2px;
+  color: #5b5367;
+}
+.weekly-compact-task {
+  white-space: nowrap;
+}
+.weekly-compact-task.done strong { color: #287a3b; }
+.weekly-compact-task.partial strong { color: #9a6714; }
+.weekly-compact-task.open strong { color: #6c747a; }
+.weekly-compact-separator { color: #a1a8ad; }
+.weekly-compact-empty { color: #9aa1a6; }
+@media (max-width: 720px) {
+  .weekly-class-subject { grid-template-columns: 76px minmax(0, 1fr); }
+  .weekly-class-child-title { align-items: flex-start; }
+}
