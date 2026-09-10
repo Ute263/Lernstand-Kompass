@@ -3730,6 +3730,59 @@ function renderWorkbookAccordion(workbook, items) {
   `;
 }
 
+function weeklyCarryoverForAnimal(animalId, draft = {}) {
+  const draftId = draft.id || "";
+  const draftFrom = draft.validFrom || "";
+  const candidates = weeklyPlansForAnimal(animalId)
+    .filter((plan) => plan.id !== draftId)
+    .filter((plan) => !draftFrom || !plan.validFrom || plan.validFrom < draftFrom)
+    .sort((a, b) => String(b.validTo || b.validFrom || b.createdAt || "").localeCompare(String(a.validTo || a.validFrom || a.createdAt || "")));
+  const previous = candidates[0];
+  if (!previous) return null;
+  const rows = [];
+  const days = previous.planningMode === "week" ? ["Woche"] : ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  days.forEach((day) => {
+    weeklyPlanItemsForDay(previous, day, animalId).forEach((item) => {
+      const status = weeklyPlanItemStatus(previous.id, animalId, day, item.field);
+      if (status === "fertig") return;
+      rows.push({ day, item, status });
+    });
+  });
+  return { plan: previous, rows };
+}
+
+function renderWeeklyCarryoverCheck(draft, animals) {
+  const affected = animals.map((animal) => ({ animal, carry: weeklyCarryoverForAnimal(animal.id, draft) }))
+    .filter(({ carry }) => carry && carry.rows.length);
+  if (!affected.length) return `
+    <div class="weekly-carryover-check all-done">
+      <div><strong>Abgleich mit dem vorherigen Zeitraum</strong><small>Keine offenen Aufgaben bei den Kindern gefunden.</small></div>
+    </div>`;
+  return `
+    <div class="weekly-carryover-check">
+      <div class="weekly-carryover-head">
+        <div><strong>Abgleich mit dem vorherigen Zeitraum</strong><small>${affected.length} ${affected.length === 1 ? "Kind hat" : "Kinder haben"} noch offene Aufgaben. Du kannst den neuen Plan gezielt anpassen.</small></div>
+      </div>
+      <div class="weekly-carryover-list">
+        ${affected.map(({ animal, carry }) => {
+          const preview = carry.rows.slice(0, 4).map(({ item, status }) => `${item.text || item.detail || item.label}${status === "teilweise" ? " (angefangen)" : ""}`).join(" · ");
+          const more = carry.rows.length > 4 ? ` · +${carry.rows.length - 4} weitere` : "";
+          return `<div class="weekly-carryover-child">
+            <div><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong><small>${carry.rows.length} ${carry.rows.length === 1 ? "Aufgabe" : "Aufgaben"} offen aus ${escapeHtml(carry.plan.title || weeklyPlanPeriodLabel(carry.plan))}</small><span>${escapeHtml(preview + more)}</span></div>
+            <button class="secondary" type="button" onclick="openWeeklyIndividualAdjustment('${escapeAttribute(animal.id)}')">Plan anpassen</button>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+function openWeeklyIndividualAdjustment(animalId) {
+  weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+  weeklyPlanFocusAnimalId = animalId || "";
+  weeklyOverrideAnimalId = animalId || "";
+  render();
+}
+
 function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const draft = weeklyPlanDraft || plan || {};
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
@@ -3839,6 +3892,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             </div>
             <small>Die Zielgruppe wurde vor dem Öffnen des Wochenplans festgelegt.</small>
           </div>
+          ${renderWeeklyCarryoverCheck(draft, assignmentMode === "all" ? animals : animals.filter((animal) => selectedAnimals.has(animal.id)))}
           <h3>Aufgaben für diese Zielgruppe</h3>
           ${renderWeeklyPlannerTable(draft.days || {}, "standard", "", planningMode, deutschSectionOrder)}
         `}

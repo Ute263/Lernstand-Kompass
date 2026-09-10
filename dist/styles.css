@@ -3694,3 +3694,7 @@ th {
 .weekly-status-actions .child-status-done {
   font-weight: 900;
 }
+
+
+/* Abgleich offener Aufgaben beim Erstellen eines neuen Wochenplans */
+.weekly-carryover-check{margin:18px 0;padding:16px;border:1px solid #d7e3f4;border-radius:18px;background:#f8fbff}.weekly-carryover-check.all-done{background:#fbfdfb}.weekly-carryover-head strong,.weekly-carryover-check.all-done strong{display:block;font-size:1.05rem}.weekly-carryover-head small,.weekly-carryover-check.all-done small{display:block;margin-top:4px;color:#65758b}.weekly-carryover-list{display:grid;gap:10px;margin-top:12px}.weekly-carryover-child{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;background:#fff;border:1px solid #e1e9f5;border-radius:14px}.weekly-carryover-child>div{min-width:0}.weekly-carryover-child strong,.weekly-carryover-child small,.weekly-carryover-child span{display:block}.weekly-carryover-child small{margin-top:2px;color:#5f6f84}.weekly-carryover-child span{margin-top:5px;color:#33445c;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.weekly-carryover-child button{flex:0 0 auto}@media(max-width:720px){.weekly-carryover-child{align-items:stretch;flex-direction:column}.weekly-carryover-child span{white-space:normal}.weekly-carryover-child button{width:100%}}
