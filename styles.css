@@ -3503,3 +3503,47 @@ th {
     flex-direction: column;
   }
 }
+
+/* QR-Scanner: robuster iPad/Safari-Scan mit sichtbarer Zielhilfe */
+.qr-video-wrap {
+  position: relative;
+  width: min(100%, 640px);
+}
+.qr-video-wrap .qr-video {
+  width: 100%;
+  display: block;
+}
+.qr-scan-guide {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(62%, 330px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 4px solid rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  box-shadow: 0 0 0 999px rgba(19, 45, 66, 0.18), 0 0 0 2px rgba(24, 80, 116, 0.3);
+  pointer-events: none;
+}
+.qr-retry-button[hidden] { display: none; }
+.qr-photo-fallback {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 12px auto 0;
+  width: min(100%, 760px);
+  text-align: center;
+}
+.qr-photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.qr-photo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
