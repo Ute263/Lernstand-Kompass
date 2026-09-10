@@ -1054,7 +1054,7 @@
       return `
         <section class="step-wrap child-week-wrap lk-child-week-wrap">
           <div class="lk-child-week-home-row">
-            <button class="secondary lk-child-week-home" type="button" onclick="setChildScreen('childSubject')">⌂ Zur Startseite</button>
+            <button class="secondary lk-child-week-home" type="button" onclick="goHome()">⌂ Zur Hauptseite</button>
           </div>
           <div class="lk-child-week-hero">
             <div class="lk-child-week-icon">🗓️</div>
