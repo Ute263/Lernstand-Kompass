@@ -1076,53 +1076,8 @@
 
   if (typeof renderChildWeeklyPlan === "function") {
     renderChildWeeklyPlan = function renderChildWeeklyPlan9e(plan, animal) {
-      if (plan?.planningMode === "week") {
-        const sectionOrder = normalizeDeutschSectionOrder(plan?.deutschSectionOrder);
-        const rankMap = Object.fromEntries(sectionOrder.map((section, index) => [section, index + 1]));
-        const items = weeklyPlanItemsForDay(plan, "Montag", animal.id)
-          .map((item, index) => ({ item, index }))
-          .sort((a, b) => {
-            const sectionFor = (entry) => entry.weeklySection || (entry.subject === "Deutsch" ? "Deutsch" : entry.subject);
-            const ra = rankMap[sectionFor(a.item)] || (a.item.subject === "Mathe" ? 10 : 20);
-            const rb = rankMap[sectionFor(b.item)] || (b.item.subject === "Mathe" ? 10 : 20);
-            return ra - rb || Number(a.item.isExtraTask) - Number(b.item.isExtraTask) || a.index - b.index;
-          }).map(({ item }) => item);
-        const titleFor = (section) => section === "Deutsch" ? "Arbeitsaufträge" : section;
-        const classFor = (section) => section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
-        const groups = [
-          ...sectionOrder.flatMap((section) => [
-            [`${titleFor(section)} · Pflicht`, items.filter((item) => (item.weeklySection || (item.subject === "Deutsch" ? "Deutsch" : "")) === section && !item.isExtraTask), classFor(section)],
-            [`${titleFor(section)} · ⭐ Sternchen`, items.filter((item) => (item.weeklySection || (item.subject === "Deutsch" ? "Deutsch" : "")) === section && item.isExtraTask), `${classFor(section)} star`]
-          ]),
-          ["Mathe · Pflicht", items.filter((item) => item.subject === "Mathe" && !item.isExtraTask), "mathe"],
-          ["Mathe · ⭐ Sternchen", items.filter((item) => item.subject === "Mathe" && item.isExtraTask), "mathe star"],
-          ["Sonstiges", items.filter((item) => item.subject !== "Deutsch" && item.subject !== "Mathe"), "extra"]
-        ].filter(([, groupItems]) => groupItems.length);
-
-        return `
-          <article class="lk-child-week-plan lk-child-whole-week">
-            <div class="lk-child-day-heading lk-child-week-mode-heading">
-              <div>
-                <span>Deine Woche</span>
-                <h3>Wochenaufgaben</h3>
-              </div>
-              <strong>${items.length} ${items.length === 1 ? "Aufgabe" : "Aufgaben"}</strong>
-            </div>
-            <div class="lk-child-week-groups">
-              ${groups.map(([title, groupItems, className]) => `
-                <section class="lk-child-week-group ${escapeAttribute(className)}">
-                  <h4>${escapeHtml(title)}</h4>
-                  <div class="lk-child-task-list">
-                    ${groupItems.map((item) => renderChildWeeklyPlanItem(plan, animal, "Montag", item)).join("")}
-                  </div>
-                </section>
-              `).join("") || `<div class="lk-child-no-tasks"><span>🎉</span><strong>Für diese Woche ist nichts eingetragen.</strong></div>`}
-            </div>
-          </article>
-        `;
-      }
-
-      const selectedDay = WEEK_DAYS.includes(lkChildWeekDay) ? lkChildWeekDay : todayGerman();
+      const isWeekMode = plan?.planningMode === "week";
+      const selectedDay = isWeekMode ? "Montag" : (WEEK_DAYS.includes(lkChildWeekDay) ? lkChildWeekDay : todayGerman());
       const sectionOrder = normalizeDeutschSectionOrder(plan?.deutschSectionOrder);
       const rankMap = Object.fromEntries(sectionOrder.map((section, index) => [section, index + 1]));
       const items = weeklyPlanItemsForDay(plan, selectedDay, animal.id)
@@ -1131,37 +1086,65 @@
           const sectionFor = (entry) => entry.weeklySection || (entry.subject === "Deutsch" ? "Deutsch" : entry.subject);
           const ra = rankMap[sectionFor(a.item)] || (a.item.subject === "Mathe" ? 10 : 20);
           const rb = rankMap[sectionFor(b.item)] || (b.item.subject === "Mathe" ? 10 : 20);
-          return ra - rb || a.index - b.index;
+          return ra - rb || Number(a.item.isExtraTask) - Number(b.item.isExtraTask) || a.index - b.index;
         }).map(({ item }) => item);
+
+      const subjectFor = (item) => {
+        if (item.subject === "Mathe") return "Mathe";
+        if (item.subject === "Deutsch" || ["Deutsch", "Lesezeit", "Lernwörter"].includes(item.weeklySection)) return "Deutsch";
+        return "Sonstiges";
+      };
+      const sectionDefs = [
+        { key: "Deutsch", label: "Deutsch", icon: "📘" },
+        { key: "Mathe", label: "Mathe", icon: "🔢" },
+        { key: "Sonstiges", label: "Sonstiges", icon: "✨" }
+      ];
+      const sections = sectionDefs.map((section) => ({ ...section, items: items.filter((item) => subjectFor(item) === section.key) })).filter((section) => section.items.length);
+
+      const subjectButtons = `
+        <div class="child-week-subject-buttons lk-child-subject-buttons">
+          ${sections.map((section) => {
+            const doneCount = section.items.filter((item) => normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, selectedDay, item.field)) === "fertig").length;
+            const open = childWeeklySectionOpen(plan.id, section.key);
+            return `<button class="child-week-subject-button ${section.key.toLowerCase()} ${open ? "open" : ""}" type="button" onclick="toggleChildWeeklySection('${escapeAttribute(plan.id)}','${escapeAttribute(section.key)}')">
+              <span class="child-week-subject-icon">${section.icon}</span>
+              <span class="child-week-subject-name">${escapeHtml(section.label)}</span>
+              <span class="child-week-subject-progress">${doneCount}/${section.items.length} fertig</span>
+              <span class="child-week-subject-arrow">${open ? "▲" : "▼"}</span>
+            </button>`;
+          }).join("")}
+        </div>`;
+
+      const openPanels = sections.map((section) => {
+        if (!childWeeklySectionOpen(plan.id, section.key)) return "";
+        return `<section class="child-week-subject-panel ${section.key.toLowerCase()} lk-child-subject-panel">
+          <h4>${section.icon} ${escapeHtml(section.label)}</h4>
+          <div class="lk-child-task-list">${section.items.map((item) => renderChildWeeklyPlanItem(plan, animal, selectedDay, item)).join("")}</div>
+        </section>`;
+      }).join("");
+
+      if (isWeekMode) {
+        return `
+          <article class="lk-child-week-plan lk-child-whole-week">
+            <div class="lk-child-day-heading lk-child-week-mode-heading">
+              <div><span>Deine Woche</span><h3>Wochenaufgaben</h3></div>
+              <strong>${items.length} ${items.length === 1 ? "Aufgabe" : "Aufgaben"}</strong>
+            </div>
+            ${subjectButtons}${openPanels}
+          </article>`;
+      }
+
       const actualToday = todayGerman();
       return `
         <article class="lk-child-week-plan">
           <nav class="lk-child-day-tabs" aria-label="Wochentage">
-            ${WEEK_DAYS.map((day) => `
-              <button class="lk-child-day-tab ${selectedDay === day ? "active" : ""} ${actualToday === day ? "today" : ""}" type="button" onclick="setLKChildWeekDay('${escapeAttribute(day)}')">
-                <span class="lk-day-long">${escapeHtml(day)}</span>
-                <span class="lk-day-short">${escapeHtml(day.slice(0,2))}</span>
-                ${actualToday === day ? `<i></i>` : ""}
-              </button>
-            `).join("")}
+            ${WEEK_DAYS.map((day) => `<button class="lk-child-day-tab ${selectedDay === day ? "active" : ""} ${actualToday === day ? "today" : ""}" type="button" onclick="setLKChildWeekDay('${escapeAttribute(day)}')"><span class="lk-day-long">${escapeHtml(day)}</span><span class="lk-day-short">${escapeHtml(day.slice(0,2))}</span>${actualToday === day ? `<i></i>` : ""}</button>`).join("")}
           </nav>
-
           <section class="lk-child-day-panel">
-            <div class="lk-child-day-heading">
-              <div>
-                <span>${actualToday === selectedDay ? "Heute" : "Dein Tag"}</span>
-                <h3>${escapeHtml(selectedDay)}</h3>
-              </div>
-              <strong>${items.length} ${items.length === 1 ? "Aufgabe" : "Aufgaben"}</strong>
-            </div>
-            <div class="lk-child-task-list">
-              ${items.length
-                ? items.map((item) => renderChildWeeklyPlanItem(plan, animal, selectedDay, item)).join("")
-                : `<div class="lk-child-no-tasks"><span>🎉</span><strong>Heute ist nichts eingetragen.</strong></div>`}
-            </div>
+            <div class="lk-child-day-heading"><div><span>${actualToday === selectedDay ? "Heute" : "Dein Tag"}</span><h3>${escapeHtml(selectedDay)}</h3></div><strong>${items.length} ${items.length === 1 ? "Aufgabe" : "Aufgaben"}</strong></div>
+            ${items.length ? subjectButtons + openPanels : `<div class="lk-child-no-tasks"><span>🎉</span><strong>Heute ist nichts eingetragen.</strong></div>`}
           </section>
-        </article>
-      `;
+        </article>`;
     };
   }
 
@@ -1176,11 +1159,9 @@
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
       if (item.catalogItem) {
-        try {
-          mainText = weeklyPageNumberLabel(item.catalogItem, item.taskNumber) || stripStar(item.text || "");
-        } catch {
-          let page = "";
-          try { page = pageRangeLabel(item.catalogItem); } catch {}
+        try { mainText = weeklyPageNumberLabel(item.catalogItem, item.taskNumber) || stripStar(item.text || ""); }
+        catch {
+          let page = ""; try { page = pageRangeLabel(item.catalogItem); } catch {}
           mainText = [page, item.taskNumber ? `Nr. ${item.taskNumber}` : ""].filter(Boolean).join(" · ") || stripStar(item.text || "");
         }
         detail = item.catalogItem.title || item.catalogItem.area || detail || "";
@@ -1189,20 +1170,15 @@
         <article class="lk-child-task ${done ? "done" : partial ? "partial" : ""} ${item.isExtraTask ? "starred" : ""} ${cover ? "has-cover" : ""}">
           ${cover ? `<div class="lk-child-task-cover-wrap">${cover}</div>` : `<div class="lk-child-task-icon">${icon}</div>`}
           <div class="lk-child-task-body">
-            <div class="lk-child-task-meta">
-              <span class="lk-child-task-subject">${icon}<strong>${escapeHtml(subject)}</strong></span>
-              ${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}
-              <span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span>
-            </div>
-            <h4>${escapeHtml(mainText)}</h4>
-            ${detail ? `<p>${escapeHtml(detail)}</p>` : ""}
+            <div class="lk-child-task-meta"><span class="lk-child-task-subject">${icon}<strong>${escapeHtml(subject)}</strong></span>${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}<span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span></div>
+            <h4>${escapeHtml(mainText)}</h4>${detail ? `<p>${escapeHtml(detail)}</p>` : ""}
           </div>
           <div class="lk-child-task-actions">
             ${status === "offen" ? `<button class="secondary small-button" type="button" onclick="updateChildWeeklyStatus('${escapeAttribute(plan.id)}','${escapeAttribute(day)}','${escapeAttribute(item.field)}','teilweise')">Ich bin dran</button>` : ""}
-            ${!done ? `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${escapeAttribute(plan.id)}','${escapeAttribute(day)}','${escapeAttribute(item.field)}','fertig')">Fertig ✓</button>` : `<span class="lk-child-done-check">✓</span>`}
+            ${partial ? `<button class="secondary small-button" type="button" onclick="updateChildWeeklyStatus('${escapeAttribute(plan.id)}','${escapeAttribute(day)}','${escapeAttribute(item.field)}','offen')">Angefangen zurück</button>` : ""}
+            ${done ? `<button class="primary small-button lk-child-done-toggle" type="button" onclick="updateChildWeeklyStatus('${escapeAttribute(plan.id)}','${escapeAttribute(day)}','${escapeAttribute(item.field)}','offen')">Fertig ✓</button>` : `<button class="primary small-button" type="button" onclick="updateChildWeeklyStatus('${escapeAttribute(plan.id)}','${escapeAttribute(day)}','${escapeAttribute(item.field)}','fertig')">Fertig ✓</button>`}
           </div>
-        </article>
-      `;
+        </article>`;
     };
   }
 

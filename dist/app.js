@@ -1114,6 +1114,9 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
   if (status === "fertig" && weeklyPlanProgressMode(plan) === "auto" && item?.catalogItem) {
     nextState = linkWeeklyStatusToProgress(nextState, nextStatus.id, { confirmed: true });
   }
+  if (status === "offen" && existing?.progressLinked) {
+    nextState = removeWeeklyProgressLink(nextState, existing.id);
+  }
 
   await persist(nextState);
   render();
