@@ -523,14 +523,26 @@ function childLogout() {
   pendingTrainingTaskCode = "";
   childMessage = "";
   qrErrorMessage = "";
-  // Einen QR-Zugang aus der Adresszeile entfernen, damit das Kind nach dem
-  // Abmelden nicht beim nächsten Laden sofort wieder angemeldet wird.
+
+  // Auf gemeinsam genutzten Kinder-iPads darf der zuletzt geladene Tierzugang
+  // nach einem bewussten Abmelden nicht sofort automatisch wieder geöffnet werden.
+  try { sessionStorage.setItem("lkChildLoggedOut", "1"); } catch {}
+
+  // QR-Zugang aus Query/Hash entfernen, ohne den lokal gespeicherten Sync-Stand
+  // des Geräts zu löschen. So kann das nächste Kind direkt neu scannen.
   try {
-    if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
+    const url = new URL(location.href);
+    url.searchParams.delete("k");
+    const hash = url.hash && !url.hash.startsWith("#k=") ? url.hash : "";
+    history.replaceState(null, "", `${url.pathname}${url.search}${hash}` || "/");
   } catch {}
+
   screen = "childStart";
   render();
 }
+
+// Inline-Buttons in Safari/iPad zuverlässig erreichbar machen.
+window.childLogout = childLogout;
 
 function renderQrInvalid() {
   return `

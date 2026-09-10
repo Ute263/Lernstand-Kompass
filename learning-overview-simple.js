@@ -19,6 +19,8 @@
     );
   }
 
+  const lkBaseWeeklyOverview = renderOverview;
+
   let lkSelectedLearningAnimalId = "";
 
   function animals() {
@@ -131,45 +133,10 @@
   }
 
   renderOverview = function renderSimpleClassOverview() {
-    const list = animals();
-    const attention = list.reduce((sum, animal) => sum + (pendingFor(animal.id).count ? 1 : 0), 0);
-
-    return `
-      <section class="panel lk-simple-learning-head">
-        <div>
-          <p class="lk-simple-kicker">Lernübersicht</p>
-          <h2>Klassenübersicht</h2>
-          <p class="message">Klicke ein Kind an, um seinen Lernstand zu öffnen.</p>
-        </div>
-        <div class="lk-simple-class-stats">
-          <span><b>${list.length}</b> Kinder</span>
-          ${attention ? `<span class="attention"><b>${attention}</b> mit Hinweis</span>` : `<span class="clear">✓ keine offenen Hinweise</span>`}
-        </div>
-      </section>
-
-      <section class="lk-simple-child-grid">
-        ${list.map((animal) => {
-          const pending = pendingFor(animal.id);
-          const sub = animalSubline(animal);
-          return `
-            <button class="lk-simple-child-card ${pending.count ? "has-attention" : ""}" type="button"
-              onclick="lkOpenChildOverview('${escapeAttribute(animal.id)}')">
-              <div class="lk-simple-child-title">
-                <span class="lk-simple-animal">${escapeHtml(animal.tierEmoji || "🐾")}</span>
-                <div>
-                  <strong>${escapeHtml(animalName(animal))}</strong>
-                  ${sub ? `<small>${escapeHtml(sub)}</small>` : ""}
-                </div>
-                ${pending.count ? `<em>${pending.count}</em>` : ""}
-              </div>
-              ${subjectMini(animal.id, "Deutsch", "📘")}
-              ${subjectMini(animal.id, "Mathe", "🔢")}
-              <span class="lk-simple-open-label">Kindübersicht öffnen →</span>
-            </button>
-          `;
-        }).join("")}
-      </section>
-    `;
+    // Die eigentliche Klassenübersicht kommt aus app.js. Dort wird der aktuelle
+    // Wochenplan kompakt pro Kind mit Pflichtaufgaben, Deutsch, Mathe und
+    // Sternchen dargestellt. Paket 9p darf diese Ansicht nicht mehr überschreiben.
+    return lkBaseWeeklyOverview();
   };
 
   function renderCurrentSubject(animalId, subject, icon) {

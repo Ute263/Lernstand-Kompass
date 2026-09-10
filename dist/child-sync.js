@@ -66,6 +66,14 @@
     return "";
   }
 
+  function childWasLoggedOut() {
+    try { return sessionStorage.getItem("lkChildLoggedOut") === "1"; } catch { return false; }
+  }
+
+  function clearChildLoggedOut() {
+    try { sessionStorage.removeItem("lkChildLoggedOut"); } catch {}
+  }
+
   function currentChildMarker(candidate = state) {
     return candidate?.lkChildSync && typeof candidate.lkChildSync === "object"
       ? candidate.lkChildSync
@@ -619,6 +627,7 @@
         runtime.applyingRemote = false;
       }
       if (openChild) {
+        clearChildLoggedOut();
         childDraft = { animalId: snapshot.animal.id, fromQr: true };
         screen = "childSubject";
         try {
@@ -710,6 +719,12 @@
     }
 
     if (isChildDevice()) {
+      if (childWasLoggedOut()) {
+        childDraft = {};
+        screen = "childStart";
+        render();
+        return;
+      }
       openStoredChildDevice();
       scheduleChildPush();
       scheduleChildBootstrapRefresh();
