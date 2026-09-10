@@ -625,10 +625,21 @@
 
   function renderCalendarWeeklyEditor(plan) {
     const html = renderWeeklyPlanEditor(plan, null);
-    return String(html || "").replace(
+    let rendered = String(html || "").replace(
       /onclick="newWeeklyPlan\(\)">Formular leeren/g,
       'onclick="lkClearWeeklyPlanForm()">Plan leeren'
     );
+
+    // Beim Bearbeiten eines bereits gespeicherten Plans gibt es zusätzlich
+    // eine eindeutige Möglichkeit, den gesamten Plan zu löschen.
+    if (plan?.id) {
+      rendered = rendered.replace(
+        /(<button class="secondary" type="button" onclick="lkClearWeeklyPlanForm\(\)">Plan leeren<\/button>)/,
+        `$1<button class="danger" type="button" onclick="lkDeleteWeeklyPlanCompletely('${escapeAttribute(plan.id)}')">Plan komplett löschen</button>`
+      );
+    }
+
+    return rendered;
   }
 
   function clearedWeeklyPlanDraft() {
@@ -682,6 +693,32 @@
       overrides: {}
     };
   }
+
+
+  window.lkDeleteWeeklyPlanCompletely = async function lkDeleteWeeklyPlanCompletely(planId) {
+    const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+    if (!plan) return;
+
+    const confirmed = window.confirm(
+      "Soll dieser Wochenplan wirklich komplett gelöscht werden?\n\n" +
+      "Der Wochenplan und alle dazu gespeicherten Bearbeitungsstände der Kinder werden entfernt. Das kann nicht rückgängig gemacht werden."
+    );
+    if (!confirmed) return;
+
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    weeklyPickRequest = null;
+    weeklyOverrideAnimalId = "";
+    weeklyPlanFocusAnimalId = "";
+    weeklyPlanSection = "current";
+    lkCalendarWeekDialogOpen = false;
+
+    await persistAndRender({
+      ...state,
+      weeklyPlans: (state.weeklyPlans || []).filter((item) => item.id !== planId),
+      weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.planId !== planId)
+    });
+  };
 
   window.lkClearWeeklyPlanForm = function lkClearWeeklyPlanForm() {
     const confirmed = window.confirm(
