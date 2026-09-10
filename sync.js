@@ -558,6 +558,21 @@ function mergeLearningGameSessions(baseState, importedBackup) {
   };
 }
 
+function oneDriveMeaningfulDataCount(candidate) {
+  const source = candidate?.type === "full-backup" ? candidate.state : candidate;
+  if (!source || typeof source !== "object") return 0;
+  const keys = [
+    "entries", "weeklyPlans", "weeklyPlanStatuses", "assessmentResults",
+    "trainingCompletions", "trainingHistory", "workbookAssignments",
+    "workbookAssignmentStatuses", "childWorkbookReports", "learningGameSessions"
+  ];
+  return keys.reduce((sum, key) => sum + (Array.isArray(source[key]) ? source[key].length : 0), 0);
+}
+
+function shouldPreferCloudOnThisDevice(localState, remoteBackup) {
+  return oneDriveMeaningfulDataCount(localState) === 0 && oneDriveMeaningfulDataCount(remoteBackup) > 0;
+}
+
 async function syncWithOneDriveNow() {
   if (syncRuntime.msStatus === "working") return;
   syncRuntime.msStatus = "working";
@@ -565,30 +580,45 @@ async function syncWithOneDriveNow() {
   render();
   try {
     let nextState = state;
-    let added = 0;
+    let changed = 0;
     const remote = await getOneDriveBackup();
+    const cloudFirst = Boolean(remote && shouldPreferCloudOnThisDevice(nextState, remote));
+
     if (remote) {
-      const merged = mergeBackupData(nextState, remote);
-      nextState = merged.state;
-      const gameMerge = mergeLearningGameSessions(nextState, remote);
-      nextState = gameMerge.state;
-      added += Number(merged.report?.addedEntries || 0)
-        + Number(merged.report?.updatedRecords || 0)
-        + Number(merged.report?.addedTrainingCompletions || 0)
-        + Number(merged.report?.addedAssessmentResults || 0)
-        + Number(merged.report?.addedWeeklyPlans || 0)
-        + gameMerge.added;
+      if (cloudFirst) {
+        nextState = stateFromBackup(remote);
+        changed = oneDriveMeaningfulDataCount(remote);
+      } else {
+        const merged = mergeBackupData(nextState, remote);
+        nextState = merged.state;
+        const gameMerge = mergeLearningGameSessions(nextState, remote);
+        nextState = gameMerge.state;
+        changed += Number(merged.report?.addedEntries || 0)
+          + Number(merged.report?.updatedRecords || 0)
+          + Number(merged.report?.addedTrainingCompletions || 0)
+          + Number(merged.report?.addedAssessmentResults || 0)
+          + Number(merged.report?.addedWeeklyPlans || 0)
+          + gameMerge.added;
+      }
     }
+
     syncRuntime.suppressAuto = true;
     try {
       await persist(nextState);
     } finally {
       syncRuntime.suppressAuto = false;
     }
-    await putOneDriveBackup(makeFullBackup(state));
-    await updateMicrosoftSyncMetadata(nowIso(), added ? `${added} neue Einträge übernommen; Cloud aktualisiert.` : "Cloud und Gerät sind abgeglichen.");
+
+    if (!cloudFirst) {
+      await putOneDriveBackup(makeFullBackup(state));
+    }
+
+    const status = cloudFirst
+      ? "Cloud-Stand vollständig auf diesem Gerät übernommen."
+      : (changed ? `${changed} neue oder aktualisierte Einträge übernommen; Cloud aktualisiert.` : "Cloud und Gerät sind abgeglichen.");
+    await updateMicrosoftSyncMetadata(nowIso(), status);
     syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = added ? `${added} neue Einträge aus OneDrive übernommen.` : "OneDrive-Abgleich abgeschlossen.";
+    syncRuntime.msMessage = status;
   } catch (error) {
     console.error("OneDrive-Abgleich fehlgeschlagen", error);
     syncRuntime.msStatus = "error";
@@ -604,6 +634,13 @@ async function uploadOneDriveBackupNow(silent = false) {
     render();
   }
   try {
+    const remote = await getOneDriveBackup();
+    if (remote && shouldPreferCloudOnThisDevice(state, remote)) {
+      syncRuntime.msStatus = "success";
+      syncRuntime.msMessage = "In OneDrive liegt bereits ein vollständiger Stand. Auf diesem Gerät bitte zuerst Cloud-Daten holen.";
+      if (!silent) render();
+      return false;
+    }
     await putOneDriveBackup(makeFullBackup(state));
     await updateMicrosoftSyncMetadata(nowIso(), "OneDrive-Sicherung aktuell.");
     syncRuntime.msStatus = "success";
@@ -631,24 +668,39 @@ async function mergeOneDriveBackupNow() {
       render();
       return;
     }
-    const merged = mergeBackupData(state, remote);
-    let next = merged.state;
-    const gameMerge = mergeLearningGameSessions(next, remote);
-    next = gameMerge.state;
+
+    const cloudFirst = shouldPreferCloudOnThisDevice(state, remote);
+    let next;
+    let count = 0;
+    if (cloudFirst) {
+      next = stateFromBackup(remote);
+      count = oneDriveMeaningfulDataCount(remote);
+    } else {
+      const merged = mergeBackupData(state, remote);
+      next = merged.state;
+      const gameMerge = mergeLearningGameSessions(next, remote);
+      next = gameMerge.state;
+      count = Number(merged.report?.addedEntries || 0)
+        + Number(merged.report?.updatedRecords || 0)
+        + Number(merged.report?.addedTrainingCompletions || 0)
+        + Number(merged.report?.addedAssessmentResults || 0)
+        + Number(merged.report?.addedWeeklyPlans || 0)
+        + gameMerge.added;
+    }
+
     syncRuntime.suppressAuto = true;
     try {
       await persist(next);
     } finally {
       syncRuntime.suppressAuto = false;
     }
-    const count = Number(merged.report?.addedEntries || 0)
-      + Number(merged.report?.updatedRecords || 0)
-      + Number(merged.report?.addedTrainingCompletions || 0)
-      + Number(merged.report?.addedAssessmentResults || 0)
-      + gameMerge.added;
-    await updateMicrosoftSyncMetadata(nowIso(), `${count} neue Einträge aus OneDrive übernommen.`);
+
+    const status = cloudFirst
+      ? "Cloud-Stand vollständig auf diesem Gerät übernommen."
+      : `${count} neue oder aktualisierte Einträge aus OneDrive übernommen.`;
+    await updateMicrosoftSyncMetadata(nowIso(), status);
     syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = `${count} neue Einträge übernommen.`;
+    syncRuntime.msMessage = status;
   } catch (error) {
     console.error("OneDrive-Import fehlgeschlagen", error);
     syncRuntime.msStatus = "error";
