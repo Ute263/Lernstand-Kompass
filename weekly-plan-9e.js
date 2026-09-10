@@ -1043,8 +1043,11 @@
     renderChildWeek = function renderChildWeek9e() {
       const animal = selectedAnimal();
       const plans = animal ? weeklyPlansForAnimal(animal.id) : [];
+      // Kinder wählen keinen Wochenplan selbst aus. Es wird immer der aktuell
+      // gültige Plan angezeigt; falls keiner als aktuell erkannt wird, der
+      // erste für das Kind verfügbare Plan.
       const current = plans.find((plan) => weeklyPlanIsCurrent(plan)) || plans[0] || null;
-      const selected = plans.find((plan) => plan.id === lkChildWeekPlanId) || current;
+      const selected = current;
       if (selected) lkChildWeekPlanId = selected.id;
       if (!lkChildWeekDay) lkChildWeekDay = todayGerman();
 
@@ -1059,14 +1062,6 @@
             </div>
             ${selected && weeklyPlanIsCurrent(selected) ? `<span class="lk-current-pill">Diese Woche</span>` : ""}
           </div>
-
-          ${plans.length > 1 ? `
-            <label class="lk-child-plan-select">Wochenplan
-              <select class="select-input" onchange="setLKChildWeekPlan(this.value)">
-                ${plans.map((plan) => `<option value="${escapeAttribute(plan.id)}" ${selected?.id === plan.id ? "selected" : ""}>${escapeHtml(plan.title)} · ${escapeHtml(weeklyPlanPeriodLabel(plan))}</option>`).join("")}
-              </select>
-            </label>
-          ` : ""}
 
           ${selected ? renderChildWeeklyPlan(selected, animal) : `<div class="empty lk-child-empty-week">Für dich ist noch kein Wochenplan eingetragen.</div>`}
         </section>
