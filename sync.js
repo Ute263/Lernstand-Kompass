@@ -200,7 +200,7 @@ async function initCloudSync() {
           try {
             await ensureOneDriveFolder();
             syncRuntime.msStatus = "connected";
-            syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden.";
+            syncRuntime.msMessage = "Microsoft und OneDrive sind verbunden. Daten werden abgeglichen …";
             syncRuntime.suppressAuto = true;
             try {
               await persist({
@@ -215,6 +215,9 @@ async function initCloudSync() {
             } finally {
               syncRuntime.suppressAuto = false;
             }
+            // Auf einem zweiten Gerät nach erfolgreicher Anmeldung sofort den
+            // vorhandenen OneDrive-Stand holen und anschließend zusammenführen.
+            await syncWithOneDriveNow();
           } catch (driveError) {
             console.warn("Microsoft ist angemeldet, aber OneDrive konnte nicht geprüft werden.", driveError);
             syncRuntime.msStatus = "error";
@@ -573,6 +576,7 @@ async function syncWithOneDriveNow() {
       const gameMerge = mergeLearningGameSessions(nextState, remote);
       nextState = gameMerge.state;
       added += Number(merged.report?.addedEntries || 0)
+        + Number(merged.report?.updatedRecords || 0)
         + Number(merged.report?.addedTrainingCompletions || 0)
         + Number(merged.report?.addedAssessmentResults || 0)
         + Number(merged.report?.addedWeeklyPlans || 0)
@@ -641,6 +645,7 @@ async function mergeOneDriveBackupNow() {
       syncRuntime.suppressAuto = false;
     }
     const count = Number(merged.report?.addedEntries || 0)
+      + Number(merged.report?.updatedRecords || 0)
       + Number(merged.report?.addedTrainingCompletions || 0)
       + Number(merged.report?.addedAssessmentResults || 0)
       + gameMerge.added;

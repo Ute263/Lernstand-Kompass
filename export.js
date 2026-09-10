@@ -1044,6 +1044,35 @@ function stateFromBackup(backup) {
   throw new Error("Diese Datei ist kein gültiges Lernstand-Kompass-Backup.");
 }
 
+function recordSyncTimestamp(item) {
+  if (!item || typeof item !== "object") return 0;
+  const candidates = [
+    item.updatedAt, item.geaendertAm, item.changedAt, item.finishedAt,
+    item.completedAt, item.confirmedAt, item.createdAt, item.erstelltAm,
+    item.datumUhrzeit
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    const time = Date.parse(value);
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
+}
+
+function replaceWithNewerImported(list, importedItem, idField = "id") {
+  const id = importedItem?.[idField];
+  if (!id) return false;
+  const index = list.findIndex((item) => item?.[idField] === id);
+  if (index < 0) return false;
+  const localTime = recordSyncTimestamp(list[index]);
+  const cloudTime = recordSyncTimestamp(importedItem);
+  if (cloudTime > localTime) {
+    list[index] = importedItem;
+    return true;
+  }
+  return false;
+}
+
 function mergeBackupData(currentState, importedBackup) {
   const current = normalizeState(currentState);
   const imported = stateFromBackup(importedBackup);
@@ -1067,6 +1096,7 @@ function mergeBackupData(currentState, importedBackup) {
     addedWeeklyPlans: 0,
     addedWeeklyPlanStatuses: 0,
     addedLearningGameSessions: 0,
+    updatedRecords: 0,
     skippedDuplicateTrainingCompletions: 0,
     skippedDuplicateAssessments: 0,
     skippedDuplicateAssessmentTasks: 0,
@@ -1133,7 +1163,10 @@ function mergeBackupData(currentState, importedBackup) {
   };
 
   imported.classes.forEach((item) => {
-    if (classIds.has(item.id)) return;
+    if (classIds.has(item.id)) {
+      if (replaceWithNewerImported(next.classes, item)) report.updatedRecords += 1;
+      return;
+    }
     next.classes.push(item);
     classIds.add(item.id);
     report.addedClasses += 1;
@@ -1168,7 +1201,10 @@ function mergeBackupData(currentState, importedBackup) {
   });
 
   imported.materials.forEach((item) => {
-    if (materialIds.has(item.id)) return;
+    if (materialIds.has(item.id)) {
+      if (replaceWithNewerImported(next.materials, item)) report.updatedRecords += 1;
+      return;
+    }
     next.materials.push(item);
     materialIds.add(item.id);
     report.addedMaterials += 1;
@@ -1189,7 +1225,10 @@ function mergeBackupData(currentState, importedBackup) {
   });
 
   (imported.goals || []).forEach((item) => {
-    if (goalIds.has(item.id)) return;
+    if (goalIds.has(item.id)) {
+      if (replaceWithNewerImported(next.goals, item)) report.updatedRecords += 1;
+      return;
+    }
     next.goals.push(item);
     goalIds.add(item.id);
     report.addedGoals += 1;
@@ -1272,7 +1311,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.workbookAssignments || []).forEach((item) => {
     if (workbookAssignmentIds.has(item.id)) {
-      report.skippedDuplicateWorkbookAssignments += 1;
+      if (replaceWithNewerImported(next.workbookAssignments, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateWorkbookAssignments += 1;
       return;
     }
     next.workbookAssignments.push(item);
@@ -1282,7 +1322,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.workbookAssignmentStatuses || []).forEach((item) => {
     if (workbookAssignmentStatusIds.has(item.id)) {
-      report.skippedDuplicateWorkbookAssignmentStatuses += 1;
+      if (replaceWithNewerImported(next.workbookAssignmentStatuses, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateWorkbookAssignmentStatuses += 1;
       return;
     }
     next.workbookAssignmentStatuses.push(item);
@@ -1302,7 +1343,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.activeWorkbookMaterials || []).forEach((item) => {
     if (activeWorkbookMaterialIds.has(item.id)) {
-      report.skippedDuplicateActiveWorkbookMaterials += 1;
+      if (replaceWithNewerImported(next.activeWorkbookMaterials, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateActiveWorkbookMaterials += 1;
       return;
     }
     next.activeWorkbookMaterials.push(item);
@@ -1312,7 +1354,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.weeklyPlans || []).forEach((item) => {
     if (weeklyPlanIds.has(item.id)) {
-      report.skippedDuplicateWeeklyPlans += 1;
+      if (replaceWithNewerImported(next.weeklyPlans, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateWeeklyPlans += 1;
       return;
     }
     next.weeklyPlans.push(item);
@@ -1322,7 +1365,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.weeklyPlanStatuses || []).forEach((item) => {
     if (weeklyPlanStatusIds.has(item.id)) {
-      report.skippedDuplicateWeeklyPlanStatuses += 1;
+      if (replaceWithNewerImported(next.weeklyPlanStatuses, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateWeeklyPlanStatuses += 1;
       return;
     }
     next.weeklyPlanStatuses.push(item);
