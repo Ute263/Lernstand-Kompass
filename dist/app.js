@@ -3798,120 +3798,147 @@ function weeklyCarryoverForAnimal(animalId, draft = {}) {
   return { plan: previous, rows };
 }
 
-function weeklyPreviousResultsForAnimal(animalId, draft = {}) {
+
+function lkPreviousStatusRecord(planId, animalId, day, item) {
+  if (!item) return null;
+  const statuses = (state.weeklyPlanStatuses || [])
+    .filter((row) => row.planId === planId && row.animalId === animalId && row.day === day)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  const exact = statuses.find((row) => row.field === item.field);
+  if (exact) return exact;
+
+  if (item.workbookCatalogId) {
+    const byCatalog = statuses.find((row) => row.workbookCatalogId && row.workbookCatalogId === item.workbookCatalogId);
+    if (byCatalog) return byCatalog;
+  }
+
+  const subject = String(item.field || "").split(":")[0];
+  const legacy = statuses.filter((row) => row.field === subject || row.field === item.label);
+  if (legacy.length === 1) return legacy[0];
+
+  if (item.freeText) {
+    const byText = statuses.find((row) => row.freeText && String(row.freeText).trim() === String(item.freeText).trim());
+    if (byText) return byText;
+  }
+
+  return null;
+}
+
+function lkPreviousItemStatus(plan, animalId, day, item) {
+  const record = lkPreviousStatusRecord(plan.id, animalId, day, item);
+  if (record) return normalizeSimpleWorkStatus(record.status || "offen");
+
+  const linked = (state.entries || [])
+    .filter((entry) => entry.classId === plan.classId)
+    .filter((entry) => entry.tierID === animalId)
+    .filter((entry) => entry.weeklyPlanId === plan.id)
+    .filter((entry) => (
+      (entry.weeklyPlanDay === day && entry.weeklyPlanField === item.field)
+      || (item.workbookCatalogId && entry.workbookCatalogId === item.workbookCatalogId)
+    ))
+    .sort((a, b) => new Date(b.updatedAt || b.datumUhrzeit || 0) - new Date(a.updatedAt || a.datumUhrzeit || 0))[0];
+
+  if (linked) return normalizeSimpleWorkStatus(linked.workStatus || linked.status || "fertig");
+  return "offen";
+}
+
+function lkPreviousWeekResultForAnimal(animalId, draft = {}) {
   const draftId = draft.id || "";
   const draftFrom = draft.validFrom || "";
-  const candidates = weeklyPlansForAnimal(animalId)
+  const previous = weeklyPlansForAnimal(animalId)
     .filter((plan) => plan.id !== draftId)
     .filter((plan) => !draftFrom || !plan.validFrom || plan.validFrom < draftFrom)
-    .sort((a, b) => String(b.validTo || b.validFrom || b.createdAt || "").localeCompare(String(a.validTo || a.validFrom || a.createdAt || "")));
-  const previous = candidates[0];
+    .sort((a, b) => String(b.validTo || b.validFrom || b.createdAt || "").localeCompare(String(a.validTo || a.validFrom || a.createdAt || "")))[0];
+
   if (!previous) return null;
 
   const rows = [];
-  const days = ["Woche", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
   const seen = new Set();
-
-  days.forEach((day) => {
+  ["Woche", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"].forEach((day) => {
     weeklyPlanItemsForDay(previous, day, animalId).forEach((item) => {
       const key = `${day}::${item.field}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const status = weeklyPlanCompatibleItemStatus(previous.id, animalId, day, item);
-      rows.push({ day, item, status });
+      rows.push({ day, item, status: lkPreviousItemStatus(previous, animalId, day, item) });
     });
   });
 
   const counts = rows.reduce((acc, row) => {
-    const key = row.status === "fertig" ? "fertig" : row.status === "teilweise" ? "teilweise" : "offen";
-    acc[key] += 1;
+    if (row.status === "fertig") acc.fertig += 1;
+    else if (row.status === "teilweise") acc.teilweise += 1;
+    else acc.offen += 1;
     return acc;
   }, { fertig: 0, teilweise: 0, offen: 0 });
 
   return { plan: previous, rows, counts };
 }
 
-function weeklyPreviousResultStatusMeta(status) {
-  if (status === "fertig") return { label: "fertig", icon: "✓", className: "done" };
-  if (status === "teilweise") return { label: "teilweise", icon: "◐", className: "partial" };
-  return { label: "offen", icon: "○", className: "open" };
+function lkPreviousStatusMeta(status) {
+  if (status === "fertig") return { icon: "✓", label: "fertig", cls: "done" };
+  if (status === "teilweise") return { icon: "◐", label: "teilweise", cls: "partial" };
+  return { icon: "○", label: "offen", cls: "open" };
 }
 
-function renderWeeklyPreviousResults(draft, animals) {
-  if (!animals.length) return "";
+function renderPreviousWeekPlanningBasis(draft, animals) {
+  if (!animals?.length) return "";
 
-  const entries = animals.map((animal) => ({
+  const rows = animals.map((animal) => ({
     animal,
-    result: weeklyPreviousResultsForAnimal(animal.id, draft)
+    result: lkPreviousWeekResultForAnimal(animal.id, draft)
   }));
 
-  const withPreviousPlan = entries.filter(({ result }) => result);
-  if (!withPreviousPlan.length) {
-    return `
-      <section class="weekly-previous-results empty-state">
-        <div class="weekly-previous-results-head">
-          <div>
-            <span class="weekly-previous-kicker">Rückblick</span>
-            <h3>Ergebnisse der vorherigen Woche</h3>
-            <p>Noch keine vorherigen Wochenpläne für diese Kinder vorhanden.</p>
-          </div>
-        </div>
-      </section>
-    `;
-  }
+  if (!rows.some((row) => row.result)) return "";
 
   return `
-    <section class="weekly-previous-results">
-      <div class="weekly-previous-results-head">
+    <section class="lk-prev-week-basis">
+      <div class="lk-prev-week-head">
         <div>
-          <span class="weekly-previous-kicker">Planungsgrundlage</span>
+          <span class="lk-prev-week-kicker">Planungsgrundlage</span>
           <h3>Ergebnisse der vorherigen Woche</h3>
-          <p>Alle Ergebnisse der Vorwoche bleiben sichtbar – auch erledigte Aufgaben mit Haken. Offene und teilweise bearbeitete Aufgaben kannst du so direkt bei der neuen Planung berücksichtigen.</p>
+          <p>Nur zur Ansicht. Der aktuelle Wochenplan bleibt vollständig im Klassenmodus bearbeitbar.</p>
         </div>
       </div>
 
-      <div class="weekly-previous-results-grid">
-        ${entries.map(({ animal, result }) => {
+      <div class="lk-prev-week-list">
+        ${rows.map(({ animal, result }) => {
           if (!result) {
             return `
-              <div class="weekly-previous-child no-data">
-                <div class="weekly-previous-child-main">
-                  <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
-                  <small>Kein vorheriger Wochenplan</small>
-                </div>
+              <div class="lk-prev-week-child lk-prev-week-empty">
+                <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
+                <span>Keine Vorwoche gefunden</span>
               </div>
             `;
           }
 
-          const period = weeklyPlanPeriodLabel(result.plan) || result.plan.title || "vorheriger Wochenplan";
+          const period = weeklyPlanPeriodLabel(result.plan);
           return `
-            <details class="weekly-previous-child" ${result.counts.offen || result.counts.teilweise ? "open" : ""}>
+            <details class="lk-prev-week-child" ${result.counts.offen || result.counts.teilweise ? "open" : ""}>
               <summary>
-                <div class="weekly-previous-child-main">
+                <div>
                   <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
-                  <small>${escapeHtml(period)}</small>
+                  <small>${escapeHtml(period || result.plan.title || "Vorwoche")}</small>
                 </div>
-                <div class="weekly-previous-counts" aria-label="Ergebnisse">
+                <div class="lk-prev-week-counts">
                   <span class="done">✓ ${result.counts.fertig}</span>
                   <span class="partial">◐ ${result.counts.teilweise}</span>
                   <span class="open">○ ${result.counts.offen}</span>
                 </div>
               </summary>
-              <div class="weekly-previous-task-list">
-                ${result.rows.length ? result.rows.map(({ day, item, status }) => {
-                  const meta = weeklyPreviousResultStatusMeta(status);
+              <div class="lk-prev-week-tasks">
+                ${result.rows.map(({ day, item, status }) => {
+                  const meta = lkPreviousStatusMeta(status);
                   const taskText = item.text || item.detail || item.label || "Aufgabe";
-                  const section = item.subject || item.section || "";
                   return `
-                    <div class="weekly-previous-task-row">
-                      <span class="weekly-previous-status ${meta.className}" title="${escapeAttribute(meta.label)}">${meta.icon}</span>
+                    <div class="lk-prev-week-task">
+                      <span class="lk-prev-week-state ${meta.cls}">${meta.icon}</span>
                       <div>
                         <strong>${escapeHtml(taskText)}</strong>
-                        <small>${section ? `${escapeHtml(section)} · ` : ""}${day === "Woche" ? "Ganze Woche" : escapeHtml(day)} · <span class="weekly-previous-inline-status ${meta.className}">${escapeHtml(meta.label)}</span></small>
+                        <small>${day === "Woche" ? "Ganze Woche" : escapeHtml(day)} · ${escapeHtml(meta.label)}</small>
                       </div>
                     </div>
                   `;
-                }).join("") : `<div class="weekly-previous-no-tasks">Keine Aufgaben im vorherigen Plan.</div>`}
+                }).join("") || `<div class="lk-prev-week-none">Keine Aufgaben gespeichert.</div>`}
               </div>
             </details>
           `;
@@ -3920,6 +3947,7 @@ function renderWeeklyPreviousResults(draft, animals) {
     </section>
   `;
 }
+
 
 function renderWeeklyCarryoverCheck(draft, animals) {
   const affected = animals.map((animal) => ({ animal, carry: weeklyCarryoverForAnimal(animal.id, draft) }))
@@ -4062,7 +4090,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           </div>
         </div>
 
-        ${!focusAnimal ? renderWeeklyPreviousResults(draft, targetAnimals) : ""}
+        ${!focusAnimal ? renderPreviousWeekPlanningBasis(draft, targetAnimals) : ""}
 
         ${focusAnimal ? `
           <div class="weekly-focus-note compact">
@@ -4085,6 +4113,8 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <label class="field">Titel
               <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan">
             </label>
+
+            ${!focusAnimal ? renderWeeklyCarryoverCheck(draft, targetAnimals) : ""}
 
             <div class="lk-deutsch-order-picker compact-order-picker">
               <div class="lk-deutsch-order-copy">
@@ -8938,60 +8968,6 @@ function weeklyPlanStatusRecord(planId, animalId, day, field) {
   return (state.weeklyPlanStatuses || [])
     .filter((item) => item.planId === planId && item.animalId === animalId && item.day === day && item.field === field)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
-}
-
-
-function weeklyPlanCompatibleStatusRecord(planId, animalId, day, item) {
-  if (!item) return null;
-  const statuses = (state.weeklyPlanStatuses || [])
-    .filter((row) => row.planId === planId && row.animalId === animalId && row.day === day)
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
-
-  // 1. Heutiges Format: exaktes Feld.
-  const exact = statuses.find((row) => row.field === item.field);
-  if (exact) return exact;
-
-  // 2. Ältere App-Stände speicherten teils nur workbookCatalogId bzw. Deutsch/Mathe
-  //    statt "Deutsch:<catalog-id>". Diese Ergebnisse dürfen beim Versionswechsel
-  //    nicht wie neue/offene Aufgaben wirken.
-  if (item.workbookCatalogId) {
-    const byCatalog = statuses.find((row) => row.workbookCatalogId && row.workbookCatalogId === item.workbookCatalogId);
-    if (byCatalog) return byCatalog;
-  }
-
-  const subject = String(item.field || "").split(":")[0];
-  const legacySameSubject = statuses.filter((row) => row.field === subject || row.field === item.label);
-  if (legacySameSubject.length === 1) return legacySameSubject[0];
-
-  // 3. Freie Aufgaben aus älteren Versionen: Text als letzte sichere Zuordnung.
-  if (item.freeText) {
-    const byText = statuses.find((row) => row.freeText && String(row.freeText).trim() === String(item.freeText).trim());
-    if (byText) return byText;
-  }
-
-  return null;
-}
-
-function weeklyPlanCompatibleItemStatus(planId, animalId, day, item) {
-  const statusRecord = weeklyPlanCompatibleStatusRecord(planId, animalId, day, item);
-  if (statusRecord) return normalizeSimpleWorkStatus(statusRecord.status || "offen");
-
-  // Zusätzliche Rückfallebene: Bereits in den Lernfortschritt übernommene
-  // Wochenplan-Ergebnisse enthalten die Verknüpfung ebenfalls. Das schützt
-  // ältere Datenbestände, bei denen der reine Wochenstatus fehlt.
-  if (item?.catalogItem) {
-    const linked = (state.entries || [])
-      .filter((entry) => entry.classId === (state.weeklyPlans || []).find((plan) => plan.id === planId)?.classId)
-      .filter((entry) => entry.tierID === animalId)
-      .filter((entry) => entry.weeklyPlanId === planId)
-      .filter((entry) => (
-        (entry.weeklyPlanDay === day && entry.weeklyPlanField === item.field)
-        || (item.workbookCatalogId && entry.workbookCatalogId === item.workbookCatalogId)
-      ))
-      .sort((a, b) => new Date(b.updatedAt || b.datumUhrzeit || 0) - new Date(a.updatedAt || a.datumUhrzeit || 0))[0];
-    if (linked) return normalizeSimpleWorkStatus(linked.workStatus || linked.status || "fertig");
-  }
-  return "offen";
 }
 
 function weeklyStatusBadge(status) {

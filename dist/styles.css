@@ -4192,199 +4192,109 @@ body {
 }
 
 
-/* v199: Ergebnisse der Vorwoche als sichtbare Planungsgrundlage */
-.weekly-previous-results {
+/* v202: Vorwochenergebnisse nur lesend als Planungsgrundlage */
+.lk-prev-week-basis {
   margin: 18px 0 22px;
   padding: 18px;
-  border: 1px solid #cfe0ee;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #f8fcff 0%, #f3f9fc 100%);
-  box-shadow: 0 10px 24px rgba(40, 74, 105, 0.06);
+  border: 1px solid #d4e4ef;
+  border-radius: 18px;
+  background: #f8fcff;
 }
-.weekly-previous-results.empty-state {
-  background: #fbfcfd;
-}
-.weekly-previous-results-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-.weekly-previous-results-head h3 {
+.lk-prev-week-head h3 {
   margin: 2px 0 4px;
-  font-size: 1.16rem;
+  font-size: 1.15rem;
 }
-.weekly-previous-results-head p {
+.lk-prev-week-head p {
   margin: 0;
-  max-width: 850px;
-  color: #607185;
-  font-size: .96rem;
-  line-height: 1.4;
+  color: #66798c;
+  font-size: .95rem;
 }
-.weekly-previous-kicker {
-  display: inline-block;
+.lk-prev-week-kicker {
   color: #3b728d;
-  font-size: .8rem;
+  font-size: .78rem;
   font-weight: 850;
   text-transform: uppercase;
   letter-spacing: .05em;
 }
-.weekly-previous-results-grid {
+.lk-prev-week-list {
   display: grid;
-  gap: 10px;
+  gap: 9px;
+  margin-top: 14px;
 }
-.weekly-previous-child {
-  border: 1px solid #dde8f1;
-  border-radius: 15px;
-  background: rgba(255,255,255,.92);
+.lk-prev-week-child {
   overflow: hidden;
+  border: 1px solid #dfe9f1;
+  border-radius: 14px;
+  background: #fff;
 }
-.weekly-previous-child.no-data {
-  padding: 12px 14px;
-  opacity: .72;
-}
-.weekly-previous-child > summary {
+.lk-prev-week-child > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 11px 13px;
   cursor: pointer;
   list-style: none;
 }
-.weekly-previous-child > summary::-webkit-details-marker {
-  display: none;
-}
-.weekly-previous-child > summary::after {
-  content: "⌄";
-  flex: 0 0 auto;
-  color: #71869a;
-  font-size: 1rem;
-  transition: transform .15s ease;
-}
-.weekly-previous-child[open] > summary::after {
-  transform: rotate(180deg);
-}
-.weekly-previous-child-main {
-  min-width: 0;
-}
-.weekly-previous-child-main strong,
-.weekly-previous-child-main small {
+.lk-prev-week-child > summary::-webkit-details-marker { display: none; }
+.lk-prev-week-child > summary > div:first-child strong,
+.lk-prev-week-child > summary > div:first-child small {
   display: block;
 }
-.weekly-previous-child-main small {
+.lk-prev-week-child > summary small {
   margin-top: 2px;
-  color: #6b7c8f;
+  color: #718195;
 }
-.weekly-previous-counts {
+.lk-prev-week-counts {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 7px;
   margin-left: auto;
-  white-space: nowrap;
 }
-.weekly-previous-counts span {
-  display: inline-flex;
-  align-items: center;
-  min-width: 44px;
-  justify-content: center;
+.lk-prev-week-counts span {
+  min-width: 42px;
   padding: 4px 8px;
   border-radius: 999px;
-  font-size: .86rem;
+  text-align: center;
+  font-size: .84rem;
   font-weight: 850;
 }
-.weekly-previous-counts .done {
-  background: #e6f6ec;
-  color: #23673d;
+.lk-prev-week-counts .done,
+.lk-prev-week-state.done { background: #e7f6ec; color: #24693f; }
+.lk-prev-week-counts .partial,
+.lk-prev-week-state.partial { background: #fff1c9; color: #866100; }
+.lk-prev-week-counts .open,
+.lk-prev-week-state.open { background: #edf3f7; color: #536779; }
+.lk-prev-week-tasks {
+  border-top: 1px solid #e7eef4;
 }
-.weekly-previous-counts .partial {
-  background: #fff2cf;
-  color: #8b6500;
-}
-.weekly-previous-counts .open {
-  background: #eef3f7;
-  color: #526476;
-}
-.weekly-previous-task-list {
+.lk-prev-week-task {
   display: grid;
-  gap: 0;
-  border-top: 1px solid #e4ecf3;
-}
-.weekly-previous-task-row {
-  display: grid;
-  grid-template-columns: 30px minmax(0,1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 14px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  padding: 9px 13px;
   border-bottom: 1px solid #edf2f6;
 }
-.weekly-previous-task-row:last-child {
-  border-bottom: 0;
-}
-.weekly-previous-task-row strong,
-.weekly-previous-task-row small {
-  display: block;
-}
-.weekly-previous-task-row strong {
-  font-size: .95rem;
-  font-weight: 800;
-}
-.weekly-previous-task-row small {
-  margin-top: 2px;
-  color: #738397;
-  font-size: .85rem;
-}
-.weekly-previous-status {
+.lk-prev-week-task:last-child { border-bottom: 0; }
+.lk-prev-week-task strong,
+.lk-prev-week-task small { display: block; }
+.lk-prev-week-task strong { font-size: .93rem; }
+.lk-prev-week-task small { margin-top: 2px; color: #748497; font-size: .84rem; }
+.lk-prev-week-state {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  margin-top: 1px;
+  width: 23px;
+  height: 23px;
   border-radius: 50%;
   font-weight: 900;
 }
-.weekly-previous-status.done {
-  background: #e6f6ec;
-  color: #23673d;
+.lk-prev-week-empty {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  color: #6f8091;
 }
-.weekly-previous-status.partial {
-  background: #fff2cf;
-  color: #8b6500;
-}
-.weekly-previous-status.open {
-  background: #eef3f7;
-  color: #526476;
-}
-.weekly-previous-no-tasks {
-  padding: 12px 14px;
-  color: #6f7f91;
-}
-
 @media (max-width: 720px) {
-  .weekly-previous-child > summary {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-  .weekly-previous-counts {
-    width: 100%;
-    margin-left: 0;
-  }
+  .lk-prev-week-child > summary { align-items: flex-start; flex-wrap: wrap; }
+  .lk-prev-week-counts { width: 100%; margin-left: 0; }
 }
-
-/* v200: Vorwochenergebnisse klar lesbar und abwärtskompatibel */
-.weekly-previous-status.done {
-  background: #d8f3e2;
-  color: #166534;
-  border: 1px solid #9bd4ad;
-}
-.weekly-previous-status.partial {
-  border: 1px solid #efd17b;
-}
-.weekly-previous-status.open {
-  border: 1px solid #ccd9e3;
-}
-.weekly-previous-inline-status { font-weight: 850; }
-.weekly-previous-inline-status.done { color: #166534; }
-.weekly-previous-inline-status.partial { color: #8b6500; }
-.weekly-previous-inline-status.open { color: #526476; }
