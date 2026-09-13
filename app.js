@@ -360,7 +360,7 @@ function renderTopbar(subtitle) {
   return `
     <header class="topbar">
       <div class="brand ${isChildArea ? "child-brand" : "teacher-brand"}">
-        <img class="${isChildArea ? "child-topbar-logo" : "teacher-topbar-logo"}" src="./icons/lernstand-kompass.png" alt="">
+        <img class="${isChildArea ? "child-topbar-logo" : "teacher-topbar-logo"}" src="./lernstand-kompass.png" alt="">
         <div>
           <h1 class="brand-title">${APP_NAME}</h1>
           <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
@@ -457,7 +457,7 @@ function renderStart() {
     <main class="app-shell modern-start-shell">
       <section class="modern-start">
         <div class="modern-start-hero">
-          <img class="modern-start-logo" src="./icons/lernstand-kompass.png" alt="Lernstand-Kompass">
+          <img class="modern-start-logo" src="./lernstand-kompass.png" alt="Lernstand-Kompass">
           <div class="modern-start-copy">
             <span class="modern-start-kicker">Lernstand-Kompass</span>
             <h1>Dein Weg durch die Lernwoche.</h1>

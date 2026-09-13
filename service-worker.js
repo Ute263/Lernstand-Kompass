@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-v204";
+const CACHE_NAME = "lernstand-kompass-v205";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -40,6 +40,7 @@ const APP_FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/lernstand-kompass.png",
+  "./lernstand-kompass.png",
   "./icons/icon-maskable-512.png",
   "./materials/cover-abc-der-tiere-1.svg",
   "./materials/cover-abc-der-tiere-2.svg",
