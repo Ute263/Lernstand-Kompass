@@ -7,6 +7,7 @@ const dist = path.join(root, "dist");
 const files = [
   "index.html",
   "styles.css",
+  "progress-children-overview.css",
   "models.js",
   "storage.js",
   "exceljs.min.js",
@@ -37,6 +38,7 @@ const files = [
   "weekly-calendar-overview.js",
   "weekly-editor-compact.js",
   "simple-ui.js",
+  "progress-children-overview.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
