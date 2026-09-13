@@ -45,7 +45,7 @@
       title: "Impressum / Anbieterhinweis",
       html: `
         <p><strong>Lernstand-Kompass</strong></p>
-        <p><strong>Konzeption und Entwicklung:</strong><br>Ute Holzschneider-Riedl<br>Kevelaer, Deutschland</p>
+        <p><strong>Konzeption und Entwicklung:</strong><br>Ute Holzschneider-Riedl<br>Kerken, Deutschland</p>
         <p><strong>Bereitstellung:</strong><br>unentgeltliche Web-App für schulische und pädagogische Nutzung</p>
         <p><strong>Kontakt:</strong><br>über den von der Anbieterin mitgeteilten Kontaktweg</p>
         <p class="legal-note"><strong>Hinweis:</strong> Sollte für eine konkrete öffentliche oder geschäftsmäßige Bereitstellung eine vollständige gesetzliche Anbieterkennzeichnung erforderlich sein, müssen vor einer entsprechenden Nutzung insbesondere eine ladungsfähige Anschrift und eine direkte elektronische Kontaktmöglichkeit ergänzt werden.</p>
