@@ -31,6 +31,9 @@
   let lkCalendarCreatingWeek = null;
   let lkCalendarWeekDialogOpen = false;
   let lkCalendarAudienceChoiceOpen = false;
+  let lkCalendarSelectedMonthKey = "";
+  let lkCalendarShowWholeYear = false;
+  let lkCalendarYearPickerOpen = false;
 
   const MONTHS = [
     "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -130,25 +133,17 @@
   }
 
   function schoolYearOptionYears() {
-    const selected = calendarStartYear();
     const today = new Date();
     const current = today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1;
+    const selected = calendarStartYear();
     const years = new Set();
 
-    // Die Liste wird bei jedem Öffnen dynamisch berechnet. Dadurch muss
-    // für ein neues Schuljahr nie wieder Code ergänzt werden.
-    for (let year = Math.min(selected, current) - 4; year <= Math.max(selected, current) + 8; year += 1) {
-      years.add(year);
-    }
+    // In der aktiven Wochenplanung werden keine vergangenen Schuljahre mehr angeboten.
+    // Das aktuelle Schuljahr und kommende Schuljahre bleiben dynamisch verfügbar.
+    for (let year = current; year <= current + 8; year += 1) years.add(year);
 
-    // Schuljahre, zu denen bereits Wochenpläne vorhanden sind, immer mit anbieten.
-    try {
-      weeklyPlansForActiveClass().forEach((plan) => {
-        const date = fromDateKey(plan.validFrom || plan.validTo || "");
-        const year = schoolYearForDate(date);
-        if (Number.isFinite(year)) years.add(year);
-      });
-    } catch {}
+    // Falls bereits bewusst ein kommendes Schuljahr ausgewählt wurde, bleibt es sichtbar.
+    if (Number.isFinite(selected) && selected >= current) years.add(selected);
 
     return [...years].sort((a, b) => a - b);
   }
@@ -393,6 +388,15 @@
     `;
   }
 
+  function preferredPlanningModeForAudience(mode, animalIds = []) {
+    const ids = Array.isArray(animalIds) ? animalIds.filter(Boolean) : [];
+    if (mode === "selected" && ids.length === 1) {
+      return state.weeklyPlanningModeByAnimal?.[ids[0]] === "days" ? "days" : "week";
+    }
+    // Neue Klassen- und Gruppenpläne starten grundsätzlich in der Wochenübersicht.
+    return "week";
+  }
+
   function makeDraftForWeek(week) {
     return {
       title: "Wochenplan",
@@ -400,6 +404,7 @@
       validFrom: week.key,
       validTo: localDateKey(week.friday),
       note: "",
+      planningMode: "week",
       assignmentMode: "all",
       animalIds: [],
       progressMode: "confirm",
@@ -444,22 +449,110 @@
     `;
   }
 
-  function renderMonthCards(weeks) {
+
+  function monthGroups(weeks) {
     const groups = new Map();
     weeks.forEach((week) => {
-      const key = `${week.monthYear}-${week.month}`;
+      const key = `${week.monthYear}-${pad2(week.month + 1)}`;
       if (!groups.has(key)) groups.set(key, {
+        key,
         month: week.month,
         year: week.monthYear,
+        label: `${MONTHS[week.month]} ${week.monthYear}`,
         weeks: []
       });
       groups.get(key).weeks.push(week);
     });
+    return [...groups.values()];
+  }
 
-    return [...groups.values()].map((group) => `
-      <section class="lk-cal-month">
+  function defaultCalendarMonthKey(weeks) {
+    const groups = monthGroups(weeks);
+    if (!groups.length) return "";
+    const selected = selectedWeek();
+    if (selected) {
+      const selectedKey = `${selected.monthYear}-${pad2(selected.month + 1)}`;
+      if (groups.some((group) => group.key === selectedKey)) return selectedKey;
+    }
+    const today = new Date();
+    const currentKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
+    if (groups.some((group) => group.key === currentKey)) return currentKey;
+    return groups[0].key;
+  }
+
+  function ensureSelectedMonthKey(weeks) {
+    const groups = monthGroups(weeks);
+    if (!groups.length) {
+      lkCalendarSelectedMonthKey = "";
+      return "";
+    }
+    if (groups.some((group) => group.key === lkCalendarSelectedMonthKey)) return lkCalendarSelectedMonthKey;
+    lkCalendarSelectedMonthKey = defaultCalendarMonthKey(weeks);
+    return lkCalendarSelectedMonthKey;
+  }
+
+  function renderMonthSelector(weeks) {
+    const groups = monthGroups(weeks);
+    const selectedMonthKey = ensureSelectedMonthKey(weeks);
+    const startYear = calendarStartYear();
+    const years = schoolYearOptionYears();
+    const automaticYear = automaticSchoolYearStart(new Date());
+    const isAutomaticYear = lkCalendarAutoYear && startYear === automaticYear;
+    return `
+      <div class="lk-cal-month-selector">
+        <div class="lk-cal-month-selector-top">
+          <div class="lk-cal-month-chips" aria-label="Monat auswählen">
+            ${groups.map((group) => `
+              <button
+                class="small-button lk-cal-month-chip ${group.key === selectedMonthKey ? "active" : ""}"
+                type="button"
+                onclick="lkSetCalendarMonth('${escapeAttribute(group.key)}')"
+              >${escapeHtml(MONTHS[group.month])}</button>
+            `).join("")}
+          </div>
+          <div class="lk-cal-month-actions">
+            <span class="lk-cal-schoolyear-tag" title="Aktuelles Schuljahr in dieser Übersicht">SJ ${startYear}/${String(startYear + 1).slice(-2)}</span>
+            <button class="secondary small-button" type="button" onclick="lkToggleCalendarYearOverview()">
+              ${lkCalendarShowWholeYear ? "Nur gewählten Monat zeigen" : "Ganzes Schuljahr anzeigen"}
+            </button>
+            <button class="link-button small-button lk-cal-schoolyear-toggle" type="button" onclick="lkToggleCalendarYearPicker()">
+              ${lkCalendarYearPickerOpen ? "Schuljahr schließen" : "Schuljahr ändern"}
+            </button>
+          </div>
+        </div>
+        ${lkCalendarYearPickerOpen ? `
+          <div class="lk-cal-year-picker-row">
+            <div class="lk-cal-year-picker lk-cal-year-picker-compact" aria-label="Schuljahr auswählen">
+              <button class="link-button lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(-1)" aria-label="Vorheriges Schuljahr">←</button>
+              <label title="Schuljahr auswählen">
+                <select class="select-input" onchange="lkSetCalendarSchoolYear(Number(this.value))" aria-label="Schuljahr">
+                  ${years.map((year) => `
+                    <option value="${year}" ${year === startYear ? "selected" : ""}>
+                      ${escapeHtml(schoolYearLabel(year))}${year === automaticYear ? " · aktuell" : ""}
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+              <button class="link-button lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(1)" aria-label="Nächstes Schuljahr">→</button>
+              ${!isAutomaticYear ? `<button class="link-button lk-cal-today-year" type="button" onclick="lkUseAutomaticSchoolYear()">aktuell</button>` : ""}
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function renderMonthCards(weeks) {
+    const groups = monthGroups(weeks);
+    const selectedMonthKey = ensureSelectedMonthKey(weeks);
+    const visibleGroups = lkCalendarShowWholeYear
+      ? groups
+      : groups.filter((group) => group.key === selectedMonthKey);
+
+    return visibleGroups.map((group) => `
+      <section class="lk-cal-month ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
         <h3>${escapeHtml(MONTHS[group.month])}<small>${group.year}</small></h3>
-        <div class="lk-cal-month-weeks">
+        <div class="lk-cal-month-weeks ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
           ${group.weeks.map(renderWeekTile).join("")}
         </div>
       </section>
@@ -471,11 +564,6 @@
       acc[weekPlanningState(week)] += 1;
       return acc;
     }, { ready: 0, draft: 0, open: 0 });
-    const startYear = calendarStartYear();
-    const years = schoolYearOptionYears();
-    const automaticYear = automaticSchoolYearStart(new Date());
-    const isAutomaticYear = lkCalendarAutoYear && startYear === automaticYear;
-
     return `
       <section class="panel lk-cal-hero">
         <div class="lk-cal-hero-main">
@@ -484,32 +572,17 @@
             <div>
               <h2>Wochenübersicht</h2>
               <p class="privacy-text">
-                Wähle eine Kalenderwoche. Du siehst sofort, was fertig geplant ist und welche Wochen noch offen sind.
+                Wähle zuerst einen Monat und dann die passende Kalenderwoche.
               </p>
             </div>
-            <div class="lk-cal-year-picker" aria-label="Schuljahr auswählen">
-              <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(-1)" aria-label="Vorheriges Schuljahr">←</button>
-              <label>
-                <span>Schuljahr ${isAutomaticYear ? `<small class="lk-cal-auto-badge">automatisch</small>` : ""}</span>
-                <select class="select-input" onchange="lkSetCalendarSchoolYear(Number(this.value))">
-                  ${years.map((year) => `
-                    <option value="${year}" ${year === startYear ? "selected" : ""}>
-                      ${escapeHtml(schoolYearLabel(year))}${year === automaticYear ? " · aktuell" : ""}
-                    </option>
-                  `).join("")}
-                </select>
-              </label>
-              <button class="secondary lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(1)" aria-label="Nächstes Schuljahr">→</button>
-              ${!isAutomaticYear ? `<button class="secondary lk-cal-today-year" type="button" onclick="lkUseAutomaticSchoolYear()">Aktuelles Schuljahr</button>` : ""}
-            </div>
           </div>
-          <p class="lk-cal-year-range">August ${startYear} bis Juli ${startYear + 1}</p>
         </div>
         <div class="lk-cal-summary" aria-label="Planungsstand">
           <span class="ready">✓ ${counts.ready} fertig</span>
           <span class="draft">◐ ${counts.draft} begonnen</span>
           <span class="open">○ ${counts.open} offen</span>
         </div>
+        ${renderMonthSelector(weeks)}
       </section>
     `;
   }
@@ -604,7 +677,7 @@
     const week = selectedWeek();
     return `
       ${renderCalendarHeader(weeks)}
-      <section class="lk-cal-grid">
+      <section class="lk-cal-grid ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
         ${renderMonthCards(weeks)}
       </section>
       ${week && lkCalendarWeekDialogOpen ? renderSelectedWeekPanel(week) : ""}
@@ -616,7 +689,7 @@
       <section class="panel lk-cal-nav">
         <div class="section-tabs weekly-section-tabs lk-cal-tabs">
           <button class="small-button ${section === "current" ? "active" : ""}" type="button" onclick="lkSetCalendarSection('current')">📅 Wochenübersicht</button>
-          <button class="small-button ${section === "create" ? "active" : ""}" type="button" onclick="lkOpenSelectedWeekEditor()">✏️ Plan bearbeiten</button>
+          <button class="small-button ${section === "create" ? "active" : ""}" type="button" onclick="lkReturnToWeeklyEditorFromCatalog()">✏️ Plan bearbeiten</button>
           <button class="small-button ${section === "catalog" ? "active" : ""}" type="button" onclick="lkSetCalendarSection('catalog')">📚 Hefte</button>
         </div>
       </section>
@@ -776,6 +849,28 @@
     render();
   };
 
+  window.lkSetCalendarMonth = function lkSetCalendarMonth(key) {
+    const value = String(key || "");
+    const groups = monthGroups(schoolYearWeeks(calendarStartYear()));
+    if (!groups.some((group) => group.key === value)) return;
+    lkCalendarSelectedMonthKey = value;
+    lkCalendarShowWholeYear = false;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
+  window.lkToggleCalendarYearOverview = function lkToggleCalendarYearOverview() {
+    lkCalendarShowWholeYear = !lkCalendarShowWholeYear;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
+  window.lkToggleCalendarYearPicker = function lkToggleCalendarYearPicker() {
+    lkCalendarYearPickerOpen = !lkCalendarYearPickerOpen;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
   window.lkSetCalendarSchoolYear = function lkSetCalendarSchoolYear(startYear) {
     lkCalendarWeekDialogOpen = false;
     const year = Number(startYear);
@@ -784,6 +879,7 @@
     lkCalendarAutoYear = year === automaticSchoolYearStart(new Date());
     lkCalendarStartYear = year;
     lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
     weeklyPlanDraft = null;
@@ -797,6 +893,7 @@
     lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
     lkCalendarStartYear = nextYear;
     lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
     weeklyPlanDraft = null;
@@ -808,6 +905,7 @@
     lkCalendarAutoYear = true;
     lkCalendarStartYear = automaticSchoolYearStart(new Date());
     lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
     weeklyPlanDraft = null;
@@ -816,8 +914,9 @@
 
   window.lkSelectCalendarWeek = function lkSelectCalendarWeek(key) {
     lkCalendarSelectedMonday = key;
-    lkCalendarWeekDialogOpen = true;
     const week = weekByKey(key);
+    if (week) lkCalendarSelectedMonthKey = `${week.monthYear}-${pad2(week.month + 1)}`;
+    lkCalendarWeekDialogOpen = true;
     lkCalendarAudienceChoiceOpen = !!week && plansForWeek(week).length === 0;
     weeklyPlanSection = "current";
     weeklyPlanEditorId = "";
@@ -858,11 +957,13 @@
     };
 
     weeklyPlanEditorId = "";
+    const uniqueAnimalIds = mode === "all" ? [] : [...new Set(animalIds || [])];
     weeklyPlanDraft = {
       ...makeDraftForWeek(week),
-      title: suggestedCalendarPlanTitle({ mode, animalIds, group }),
+      title: suggestedCalendarPlanTitle({ mode, animalIds: uniqueAnimalIds, group }),
+      planningMode: preferredPlanningModeForAudience(mode, uniqueAnimalIds),
       assignmentMode: mode === "all" ? "all" : "selected",
-      animalIds: mode === "all" ? [] : [...new Set(animalIds || [])]
+      animalIds: uniqueAnimalIds
     };
     weeklyPickRequest = null;
     weeklyPlanSection = "create";
@@ -910,6 +1011,24 @@
   // Kompatibel mit älteren Buttons/Links: Neue Pläne beginnen ebenfalls mit der Zielgruppenwahl.
   window.lkCreateCalendarWeek = function lkCreateCalendarWeek(key) {
     lkStartCalendarAudienceChoice(key);
+  };
+
+  window.lkReturnToWeeklyEditorFromCatalog = function lkReturnToWeeklyEditorFromCatalog() {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+
+    // Wenn bereits ein Plan im Editor aktiv war, direkt dorthin zurückkehren.
+    // So funktioniert "Plan bearbeiten" auch zuverlässig aus der Hefte-Ansicht.
+    if (weeklyPlanEditorId) {
+      weeklyPickRequest = null;
+      weeklyPlanSection = "create";
+      render();
+      return;
+    }
+
+    // Ohne aktiven Editor wird der Plan der ausgewählten Woche geöffnet bzw.
+    // bei mehreren Plänen wieder die Auswahl angezeigt.
+    lkOpenSelectedWeekEditor();
   };
 
   window.lkOpenSelectedWeekEditor = function lkOpenSelectedWeekEditor() {
@@ -971,6 +1090,7 @@
     lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
     lkCalendarStartYear = nextYear;
     lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
     weeklyPlanSection = "current";
     render();
   };
@@ -1016,9 +1136,9 @@
     .lk-cal-tabs .small-button { font-size:.9rem; }
 
     .lk-cal-hero {
-      display:flex;
-      justify-content:space-between;
-      gap:18px;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:14px 18px;
       align-items:flex-start;
       border:2px solid rgba(47,111,145,.10);
       background:linear-gradient(135deg,rgba(223,243,255,.78),rgba(255,250,231,.75));
@@ -1034,26 +1154,22 @@
     .lk-cal-hero h2 { margin:.15rem 0 .35rem; }
     .lk-cal-year-picker {
       display:grid;
-      grid-template-columns:auto minmax(126px,auto) auto;
-      align-items:end;
-      gap:6px;
+      grid-template-columns:auto minmax(110px,auto) auto auto;
+      align-items:center;
+      gap:4px;
       flex:none;
     }
-    .lk-cal-year-picker label {
-      display:grid;
-      gap:3px;
-      font-size:.7rem;
-      font-weight:800;
-      opacity:.85;
-    }
+    .lk-cal-year-picker label { display:block; }
     .lk-cal-year-picker .select-input {
-      min-width:126px;
-      padding:7px 9px;
-      font-weight:800;
-      background:#fff;
+      min-width:112px;
+      padding:5px 7px;
+      font-size:.76rem;
+      font-weight:700;
+      background:rgba(255,255,255,.72);
+      border-color:rgba(47,111,145,.12);
     }
-    .lk-cal-year-arrow { min-width:38px; padding:7px 9px; font-size:1rem; }
-    .lk-cal-year-range { margin:6px 0 0; font-size:.76rem; opacity:.58; font-weight:700; }
+    .lk-cal-year-arrow { min-width:24px; padding:3px 5px; font-size:.9rem; opacity:.65; }
+    .lk-cal-year-range { margin:4px 0 0; font-size:.7rem; opacity:.42; font-weight:600; }
     .lk-cal-kicker {
       margin:0 0 2px;
       font-size:.73rem;
@@ -1067,6 +1183,35 @@
       gap:6px;
       flex-wrap:wrap;
       justify-content:flex-end;
+    }
+    .lk-cal-month-selector {
+      grid-column:1 / -1;
+      display:block;
+      padding-top:2px;
+    }
+    .lk-cal-month-selector-top {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .lk-cal-month-chips {
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+    .lk-cal-month-chip {
+      border-radius:999px;
+      padding:8px 13px;
+      background:rgba(255,255,255,.9);
+      cursor:pointer;
+    }
+    .lk-cal-month-chip.active {
+      background:#ccecf2;
+      border-color:rgba(34,147,160,.45);
+      color:#174e5b;
+      box-shadow:0 2px 8px rgba(34,147,160,.12);
     }
     .lk-cal-summary span,
     .lk-cal-plan-status,
@@ -1092,6 +1237,7 @@
       gap:10px;
       margin:12px 0;
     }
+    .lk-cal-grid.single-view { grid-template-columns:1fr; }
     .lk-cal-month {
       border:1px solid rgba(0,0,0,.08);
       border-radius:16px;
@@ -1099,6 +1245,7 @@
       background:rgba(255,255,255,.78);
       min-width:0;
     }
+    .lk-cal-month.single-view { padding:14px; }
     .lk-cal-month h3 {
       display:flex;
       align-items:baseline;
@@ -1113,9 +1260,10 @@
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:6px;
     }
+    .lk-cal-month-weeks.single-view { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
     .lk-cal-week {
       position:relative;
-      min-height:52px;
+      min-height:58px;
       display:grid;
       grid-template-columns:1fr auto;
       grid-template-rows:auto auto;
@@ -1379,6 +1527,7 @@
 
     @media (max-width:980px) {
       .lk-cal-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-month-weeks.single-view { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .lk-cal-audience-quick { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .lk-cal-audience-animal-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
       .lk-cal-plan-main { grid-template-columns:1fr; }
@@ -1403,7 +1552,12 @@
       }
       .lk-cal-year-picker .select-input { width:100%; }
       .lk-cal-summary { justify-content:flex-start; margin-top:10px; }
+      .lk-cal-month-selector { display:block; }
+      .lk-cal-month-selector-top { display:block; }
+      .lk-cal-month-actions { justify-content:flex-start; margin-top:8px; }
+      .lk-cal-year-picker-row { justify-content:flex-start; }
       .lk-cal-grid { grid-template-columns:1fr; }
+      .lk-cal-month-weeks.single-view { grid-template-columns:1fr; }
       .lk-cal-selected-head > button { margin-top:10px; }
       .lk-cal-plan-footer { align-items:flex-start; flex-direction:column; }
     }

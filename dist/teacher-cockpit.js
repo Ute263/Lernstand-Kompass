@@ -323,69 +323,19 @@
     const activeIds = todayActivityAnimalIds();
     const activeToday = animals.filter((animal) => activeIds.has(animal.id));
     const quietToday = animals.filter((animal) => !activeIds.has(animal.id));
-    const helpEntries = unresolvedEntries("brauche Hilfe");
-    const controlEntries = unresolvedEntries("bitte kontrollieren");
-    const activities = learningGameActivitiesToday();
-    const results = learningGameResultsToday();
-    const runningNow = activities.filter((item) => activityStatus(item).className === "live").length;
-    const abortedToday = activities.filter((item) => item.status === "aborted").length;
-    const pendingReviews = pendingReviewCount();
-    const unread = inboxUnreadCount();
     const lastPull = state.classSync?.lastPullAt || "";
     const className = typeof activeClass === "function" ? activeClass()?.name : "";
 
     return `
-      <section class="panel lk-cockpit">
+      <section class="panel lk-cockpit lk-cockpit-slim">
         <div class="lk-cockpit-hero">
           <div>
             <p class="lk-cockpit-kicker">${escapeHtml(todayTitle())}</p>
             <h2>${escapeHtml(greeting())}${className ? ` · ${escapeHtml(className)}` : ""}</h2>
-            <p class="message">Das ist heute in deiner Klasse wichtig.</p>
           </div>
           <div class="lk-cockpit-sync">
             <span>${lastPull ? `Kinder-Sync: ${escapeHtml(formatMoment(lastPull))}` : "Kinder-Sync: noch kein Abruf"}</span>
           </div>
-        </div>
-
-        <div class="lk-cockpit-stat-grid">
-          <button type="button" onclick="setTeacherTab('pendingReports')">
-            <span>📥</span><strong>${unread}</strong><small>neue Meldungen</small>
-          </button>
-          <button class="${helpEntries.length ? "attention" : ""}" type="button" onclick="setTeacherTab('help')">
-            <span>🟡</span><strong>${helpEntries.length}</strong><small>brauchen Hilfe</small>
-          </button>
-          <button class="${controlEntries.length ? "control" : ""}" type="button" onclick="setTeacherTab('help')">
-            <span>🔵</span><strong>${controlEntries.length}</strong><small>bitte kontrollieren</small>
-          </button>
-          <button type="button" onclick="setTeacherTab('today')">
-            <span>👣</span><strong>${activeToday.length}/${animals.length}</strong><small>heute in der App aktiv</small>
-          </button>
-        </div>
-
-        <div class="lk-cockpit-main-grid">
-          <section class="lk-cockpit-box">
-            <div class="lk-cockpit-box-title">
-              <div><span>⚡</span><strong>Jetzt wichtig</strong></div>
-              <button class="small-button" type="button" onclick="setTeacherTab('pendingReports')">Posteingang</button>
-            </div>
-            <div class="lk-cockpit-row-list">
-              ${renderImportantRows(helpEntries, controlEntries, activities, pendingReviews)}
-            </div>
-          </section>
-
-          <section class="lk-cockpit-box">
-            <div class="lk-cockpit-box-title">
-              <div><span>🎮</span><strong>Lernspiele heute</strong></div>
-              <button class="small-button" type="button" onclick="setTeacherTab('learningGames')">Auswertung</button>
-            </div>
-            <div class="lk-game-summary">
-              <span><strong>${activities.length}</strong> gestartet</span>
-              <span><strong>${runningNow}</strong> gerade aktiv</span>
-              <span><strong>${results.length}</strong> beendet</span>
-              <span><strong>${abortedToday}</strong> abgebrochen</span>
-            </div>
-            <div class="lk-game-list">${renderLearningGameRows(activities)}</div>
-          </section>
         </div>
 
         <div class="lk-cockpit-class-grid">
@@ -405,33 +355,19 @@
             <div class="lk-animal-chips">${renderAnimalChips(quietToday, "Alle aktiven Tiere haben heute bereits eine App-Aktivität.")}</div>
           </section>
         </div>
-
-        <div class="lk-cockpit-quick">
-          <button class="secondary" type="button" onclick="setTeacherTab('pendingReports')">📥 Posteingang</button>
-          <button class="secondary" type="button" onclick="setTeacherTab('help')">🟡 Hilfe & Kontrolle</button>
-          <button class="secondary" type="button" onclick="setTeacherTab('today')">📅 Heute</button>
-          <button class="secondary" type="button" onclick="setTeacherGroup('weeklyPlansGroup')">🗓️ Wochenplan</button>
-          <button class="secondary" type="button" onclick="setTeacherTab('learningGames')">🎮 Lernspiele</button>
-        </div>
       </section>
     `;
   }
 
   renderTeacherHome = function renderTeacherHomeWithCockpit() {
-    const oldHome = baseRenderTeacherHome()
-      .replace("<h2>Startseite</h2>", "<h2>Alle Bereiche</h2>")
-      .replace(
-        "Wähle aus, womit du arbeiten möchtest. Die Kacheln führen direkt in den passenden Bereich.",
-        "Hier findest du weiterhin alle Bereiche des Lernstand-Kompasses."
-      );
-    return `${renderCockpit()}${oldHome}`;
+    return renderCockpit();
   };
 
   const style = document.createElement("style");
   style.id = "lk-teacher-cockpit-style";
   style.textContent = `
-    .lk-cockpit { border:2px solid rgba(47,111,145,.13); }
-    .lk-cockpit-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:18px; }
+    .lk-cockpit { border:2px solid rgba(47,111,145,.13); background:linear-gradient(180deg, rgba(236,247,250,.95), rgba(255,255,255,.96)); }
+    .lk-cockpit-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:14px; }
     .lk-cockpit-kicker { margin:0 0 4px; font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; opacity:.58; }
     .lk-cockpit-hero h2 { margin:.1rem 0 .35rem; }
     .lk-cockpit-sync { padding:7px 10px; border-radius:999px; background:rgba(47,111,145,.08); font-size:.82rem; white-space:nowrap; }
@@ -479,6 +415,8 @@
     .lk-cockpit-empty-block { padding:12px; border-radius:12px; background:rgba(0,0,0,.03); opacity:.65; font-size:.86rem; }
 
     .lk-cockpit-quick { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .lk-cockpit-quick-hero { margin:4px 0 12px; }
+    .lk-cockpit-slim .lk-cockpit-box.compact { min-height:150px; }
 
     @media (max-width: 920px) {
       .lk-cockpit-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }

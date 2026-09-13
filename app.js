@@ -3798,6 +3798,129 @@ function weeklyCarryoverForAnimal(animalId, draft = {}) {
   return { plan: previous, rows };
 }
 
+function weeklyPreviousResultsForAnimal(animalId, draft = {}) {
+  const draftId = draft.id || "";
+  const draftFrom = draft.validFrom || "";
+  const candidates = weeklyPlansForAnimal(animalId)
+    .filter((plan) => plan.id !== draftId)
+    .filter((plan) => !draftFrom || !plan.validFrom || plan.validFrom < draftFrom)
+    .sort((a, b) => String(b.validTo || b.validFrom || b.createdAt || "").localeCompare(String(a.validTo || a.validFrom || a.createdAt || "")));
+  const previous = candidates[0];
+  if (!previous) return null;
+
+  const rows = [];
+  const days = ["Woche", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const seen = new Set();
+
+  days.forEach((day) => {
+    weeklyPlanItemsForDay(previous, day, animalId).forEach((item) => {
+      const key = `${day}::${item.field}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const status = weeklyPlanItemStatus(previous.id, animalId, day, item.field) || "offen";
+      rows.push({ day, item, status });
+    });
+  });
+
+  const counts = rows.reduce((acc, row) => {
+    const key = row.status === "fertig" ? "fertig" : row.status === "teilweise" ? "teilweise" : "offen";
+    acc[key] += 1;
+    return acc;
+  }, { fertig: 0, teilweise: 0, offen: 0 });
+
+  return { plan: previous, rows, counts };
+}
+
+function weeklyPreviousResultStatusMeta(status) {
+  if (status === "fertig") return { label: "fertig", icon: "✓", className: "done" };
+  if (status === "teilweise") return { label: "teilweise", icon: "◐", className: "partial" };
+  return { label: "offen", icon: "○", className: "open" };
+}
+
+function renderWeeklyPreviousResults(draft, animals) {
+  if (!animals.length) return "";
+
+  const entries = animals.map((animal) => ({
+    animal,
+    result: weeklyPreviousResultsForAnimal(animal.id, draft)
+  }));
+
+  const withPreviousPlan = entries.filter(({ result }) => result);
+  if (!withPreviousPlan.length) {
+    return `
+      <section class="weekly-previous-results empty-state">
+        <div class="weekly-previous-results-head">
+          <div>
+            <span class="weekly-previous-kicker">Rückblick</span>
+            <h3>Ergebnisse der vorherigen Woche</h3>
+            <p>Noch keine vorherigen Wochenpläne für diese Kinder vorhanden.</p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="weekly-previous-results">
+      <div class="weekly-previous-results-head">
+        <div>
+          <span class="weekly-previous-kicker">Planungsgrundlage</span>
+          <h3>Ergebnisse der vorherigen Woche</h3>
+          <p>Diese Ergebnisse bleiben beim Erstellen der neuen Woche sichtbar. So kannst du offene und teilweise bearbeitete Aufgaben direkt berücksichtigen.</p>
+        </div>
+      </div>
+
+      <div class="weekly-previous-results-grid">
+        ${entries.map(({ animal, result }) => {
+          if (!result) {
+            return `
+              <div class="weekly-previous-child no-data">
+                <div class="weekly-previous-child-main">
+                  <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
+                  <small>Kein vorheriger Wochenplan</small>
+                </div>
+              </div>
+            `;
+          }
+
+          const period = weeklyPlanPeriodLabel(result.plan) || result.plan.title || "vorheriger Wochenplan";
+          return `
+            <details class="weekly-previous-child" ${result.counts.offen || result.counts.teilweise ? "open" : ""}>
+              <summary>
+                <div class="weekly-previous-child-main">
+                  <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
+                  <small>${escapeHtml(period)}</small>
+                </div>
+                <div class="weekly-previous-counts" aria-label="Ergebnisse">
+                  <span class="done">✓ ${result.counts.fertig}</span>
+                  <span class="partial">◐ ${result.counts.teilweise}</span>
+                  <span class="open">○ ${result.counts.offen}</span>
+                </div>
+              </summary>
+              <div class="weekly-previous-task-list">
+                ${result.rows.length ? result.rows.map(({ day, item, status }) => {
+                  const meta = weeklyPreviousResultStatusMeta(status);
+                  const taskText = item.text || item.detail || item.label || "Aufgabe";
+                  const section = item.subject || item.section || "";
+                  return `
+                    <div class="weekly-previous-task-row">
+                      <span class="weekly-previous-status ${meta.className}" title="${escapeAttribute(meta.label)}">${meta.icon}</span>
+                      <div>
+                        <strong>${escapeHtml(taskText)}</strong>
+                        <small>${section ? `${escapeHtml(section)} · ` : ""}${day === "Woche" ? "Ganze Woche" : escapeHtml(day)}</small>
+                      </div>
+                    </div>
+                  `;
+                }).join("") : `<div class="weekly-previous-no-tasks">Keine Aufgaben im vorherigen Plan.</div>`}
+              </div>
+            </details>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderWeeklyCarryoverCheck(draft, animals) {
   const affected = animals.map((animal) => ({ animal, carry: weeklyCarryoverForAnimal(animal.id, draft) }))
     .filter(({ carry }) => carry && carry.rows.length);
@@ -3939,6 +4062,8 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           </div>
         </div>
 
+        ${!focusAnimal ? renderWeeklyPreviousResults(draft, targetAnimals) : ""}
+
         ${focusAnimal ? `
           <div class="weekly-focus-note compact">
             <strong>Individuelle Abweichungen für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</strong>
@@ -3960,8 +4085,6 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             <label class="field">Titel
               <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan">
             </label>
-
-            ${!focusAnimal ? renderWeeklyCarryoverCheck(draft, targetAnimals) : ""}
 
             <div class="lk-deutsch-order-picker compact-order-picker">
               <div class="lk-deutsch-order-copy">

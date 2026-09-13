@@ -34,6 +34,7 @@ const files = [
   "weekly-plan-9e.js",
   "weekly-plan-9f.js",
   "weekly-minimax-pages.js",
+  "weekly-fix-172.js",
   "weekly-calendar-overview.js",
   "weekly-editor-compact.js",
   "simple-ui.js",

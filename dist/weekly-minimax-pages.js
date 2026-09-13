@@ -106,13 +106,13 @@
     // Reguläre Klassenlehrwerke bleiben im normalen Bereich. Wichtig:
     // einzelne Aufgabentitel wie „Aufforderungssatz“ dürfen NICHT dazu führen,
     // dass z. B. ABC der Tiere 2 Teil B als Förderheft einsortiert wird.
-    if (/^ABC der Tiere\s*2/i.test(workbook)) return false;
-    if (/^MiniMax/i.test(workbook)) return false;
+    if (/^ABC der Tiere\s*2\b/i.test(workbook)) return false;
+    if (/^MiniMax\b/i.test(workbook)) return false;
 
     // Diese Reihen sind ausdrücklich als inklusive/Fördermaterialien gedacht
     // und dürfen schuljahrübergreifend verwendet werden.
-    if (/^Flex und Flora/i.test(workbook)) return true;
-    if (/^Welt der Zahl inklusiv/i.test(workbook)) return true;
+    if (/^Flex und Flora\b/i.test(workbook)) return true;
+    if (/^Welt der Zahl inklusiv\b/i.test(workbook)) return true;
 
     // Bei eigenen Materialien wird nur die Bezeichnung des HEFTES ausgewertet,
     // nicht der Titel einzelner Aufgaben oder Bereiche.
@@ -134,18 +134,23 @@
       return all.filter(mmIsSupportWorkbook);
     }
 
+    // WICHTIG: Förderhefte erscheinen niemals im Bereich „Klassenhefte“.
+    // Flex und Flora sowie Welt der Zahl inklusiv sind ausschließlich über
+    // den Förderhefte-Schalter erreichbar.
+    const classOnly = all.filter((item) => !mmIsSupportWorkbook(item));
+
     let activeYear = "";
     try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
-    if (!activeYear || activeYear === "none") return all;
+    if (!activeYear || activeYear === "none") return classOnly;
 
-    const matching = all.filter((item) => {
+    const matching = classOnly.filter((item) => {
       try {
         return materialMatchesSchoolYear(item, activeYear);
       } catch {
         return !item.schoolYear || item.schoolYear === activeYear;
       }
     });
-    return matching.length ? matching : all;
+    return matching.length ? matching : classOnly;
   }
 
   function mmPageLabel(page) {
@@ -231,6 +236,8 @@
   function mmUsedCatalogItems() {
     const activeClassId = state.activeClassId;
     const usedIds = new Set();
+
+    // Gespeicherte Wochenpläne.
     (state.weeklyPlans || []).forEach((plan) => {
       if (!plan || (activeClassId && plan.classId && plan.classId !== activeClassId)) return;
       Object.values(plan.days || {}).forEach((day) => mmCollectPlanIds(day, usedIds));
@@ -239,9 +246,37 @@
       });
     });
 
+    // Auch der aktuell noch nicht gespeicherte Entwurf zählt als verwendet.
+    if (weeklyPlanDraft) {
+      Object.values(weeklyPlanDraft.days || {}).forEach((day) => mmCollectPlanIds(day, usedIds));
+      Object.values(weeklyPlanDraft.overrides || {}).forEach((override) => {
+        Object.values(override?.days || {}).forEach((day) => mmCollectPlanIds(day, usedIds));
+      });
+    }
+
+    // Bereits tatsächlich bearbeitete/zugewiesene Aufgaben ebenfalls markieren.
+    [
+      ...(state.weeklyPlanStatuses || []),
+      ...(state.workbookAssignmentStatuses || []),
+      ...(state.workbookAssignments || []),
+      ...(state.entries || [])
+    ].forEach((entry) => {
+      if (!entry || (activeClassId && entry.classId && entry.classId !== activeClassId)) return;
+      const id = entry.workbookCatalogId || entry.catalogId || "";
+      if (id) usedIds.add(id);
+    });
+
     const catalog = workbookCatalogForActiveClass();
     const byId = new Map(catalog.map((item) => [item.id, item]));
-    return [...usedIds].map((id) => byId.get(id)).filter(Boolean);
+    return [...usedIds].map((id) => {
+      if (byId.has(id)) return byId.get(id);
+      const pageMatch = String(id).match(/^(.*)__page_(\d+)$/);
+      if (!pageMatch) return null;
+      const source = byId.get(pageMatch[1]);
+      if (!source) return null;
+      const page = Number(pageMatch[2]);
+      return { ...source, id, page, startPage: page, endPage: page, pageEnd: page, displayPages: `S. ${page}` };
+    }).filter(Boolean);
   }
 
   function mmPageWasUsed(candidate, usedItems) {
@@ -459,6 +494,7 @@
       <div class="training-modal-overlay lk-weekly-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="lkWeeklyPickerTitle">
         <section class="training-modal-card lk-weekly-picker-card">
           <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
+        <button class="primary lk-picker-done" type="button" onclick="closeWeeklyCatalogPicker()">Fertig – zurück zum Wochenplan</button>
 
           <div class="lk-picker-head">
             <div>
@@ -556,8 +592,8 @@
                     : false;
                   const usedBefore = mmPageWasUsed(candidate, usedItems);
                   const click = candidate.isVirtual
-                    ? `lkSelectMiniMaxPage('${escapeAttribute(candidate.sourceRangeId)}', ${candidate.page})`
-                    : `selectWeeklyCatalogItem('${escapeAttribute(candidate.exactId || candidate.sourceId)}')`;
+                    ? `lkSelectMiniMaxPage('${escapeAttribute(candidate.sourceRangeId)}', ${candidate.page}, this)`
+                    : `selectWeeklyCatalogItem('${escapeAttribute(candidate.exactId || candidate.sourceId)}', this)`;
                   const pageLabel = candidate.displayLabel || item.displayPages || mmPageSpanLabel(candidate.page, candidate.pageEnd || candidate.page);
                   const statusText = alreadySelected
                     ? "schon gewählt · nochmals = ⭐"
@@ -568,6 +604,8 @@
                     <button
                       class="lk-page-button ${alreadySelected ? "already-selected" : ""} ${usedBefore ? "used-before" : ""}"
                       type="button"
+                      data-page="${candidate.page}"
+                      data-catalog-id="${escapeAttribute(candidate.exactId || candidate.sourceId || "")}"
                       onclick="${click}"
                       title="${escapeAttribute([pageLabel, item.title, item.area, usedBefore ? "bereits verwendet" : ""].filter(Boolean).join(" · "))}"
                     >
@@ -635,3 +673,6 @@
     candidates: mmCandidates
   };
 })();
+
+
+/* Mehrfachauswahl: Abschlussknopf bleibt im Auswahlfenster gut erreichbar. */
