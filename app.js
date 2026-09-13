@@ -3896,7 +3896,7 @@ function renderPreviousWeekPlanningBasis(draft, animals) {
         <div>
           <span class="lk-prev-week-kicker">Planungsgrundlage</span>
           <h3>Ergebnisse der vorherigen Woche</h3>
-          <p>Nur zur Ansicht. Der aktuelle Wochenplan bleibt vollständig im Klassenmodus bearbeitbar.</p>
+          <p>Zum Nachschauen während der Planung. Ein Kind anklicken, um die Aufgaben zu sehen.</p>
         </div>
       </div>
 
@@ -3913,7 +3913,7 @@ function renderPreviousWeekPlanningBasis(draft, animals) {
 
           const period = weeklyPlanPeriodLabel(result.plan);
           return `
-            <details class="lk-prev-week-child" ${result.counts.offen || result.counts.teilweise ? "open" : ""}>
+            <details class="lk-prev-week-child">
               <summary>
                 <div>
                   <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>
@@ -4064,6 +4064,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
       </div>
       ${visibility.detail ? `<div class="weekly-clean-statusline">${escapeHtml(visibility.detail)}</div>` : ""}
 
+      <div class="weekly-editor-workspace ${!focusAnimal ? "with-basis" : ""}">
       <form class="weekly-plan-form weekly-clean-form" onsubmit="saveWeeklyPlan(event)">
         <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
 
@@ -4089,8 +4090,6 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             </div>
           </div>
         </div>
-
-        ${!focusAnimal ? renderPreviousWeekPlanningBasis(draft, targetAnimals) : ""}
 
         ${focusAnimal ? `
           <div class="weekly-focus-note compact">
@@ -4157,6 +4156,13 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           <button class="secondary" type="button" onclick="newWeeklyPlan()">Neuer Plan</button>
         </div>
       </form>
+
+      ${!focusAnimal ? `
+        <aside class="weekly-editor-basis-aside" aria-label="Planungsgrundlage aus der Vorwoche">
+          ${renderPreviousWeekPlanningBasis(draft, targetAnimals)}
+        </aside>
+      ` : ""}
+      </div>
     </section>
   `;
 }

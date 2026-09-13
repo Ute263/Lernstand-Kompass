@@ -4298,3 +4298,97 @@ body {
   .lk-prev-week-child > summary { align-items: flex-start; flex-wrap: wrap; }
   .lk-prev-week-counts { width: 100%; margin-left: 0; }
 }
+
+
+/* v203: Planungsgrundlage neben statt im Wochenplan-Editor */
+.weekly-editor-workspace.with-basis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+.weekly-editor-workspace.with-basis .weekly-clean-form {
+  min-width: 0;
+}
+.weekly-editor-basis-aside {
+  position: sticky;
+  top: 18px;
+  align-self: start;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.weekly-editor-basis-aside .lk-prev-week-basis {
+  margin: 0;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fcff;
+  box-shadow: none;
+}
+.weekly-editor-basis-aside .lk-prev-week-head h3 {
+  font-size: 1.05rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-head p {
+  font-size: .86rem;
+  line-height: 1.35;
+}
+.weekly-editor-basis-aside .lk-prev-week-kicker {
+  font-size: .72rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-list {
+  gap: 7px;
+  margin-top: 11px;
+}
+.weekly-editor-basis-aside .lk-prev-week-child > summary {
+  padding: 9px 10px;
+  gap: 8px;
+}
+.weekly-editor-basis-aside .lk-prev-week-child > summary small {
+  font-size: .78rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-counts {
+  gap: 4px;
+}
+.weekly-editor-basis-aside .lk-prev-week-counts span {
+  min-width: 34px;
+  padding: 3px 6px;
+  font-size: .76rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-task {
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 7px;
+  padding: 8px 10px;
+}
+.weekly-editor-basis-aside .lk-prev-week-task strong {
+  font-size: .84rem;
+  line-height: 1.25;
+}
+.weekly-editor-basis-aside .lk-prev-week-task small {
+  font-size: .76rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-state {
+  width: 21px;
+  height: 21px;
+  font-size: .78rem;
+}
+.weekly-editor-basis-aside .lk-prev-week-empty {
+  padding: 9px 10px;
+  font-size: .84rem;
+}
+
+@media (max-width: 1180px) {
+  .weekly-editor-workspace.with-basis {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 980px) {
+  .weekly-editor-workspace.with-basis {
+    grid-template-columns: 1fr;
+  }
+  .weekly-editor-basis-aside {
+    position: static;
+    max-height: none;
+    order: -1;
+  }
+}
