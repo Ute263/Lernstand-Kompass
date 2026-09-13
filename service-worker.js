@@ -1,8 +1,9 @@
-const CACHE_NAME = "lernstand-kompass-v206";
+const CACHE_NAME = "lernstand-kompass-v207";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
+  "./progress-children-overview.css",
   "./models.js",
   "./storage.js",
   "./exceljs.min.js",
@@ -34,6 +35,7 @@ const APP_FILES = [
   "./weekly-calendar-overview.js",
   "./weekly-editor-compact.js",
   "./simple-ui.js",
+  "./progress-children-overview.js",
   "./pwa.js",
   "./manifest.json",
   "./icons/icon-180.png",
