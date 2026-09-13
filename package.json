@@ -2,8 +2,10 @@
   "name": "lernstand-kompass",
   "version": "1.2.1",
   "private": true,
-  "description": "Lokale statische PWA-Testversion des Lernstand-Kompass.",
+  "description": "Statische PWA für Lernstandsplanung, Dokumentation und lokale Datenspeicherung.",
   "scripts": {
-    "build": "node scripts/build.js"
+    "check": "node scripts/check-syntax.js",
+    "build": "node scripts/build.js",
+    "verify": "npm run check && npm run build"
   }
 }
