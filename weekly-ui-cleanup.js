@@ -526,6 +526,7 @@
       <div class="training-modal-overlay lk-weekly-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="lkWeeklyPickerTitle">
         <section class="training-modal-card lk-weekly-picker-card">
           <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
+        <button class="primary lk-picker-done" type="button" onclick="closeWeeklyCatalogPicker()">Fertig – zurück zum Wochenplan</button>
 
           <div class="lk-picker-head">
             <div>
@@ -1047,3 +1048,6 @@
     pickerRangeStart: lkPickerRangeStart
   };
 })();
+
+
+/* Mehrfachauswahl: Abschlussknopf bleibt im Auswahlfenster gut erreichbar. */

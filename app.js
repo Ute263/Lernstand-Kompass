@@ -359,13 +359,16 @@ function renderTopbar(subtitle) {
   const isChildArea = screen === "childStart" || screen === "qrScanner" || screen.startsWith("child");
   return `
     <header class="topbar">
-      <div class="brand">
-        <h1 class="brand-title">${APP_NAME}</h1>
-        <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
+      <div class="brand ${isChildArea ? "" : "teacher-brand"}">
+        ${isChildArea ? "" : `<img class="teacher-topbar-logo" src="./icons/lernstand-kompass.png" alt="">`}
+        <div>
+          <h1 class="brand-title">${APP_NAME}</h1>
+          <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
+        </div>
       </div>
       ${isChildArea
         ? `<button class="secondary" type="button" onclick="childLogout()">Abmelden</button>`
-        : `<button class="secondary" type="button" onclick="goHome()">Start</button>`}
+        : `<button class="secondary app-home-button" type="button" onclick="goHome()">Zur App-Startseite</button>`}
     </header>
   `;
 }
@@ -451,24 +454,32 @@ function finishRecoveryReveal() {
 
 function renderStart() {
   return `
-    <main class="app-shell">
-      <section class="center-stage">
-        <div>
-          <div class="brand start-brand">
-            <h1 class="brand-title">Lernstand-Kompass</h1>
-            <p class="brand-subtitle">${APP_SUBTITLE}</p>
-            <p class="active-note">Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
+    <main class="app-shell modern-start-shell">
+      <section class="modern-start">
+        <div class="modern-start-hero">
+          <img class="modern-start-logo" src="./icons/lernstand-kompass.png" alt="Lernstand-Kompass">
+          <div class="modern-start-copy">
+            <span class="modern-start-kicker">Lernstand-Kompass</span>
+            <h1>Dein Weg durch die Lernwoche.</h1>
+            <p>${APP_SUBTITLE}</p>
           </div>
-          <div class="start-grid">
-            <button class="start-card" type="button" onclick="startChildFlow()">
-              <span class="icon">🧭</span>
-              <strong>${CHILD_AREA_NAME}</strong>
-            </button>
-            <button class="start-card" type="button" onclick="openLogin()">
-              <span class="icon">🔒</span>
-              <strong>${TEACHER_AREA_NAME} 🔒</strong>
-            </button>
+        </div>
+
+        <div class="modern-start-main-card">
+          <div class="modern-start-main-copy">
+            <span class="modern-start-eyebrow">Für Kinder</span>
+            <h2>${CHILD_AREA_NAME}</h2>
+            <p>Wochenplan ansehen, Aufgaben bearbeiten und Trainingszeit nutzen.</p>
+            <div class="modern-start-feature-row" aria-hidden="true">
+              <span>📘 Wochenplan</span><span>⭐ Trainingszeit</span><span>🎮 Lernspiele</span>
+            </div>
           </div>
+          <button class="modern-start-primary" type="button" onclick="startChildFlow()">Los geht's <span>→</span></button>
+        </div>
+
+        <div class="modern-start-bottom">
+          <div class="modern-start-class">${activeClass()?.name ? `Aktive Klasse: <strong>${escapeHtml(activeClass().name)}</strong>` : "Noch keine aktive Klasse"}</div>
+          <button class="modern-teacher-entry" type="button" onclick="openLogin()"><span>🔒</span> Für Lehrkräfte</button>
         </div>
       </section>
     </main>
@@ -537,7 +548,7 @@ function childLogout() {
     history.replaceState(null, "", `${url.pathname}${url.search}${hash}` || "/");
   } catch {}
 
-  screen = "childStart";
+  screen = "start";
   render();
 }
 
@@ -579,16 +590,22 @@ function renderChildScreen() {
 
 function renderChildStart() {
   return `
-    <section class="step-wrap child-start-wrap">
-      <h2 class="child-title">${CHILD_AREA_NAME}</h2>
+    <section class="step-wrap child-start-wrap child-surface-card">
+      <div class="child-page-intro centered">
+        <span class="child-eyebrow">Schön, dass du da bist</span>
+        <h2 class="child-title">${CHILD_AREA_NAME}</h2>
+        <p class="child-helper-text">Wähle aus, wie du starten möchtest.</p>
+      </div>
       <div class="start-grid child-choice-grid">
-        <button class="start-card primary-child-card" type="button" onclick="openQrScanner('child')">
+        <button class="start-card primary-child-card qr-card" type="button" onclick="openQrScanner('child')">
           <span class="icon">📷</span>
-          <strong>QR-Code scannen</strong>
+          <span class="child-card-title">QR-Code scannen</span>
+          <span class="child-card-desc">Scanne deinen Zugang und lege direkt los.</span>
         </button>
-        <button class="start-card primary-child-card" type="button" onclick="setChildScreen('childAnimal')">
+        <button class="start-card primary-child-card animal-card" type="button" onclick="setChildScreen('childAnimal')">
           <span class="icon">🐾</span>
-          <strong>Tier auswählen</strong>
+          <span class="child-card-title">Tier auswählen</span>
+          <span class="child-card-desc">Wähle dein Tier aus der Klassenliste aus.</span>
         </button>
       </div>
       <div class="child-quiet-actions">
@@ -611,13 +628,19 @@ function setChildScreen(nextScreen) {
 function renderAnimalSelection() {
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
   return `
-    <section class="step-wrap">
-      <h2 class="child-title">Wer bist du?</h2>
+    <section class="step-wrap child-surface-card">
+      <div class="child-page-intro">
+        ${renderBackButton("childStart")}
+        <span class="child-eyebrow">Dein Zugang</span>
+        <h2 class="child-title">Wer bist du?</h2>
+        <p class="child-helper-text">Tippe auf dein Tier.</p>
+      </div>
       <div class="animal-grid">
         ${animals.map((animal) => `
           <button class="animal-button" type="button" onclick="selectAnimal('${animal.id}')">
             <span class="animal-emoji">${escapeHtml(animal.tierEmoji)}</span>
             <span class="animal-name">${escapeHtml(animal.tierName)}</span>
+            <span class="animal-meta">Das bin ich</span>
           </button>
         `).join("")}
       </div>
@@ -635,34 +658,41 @@ function renderSubjectSelection() {
   const animal = selectedAnimal();
   const settings = childViewSettings();
   const cards = [];
+  const addCard = (className, icon, title, desc, action) => {
+    cards.push(`<button class="subject-button ${className}" type="button" onclick="${action}"><span class="subject-icon">${icon}</span><strong>${title}</strong><span class="subject-desc">${desc}</span></button>`);
+  };
   if (settings.showWeek) {
-    cards.push(`<button class="subject-button week-subject-button" type="button" onclick="openChildWeek()"><span class="subject-icon">🗓️</span>Meine Woche</button>`);
+    addCard("week-subject-button", "🗓️", "Meine Woche", "Hier findest du deinen Wochenplan.", "openChildWeek()")
   }
   const hasDeutschAssignments = animal && workbookAssignmentsForChild(animal.id, "Deutsch").length > 0;
   const hasMatheAssignments = animal && workbookAssignmentsForChild(animal.id, "Mathe").length > 0;
   if (settings.abcVisibility === "always" || (settings.abcVisibility === "assigned" && hasDeutschAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Deutsch')"><span class="subject-icon">📘</span>Deutsch</button>`);
+    addCard("deutsch-subject-button", "📘", "Deutsch", "Arbeitsaufträge, Lesen und Lernwörter.", "openChildWorkbookTasks('Deutsch')")
   }
   if (settings.minimaxVisibility === "always" || (settings.minimaxVisibility === "assigned" && hasMatheAssignments)) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildWorkbookTasks('Mathe')"><span class="subject-icon">🔢</span>Mathe</button>`);
+    addCard("mathe-subject-button", "🔢", "Mathe", "Hier findest du deine Matheaufgaben.", "openChildWorkbookTasks('Mathe')")
   }
   if (settings.showSelfReports && settings.allowSelfReports) {
-    cards.push(`<button class="subject-button" type="button" onclick="openChildSelfReport()"><span class="subject-icon">✅</span>Das habe ich geschafft</button>`);
+    addCard("selfreport-subject-button", "✅", "Das habe ich geschafft", "Sag deiner Lehrkraft, was du bearbeitet hast.", "openChildSelfReport()")
   }
   if (settings.showTraining) {
-    cards.push(`<button class="subject-button training-subject-button" type="button" onclick="openTrainingStart()"><span class="subject-icon">⭐</span>Trainingszeit</button>`);
+    addCard("training-subject-button", "⭐", "Trainingszeit", "Übe wichtige Aufgaben aus der Schule oder von zu Hause.", "openTrainingStart()")
   }
   if (settings.showLearningGames) {
-    cards.push(`<button class="subject-button learning-games-subject-button" type="button" onclick="setChildScreen('childLearningGames')"><span class="subject-icon">🎮</span>Lernspiele</button>`);
+    addCard("learning-games-subject-button", "🎮", "Lernspiele", "Spiele und übe dabei ganz nebenbei.", "setChildScreen('childLearningGames')")
   }
   const qrGreeting = childDraft.fromQr && animal
     ? `<p class="qr-greeting">Hallo, <strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong>!</p>`
     : "";
   return `
-    <section class="step-wrap">
-      ${childDraft.fromQr ? "" : renderBackButton("childAnimal")}
-      ${qrGreeting}
-      <h2 class="child-title">${CHILD_AREA_NAME}</h2>
+    <section class="step-wrap child-surface-card">
+      <div class="child-page-intro">
+        ${childDraft.fromQr ? "" : renderBackButton("childAnimal")}
+        ${qrGreeting}
+        <span class="child-eyebrow">Dein Bereich</span>
+        <h2 class="child-title">${CHILD_AREA_NAME}</h2>
+        <p class="child-helper-text">Wähle aus, womit du beginnen möchtest.</p>
+      </div>
       <div class="subject-grid">
         ${cards.join("")}
       </div>
@@ -1480,14 +1510,23 @@ function formatTimeForFilename(value) {
 function renderLogin() {
   const loginMessageClass = loginError.includes("zurückgesetzt") ? "success" : "error";
   return `
-    <section class="center-stage">
-      <form class="login-box big-card" onsubmit="checkPin(event)">
-        <div class="lock-icon">🔒</div>
-        <h2 class="child-title compact-title">${TEACHER_AREA_NAME}</h2>
-        <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <section class="center-stage teacher-login-stage">
+      <form class="login-box big-card teacher-login-card" onsubmit="checkPin(event)">
+        <div class="teacher-login-mark">
+          <img src="./icons/icon-192.png" alt="Lernstand-Kompass">
+        </div>
+        <div class="teacher-login-copy">
+          <span class="teacher-login-kicker">Für Lehrkräfte</span>
+          <h2>Dein Überblick über die Lernwoche</h2>
+          <p>Wochenpläne · Lernstände · Trainingszeit</p>
+        </div>
+        <div class="teacher-login-pin-wrap">
+          <span class="teacher-login-lock" aria-hidden="true">🔒</span>
+          <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="PIN für den Lehrerbereich">
+        </div>
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
-        <button class="primary" type="submit">Öffnen</button>
-        <button class="link-button" type="button" onclick="openForgotPin()">PIN vergessen?</button>
+        <button class="primary teacher-login-open" type="submit">Lehrerbereich öffnen</button>
+        <button class="link-button teacher-login-forgot" type="button" onclick="openForgotPin()">PIN vergessen?</button>
       </form>
     </section>
   `;
@@ -1874,13 +1913,16 @@ function renderTeacher() {
 
   return `
     <section class="teacher-layout">
-      <nav class="tabs" aria-label="${TEACHER_AREA_NAME}">
-        ${TEACHER_GROUPS.map((group) => `
-          <button class="tab-button ${activeGroup.id === group.id ? "active" : ""}" type="button" onclick="setTeacherGroup('${group.id}')">${escapeHtml(group.label)}</button>
-        `).join("")}
+      <nav class="tabs modern-teacher-nav" aria-label="${TEACHER_AREA_NAME}">
+        ${TEACHER_GROUPS.map((group, index) => {
+          const heading = group.id === "teacherHomeGroup" ? "Übersicht"
+            : group.id === "weeklyPlansGroup" ? "Planen & Lernen"
+            : group.id === "children" ? "Klasse & Material"
+            : group.id === "settingsGroup" ? "Verwaltung" : "";
+          return `${heading ? `<div class="teacher-nav-heading">${heading}</div>` : ""}<button class="tab-button ${activeGroup.id === group.id ? "active" : ""}" type="button" onclick="setTeacherGroup('${group.id}')">${escapeHtml(group.label)}</button>`;
+        }).join("")}
       </nav>
       <div>
-        <div class="active-class-banner">Aktive Klasse: <strong>${escapeHtml(activeClass()?.name || "keine")}</strong></div>
         ${globalMessage ? `<div class="toast">${escapeHtml(globalMessage)}</div>` : ""}
         ${renderTeacherTab()}
       </div>
@@ -1974,9 +2016,8 @@ function renderTeacherHome() {
     { title: "Backup und Einstellungen", text: "Sichern, zusammenführen und Kinderansicht steuern", icon: "⚙️", action: "setTeacherGroup('settingsGroup')" }
   ];
   return `
-    <section class="panel teacher-home-panel">
-      <h2>Startseite</h2>
-      <p class="message">Wähle aus, womit du arbeiten möchtest. Die Kacheln führen direkt in den passenden Bereich.</p>
+    <section class="panel teacher-home-panel modern-teacher-home">
+      <div class="teacher-home-welcome"><span>Übersicht</span><h2>Was möchtest du heute erledigen?</h2><p>Alle wichtigen Bereiche auf einen Blick.</p></div>
       <div class="teacher-home-grid">
         ${cards.map((card) => `
           <button class="teacher-home-card" type="button" onclick="${card.action}">
@@ -3835,114 +3876,132 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const assignmentMode = draft.assignmentMode || "all";
   const selectedAnimals = new Set(draft.animalIds || []);
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
-  const groups = (state.animalGroups || []).filter((group) => group.classId === state.activeClassId);
   const overrideAnimal = focusAnimal || animals.find((animal) => animal.id === weeklyOverrideAnimalId) || animals[0] || null;
   const visibility = weeklyPlanChildVisibility(draft);
   if (focusAnimal) weeklyOverrideAnimalId = focusAnimal.id;
   if (!weeklyOverrideAnimalId && overrideAnimal) weeklyOverrideAnimalId = overrideAnimal.id;
+
+  const targetAnimals = assignmentMode === "all"
+    ? animals
+    : animals.filter((animal) => selectedAnimals.has(animal.id));
+  const audienceLabel = focusAnimal
+    ? `${focusAnimal.tierEmoji || ""} ${focusAnimal.tierName || "Kind"}`.trim()
+    : assignmentMode === "all"
+      ? "Ganze Klasse"
+      : targetAnimals.length === 1
+        ? `${targetAnimals[0]?.tierEmoji || ""} ${targetAnimals[0]?.tierName || "1 Kind"}`.trim()
+        : `${targetAnimals.length} Kinder`;
+  const periodLabel = weeklyPlanPeriodLabel(draft);
+
   return `
-    <section class="panel">
-      <div class="weekly-editor-context">
-        <div>
-          <span class="weekly-editor-badge ${isExistingPlan ? "edit" : "new"}">${isExistingPlan ? "Bestehenden Wochenplan bearbeiten" : "Neuen Wochenplan anlegen"}</span>
-          <h2>${escapeHtml(isExistingPlan ? "Wochenplan bearbeiten" : "Wochenplan erstellen")}</h2>
-          <p class="message"><strong>${escapeHtml(title)}</strong>${weeklyPlanPeriodLabel(draft) ? ` · ${escapeHtml(weeklyPlanPeriodLabel(draft))}` : ""}</p>
+    <section class="panel weekly-editor-clean">
+      <div class="weekly-clean-head">
+        <div class="weekly-clean-title">
+          <span class="weekly-editor-badge ${isExistingPlan ? "edit" : "new"}">${isExistingPlan ? "Bearbeiten" : "Neu"}</span>
+          <h2>Wochenplan</h2>
+          <p><strong>${escapeHtml(audienceLabel)}</strong>${periodLabel ? ` · ${escapeHtml(periodLabel)}` : ""}</p>
+        </div>
+        <div class="weekly-clean-head-actions">
+          <label class="field compact-field">Plan wechseln
+            <select class="select-input" onchange="setWeeklyPlanEditorSelection(this.value)">
+              <option value="" ${isExistingPlan ? "" : "selected"}>+ Neuer Wochenplan</option>
+              ${plans.map((item) => `<option value="${escapeAttribute(item.id)}" ${draftId === item.id ? "selected" : ""}>${escapeHtml(weeklyPlanSelectLabel(item))}</option>`).join("")}
+            </select>
+          </label>
           <span class="weekly-visibility-badge ${visibility.visible ? "visible" : "hidden-state"}">${escapeHtml(visibility.label)}</span>
-          ${visibility.detail ? `<p class="message">${escapeHtml(visibility.detail)}</p>` : ""}
         </div>
-        <label class="field">Geöffneter Wochenplan
-          <select class="select-input" onchange="setWeeklyPlanEditorSelection(this.value)">
-            <option value="" ${isExistingPlan ? "" : "selected"}>+ Neuer Wochenplan</option>
-            ${plans.map((item) => `<option value="${escapeAttribute(item.id)}" ${draftId === item.id ? "selected" : ""}>${escapeHtml(weeklyPlanSelectLabel(item))}</option>`).join("")}
-          </select>
-        </label>
       </div>
-      <form class="weekly-plan-form" onsubmit="saveWeeklyPlan(event)">
+      ${visibility.detail ? `<div class="weekly-clean-statusline">${escapeHtml(visibility.detail)}</div>` : ""}
+
+      <form class="weekly-plan-form weekly-clean-form" onsubmit="saveWeeklyPlan(event)">
         <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
-        <div class="weekly-plan-meta">
-          <label class="field">Titel
-            <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan 1">
-          </label>
-          <label class="field">Kalenderwoche / Zeitraum
-            <input class="text-input" id="weeklyLabel" value="${escapeAttribute(weekLabel)}" placeholder="KW 24">
-          </label>
-          <label class="field">Gültig von
-            <input class="text-input" type="date" id="weeklyFrom" value="${escapeAttribute(validFrom)}">
-          </label>
-          <label class="field">Gültig bis
-            <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
-          </label>
-        </div>
-        <div class="weekly-planning-mode-picker">
-          <div class="weekly-planning-mode-copy">
-            <span>Planungsart</span>
-            <strong>${planningMode === "week" ? "Für die ganze Woche" : "Nach Tagen"}</strong>
-            <small>${planningMode === "week"
-              ? "Die Aufgaben werden nicht auf einzelne Wochentage verteilt."
-              : "Die Aufgaben werden Montag bis Freitag geplant."}</small>
+
+        <div class="weekly-clean-settings">
+          <div class="weekly-clean-period">
+            <label class="field">Zeitraum
+              <input class="text-input" id="weeklyLabel" value="${escapeAttribute(weekLabel)}" placeholder="KW 37">
+            </label>
+            <label class="field">Von
+              <input class="text-input" type="date" id="weeklyFrom" value="${escapeAttribute(validFrom)}">
+            </label>
+            <label class="field">Bis
+              <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
+            </label>
           </div>
-          <input type="hidden" id="weeklyPlanningMode" value="${escapeAttribute(planningMode)}">
-          <div class="weekly-planning-mode-actions" role="group" aria-label="Planungsart">
-            <button class="secondary ${planningMode === "days" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('days')">📅 Nach Tagen</button>
-            <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">🗂 Ganze Woche</button>
+
+          <div class="weekly-clean-mode">
+            <span class="weekly-clean-setting-label">Ansicht</span>
+            <input type="hidden" id="weeklyPlanningMode" value="${escapeAttribute(planningMode)}">
+            <div class="weekly-planning-mode-actions" role="group" aria-label="Planungsansicht">
+              <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">Ganze Woche</button>
+              <button class="secondary ${planningMode === "days" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('days')">Nach Tagen</button>
+            </div>
           </div>
         </div>
-        <div class="lk-deutsch-order-picker">
-          <div class="lk-deutsch-order-copy">
-            <span>Deutsch-Bereiche</span>
-            <strong>Reihenfolge</strong>
-            <small>Gilt auch für Kinderansicht und Druck.</small>
-          </div>
-          <input type="hidden" id="weeklyDeutschSectionOrder" value="${escapeAttribute(deutschSectionOrder.join(","))}">
-          <div class="lk-deutsch-order-list">
-            ${deutschSectionOrder.map((section, index) => {
-              const label = section === "Deutsch" ? "Arbeitsaufträge" : section;
-              const icon = section === "Deutsch" ? "ABC" : section === "Lesezeit" ? "📖" : "Aa";
-              return `<div class="lk-deutsch-order-item">
-                <span class="lk-deutsch-order-icon">${escapeHtml(icon)}</span>
-                <strong>${escapeHtml(label)}</strong>
-                <div>
-                  <button class="lk-order-small" type="button" ${index === 0 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',-1)">↑</button>
-                  <button class="lk-order-small" type="button" ${index === deutschSectionOrder.length - 1 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',1)">↓</button>
-                </div>
-              </div>`;
-            }).join("")}
-          </div>
-        </div>
+
         ${focusAnimal ? `
-          <div class="weekly-focus-note">
-            <h3>Individueller Wochenplan für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</h3>
-            <p class="message">Trage hier nur Aufgaben ein, die vom Klassenwochenplan abweichen. Leere Felder übernehmen automatisch den Klassenwochenplan.</p>
+          <div class="weekly-focus-note compact">
+            <strong>Individuelle Abweichungen für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</strong>
+            <small>Leere Felder übernehmen automatisch den Klassenwochenplan.</small>
           </div>
           ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id, planningMode, deutschSectionOrder)}
-          <button class="secondary" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichung für dieses Tier leeren</button>
+          <button class="secondary weekly-inline-action" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichungen leeren</button>
         ` : `
-          <div class="weekly-editor-audience-summary">
-            <div>
-              <span class="weekly-editor-audience-kicker">Zielgruppe</span>
-              <strong>${assignmentMode === "all"
-                ? "Ganze Klasse"
-                : `${selectedAnimals.size} ${selectedAnimals.size === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}`}</strong>
-            </div>
-            <small>Die Zielgruppe wurde vor dem Öffnen des Wochenplans festgelegt.</small>
+          <div class="weekly-clean-section-title">
+            <h3>Aufgaben</h3>
+            <span class="weekly-clean-audience">für ${escapeHtml(audienceLabel)}</span>
           </div>
-          ${renderWeeklyCarryoverCheck(draft, assignmentMode === "all" ? animals : animals.filter((animal) => selectedAnimals.has(animal.id)))}
-          <h3>Aufgaben für diese Zielgruppe</h3>
           ${renderWeeklyPlannerTable(draft.days || {}, "standard", "", planningMode, deutschSectionOrder)}
         `}
-        <label class="field">Bemerkung optional
-          <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
-        </label>
-        <label class="field">Wochenplan-Aufgaben in Fortschritt übernehmen
-          <select class="select-input" id="weeklyProgressMode">
-            <option value="confirm" ${progressMode !== "auto" ? "selected" : ""}>Erst nach Bestätigung durch Lehrkraft übernehmen</option>
-            <option value="auto" ${progressMode === "auto" ? "selected" : ""}>Automatisch übernehmen</option>
-          </select>
-        </label>
-        <div class="backup-actions">
-          <button class="primary" type="submit">Wochenplan speichern</button>
-          <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Wochenplan drucken</button>
-          <button class="secondary" type="button" onclick="newWeeklyPlan()">Formular leeren</button>
+
+        <details class="weekly-clean-more">
+          <summary>Weitere Einstellungen</summary>
+          <div class="weekly-clean-more-body">
+            <label class="field">Titel
+              <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan">
+            </label>
+
+            ${!focusAnimal ? renderWeeklyCarryoverCheck(draft, targetAnimals) : ""}
+
+            <div class="lk-deutsch-order-picker compact-order-picker">
+              <div class="lk-deutsch-order-copy">
+                <span>Deutsch</span>
+                <strong>Bereiche ordnen</strong>
+                <small>Gilt auch für Kinderansicht und Druck.</small>
+              </div>
+              <input type="hidden" id="weeklyDeutschSectionOrder" value="${escapeAttribute(deutschSectionOrder.join(","))}">
+              <div class="lk-deutsch-order-list">
+                ${deutschSectionOrder.map((section, index) => {
+                  const label = section === "Deutsch" ? "Arbeitsaufträge" : section;
+                  const icon = section === "Deutsch" ? "ABC" : section === "Lesezeit" ? "📖" : "Aa";
+                  return `<div class="lk-deutsch-order-item">
+                    <span class="lk-deutsch-order-icon">${escapeHtml(icon)}</span>
+                    <strong>${escapeHtml(label)}</strong>
+                    <div>
+                      <button class="lk-order-small" type="button" ${index === 0 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',-1)">↑</button>
+                      <button class="lk-order-small" type="button" ${index === deutschSectionOrder.length - 1 ? "disabled" : ""} onclick="moveDeutschSectionOrder('${escapeAttribute(section)}',1)">↓</button>
+                    </div>
+                  </div>`;
+                }).join("")}
+              </div>
+            </div>
+
+            <label class="field">Bemerkung optional
+              <input class="text-input" id="weeklyNote" value="${escapeAttribute(note)}">
+            </label>
+            <label class="field">Fortschritt
+              <select class="select-input" id="weeklyProgressMode">
+                <option value="confirm" ${progressMode !== "auto" ? "selected" : ""}>Nach Bestätigung übernehmen</option>
+                <option value="auto" ${progressMode === "auto" ? "selected" : ""}>Automatisch übernehmen</option>
+              </select>
+            </label>
+          </div>
+        </details>
+
+        <div class="backup-actions weekly-clean-actions">
+          <button class="primary" type="submit">Speichern</button>
+          <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Drucken</button>
+          <button class="secondary" type="button" onclick="newWeeklyPlan()">Neuer Plan</button>
         </div>
       </form>
     </section>
@@ -4098,6 +4157,8 @@ function selectWeeklyCatalogItem(catalogId) {
   const field = ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].includes(weeklyPickRequest.subject)
     ? weeklyPickRequest.subject
     : (weeklyPickRequest.subject === "Deutsch" ? "Deutsch" : "Mathe");
+  // Mehrfachauswahl: Die Material-/Seitenauswahl bleibt nach einem Klick offen.
+  // So können mehrere Seiten desselben Heftes direkt nacheinander gewählt werden.
   weeklyPlanDraft = weeklyPlanDraft || collectWeeklyPlanDraftFromDom();
   setWeeklyDraftValue(
     weeklyPlanDraft,
@@ -4107,7 +4168,6 @@ function selectWeeklyCatalogItem(catalogId) {
     field,
     catalogId
   );
-  weeklyPickRequest = null;
   render();
 }
 
@@ -8807,16 +8867,19 @@ function workbookCoverForCatalogItem(catalogItem) {
   const bookType = String(catalogItem?.bookType || catalogItem?.category || catalogItem?.part || "");
 
   if (workbook === "ABC der Tiere 1") {
-    return { src: "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
+    const isPartB = /Teil\s*B/i.test(part);
+    return { src: isPartB ? "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-b.png" : "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
   }
   if (workbook === "ABC der Tiere 2") {
-    return { src: "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png", alt: "ABC der Tiere 2 – Spracharbeitsheft" };
+    const isPartB = /Teil\s*B/i.test(part);
+    return { src: isPartB ? "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-b.png" : "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png", alt: `ABC der Tiere 2 – Spracharbeitsheft ${isPartB ? "Teil B" : "Teil A"}` };
   }
   if (workbook === "ABC der Tiere 2 - Lernstandsheft" || workbook === "ABC der Tiere 2 - Lesebuch") {
-    return { src: "./materials/cover-abc-der-tiere-2.svg", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2 – Lernstandsheft" };
+    return { src: "./materials/cover-abc-der-tiere-2.png", alt: workbook === "ABC der Tiere 2 - Lesebuch" ? "ABC der Tiere 2 – Lesebuch" : "ABC der Tiere 2 – Lernstandsheft" };
   }
   if (workbook === "MiniMax 1") return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
   if (workbook === "MiniMax 2" || workbook === "MiniMax") return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
+  if (workbook === "Rico Schnabel 2 – Rechtschreiben" || workbook === "Rico Schnabel 2 - Rechtschreiben") return { src: "./materials/cover-rico-schnabel-2.png", alt: "Rico Schnabel 2 – Rechtschreiben" };
 
   if (workbook === "Flex und Flora A") {
     if (/Buchstabenheft 1/i.test(part)) return { src: "./materials/cover-flex-a-bh1.jpg", alt: part };
@@ -8837,7 +8900,7 @@ function workbookCoverForCatalogItem(catalogItem) {
     if (/Sprache untersuchen/i.test(part)) return { src: "./materials/cover-flex-c-sprache.jpg", alt: part };
   }
 
-  const wdz = workbook.match(/^Welt der Zahl inklusiv ([ABCD])$/i);
+  const wdz = workbook.match(/^Welt der Zahl inklusiv ([ABCDEF])$/i);
   if (wdz) {
     const pack = wdz[1].toLowerCase();
     const match = part.match(/^([ABCD])(\d)\s*[–-]/i) || part.match(/^([ABCD])(\d)\b/i);

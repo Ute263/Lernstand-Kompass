@@ -3,9 +3,9 @@ const DATA_VERSION = "1.2";
 const STORE_KEY = "arbeitsheftKompass_v1";
 const LEGACY_STORE_KEYS = ["arbeitsheft-kompass-state-v2"];
 const APP_NAME = "Lernstand-Kompass";
-const APP_SUBTITLE = "Arbeitshefte, Trainingszeit und Lernzielkontrollen im Blick";
+const APP_SUBTITLE = "Lernen begleiten · planen · wachsen";
 const CHILD_AREA_NAME = "Meine Lernreise";
-const TEACHER_AREA_NAME = "Lernstand-Übersicht";
+const TEACHER_AREA_NAME = "Lehrerbereich";
 
 const SUBJECTS = ["Deutsch", "Mathe"];
 const SCHOOL_YEAR_OPTIONS = [

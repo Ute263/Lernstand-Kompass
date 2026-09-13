@@ -181,7 +181,8 @@
       return {
         id: object.id || `free-${subject.toLowerCase()}-${index}-${simpleHash(text)}`,
         text,
-        starred: object.starred === true
+        starred: object.starred === true,
+        isWorksheet: object.isWorksheet === true
       };
     });
   }
@@ -314,8 +315,9 @@
       const id = row.querySelector("[data-free-id]")?.value || `free-${subject.toLowerCase()}-${index}-${Date.now()}`;
       const text = row.querySelector("[data-free-text]")?.value.trim() || "";
       const starred = row.querySelector("[data-free-star]")?.value === "1";
-      return { id, text, starred };
-    }).filter((item) => item.text);
+      const isWorksheet = row.querySelector("[data-free-worksheet]")?.checked === true;
+      return { id, text, starred, isWorksheet };
+    });
   }
 
   readWeeklyDaysFromDom = function readWeeklyDaysFromDom9e(scope, animalId = "") {
@@ -464,6 +466,10 @@
               <input type="hidden" data-free-star value="${task.starred ? "1" : "0"}">
               ${renderStarButton(scope, animalId, day, subject, 0, task.starred, task.id)}
               ${renderFreeTaskOrderButtons(scope, animalId, day, subject, normalized, taskIndex)}
+              <label class="lk-free-task-ab-option" title="AB-Symbol im Wochenplan anzeigen">
+                <input type="checkbox" data-free-worksheet ${task.isWorksheet ? "checked" : ""}>
+                <span>AB-Symbol</span>
+              </label>
               <input class="text-input" data-free-text value="${escapeAttribute(task.text)}" placeholder="Aufgabe frei eintragen …">
               <button class="weekly-task-remove" type="button" aria-label="Freie Aufgabe entfernen" onclick="removeWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}','${escapeAttribute(task.id)}')">×</button>
             </div>
@@ -609,16 +615,37 @@
     return result;
   }
 
-  function renderWholeWeekPlanner(days, scope, animalId = "", deutschSectionOrder = []) {
+  const lkPlannerOpenDetails = window.lkPlannerOpenDetails || (window.lkPlannerOpenDetails = {});
+  function lkPlannerOpenAttr(group, value) {
+    return lkPlannerOpenDetails[group] === value ? " open" : "";
+  }
+
+  function lkSubjectHasContent(data, subject) {
+    if (!data) return false;
+    if (subject === "Deutsch") {
+      return normalizeIdArray(data.deutschIds || data.deutschId).length > 0
+        || normalizeIdArray(data.lesezeitIds || data.lesezeitId).length > 0
+        || normalizeFreeTasks(data.deutschFreeTasks, "Deutsch").length > 0
+        || normalizeFreeTasks(data.lesezeitFreeTasks, "Lesezeit").length > 0
+        || normalizeFreeTasks(data.lernwoerterFreeTasks, "Lernwörter").length > 0;
+    }
+    if (subject === "Mathe") {
+      return normalizeIdArray(data.matheIds || data.matheId).length > 0
+        || normalizeFreeTasks(data.matheFreeTasks, "Mathe").length > 0;
+    }
+    return false;
+  }
+
+  function renderWholeWeekPlanner(days, scope, animalId, sectionOrder) {
     const prefix = weeklyInputPrefix(scope, animalId);
-    const data = sortWeeklyModeDay(days?.Montag || {});
-    const sectionOrder = normalizeDeutschSectionOrder(deutschSectionOrder);
-    const sectionData = {};
-    ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].forEach((subject) => {
-      const keys = taskKeys(subject);
-      sectionData[subject] = { keys, ids: normalizeIdArray(data[keys.ids] || data[keys.legacyId]) };
-    });
-    const renderSection = (subject) => {
+    const data = normalizeDayExtras({ ...(days?.Montag || {}) }, days?.Montag || {});
+    const sectionData = {
+      Deutsch: { keys: taskKeys("Deutsch"), ids: normalizeIdArray(data.deutschIds || data.deutschId) },
+      Lesezeit: { keys: taskKeys("Lesezeit"), ids: normalizeIdArray(data.lesezeitIds || data.lesezeitId) },
+      "Lernwörter": { keys: taskKeys("Lernwörter"), ids: [] },
+      Mathe: { keys: taskKeys("Mathe"), ids: normalizeIdArray(data.matheIds || data.matheId) }
+    };
+    const renderSection = (subject, groupName = "weekly-deutsch") => {
       const title = deutschSubareaTitle(subject);
       const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : subject === "Lernwörter" ? "lernwoerter" : "mathe";
       const { keys, ids } = sectionData[subject];
@@ -626,24 +653,30 @@
       const workbookPart = subject === "Lernwörter"
         ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}0`)}" value="">`
         : renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
-      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)} lk-week-mode-subject">
-        <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>
-        ${workbookPart}
-        ${freePart}
-      </section>`;
+      return `<details class="lk-planner-subdetails ${escapeAttribute(cssClass)}" data-accordion-group="${escapeAttribute(groupName)}" data-accordion-value="${escapeAttribute(subject)}"${lkPlannerOpenAttr(groupName, subject)} ontoggle="if(this.open) lkExclusivePlannerDetails(this)">
+        <summary>${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong><span class="lk-details-chevron">⌄</span></summary>
+        <div class="lk-planner-details-body">${workbookPart}${freePart}</div>
+      </details>`;
     };
-    return `<div class="lk-whole-week-editor">
-      <div class="lk-whole-week-note"><span>🗂</span><div><strong>Aufgaben für die ganze Woche</strong><small>Die Deutsch-Bereiche kannst du oben umsortieren.</small></div></div>
-      <div class="lk-deutsch-area-block">
-        <div class="lk-deutsch-area-title">${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small></div></div>
-        <div class="lk-deutsch-subarea-stack">${sectionOrder.map(renderSection).join("")}</div>
-      </div>
-      ${renderSection("Mathe")}
-      <section class="lk-editor-subject sonstiges lk-week-mode-subject"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", 0, scope, animalId, "Montag")}</section>
+    return `<div class="lk-whole-week-editor lk-subject-collapsible-editor">
+      <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") ? " open" : ""}>
+        <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
+        <div class="lk-planner-subject-body">
+          ${sectionOrder.map((subject) => renderSection(subject, "weekly-deutsch")).join("")}
+        </div>
+      </details>
+      <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") ? " open" : ""}>
+        <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
+        <div class="lk-planner-subject-body">${renderSection("Mathe", "weekly-mathe")}</div>
+      </details>
+      <details class="lk-planner-extra-details">
+        <summary>+ Sonstiges</summary>
+        <div class="lk-planner-subject-body"><section class="lk-editor-subject sonstiges lk-week-mode-subject"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", 0, scope, animalId, "Montag")}</section></div>
+      </details>
     </div>`;
   }
 
-  window.setWeeklyPlanningMode = function setWeeklyPlanningMode(mode) {
+  window.setWeeklyPlanningMode = async function setWeeklyPlanningMode(mode) {
     const nextMode = mode === "week" ? "week" : "days";
     weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
     const previousMode = weeklyPlanDraft?.planningMode === "week" ? "week" : "days";
@@ -657,6 +690,23 @@
     // Beim Wechsel zurück bleiben alle Wochenaufgaben sicher erhalten und liegen
     // zunächst am Montag. Von dort können sie anschließend verteilt werden.
     weeklyPlanDraft.planningMode = nextMode;
+
+    // Die bewusst gewählte Ansicht wird pro Kind gespeichert. Das gilt nur,
+    // wenn der Wochenplan genau einem Kind zugeordnet ist. Klassen- und
+    // Gruppenpläne verändern keine persönliche Startansicht.
+    const animalIds = Array.isArray(weeklyPlanDraft?.animalIds) ? weeklyPlanDraft.animalIds.filter(Boolean) : [];
+    const isSingleChildPlan = weeklyPlanDraft?.assignmentMode === "selected" && animalIds.length === 1;
+    if (isSingleChildPlan) {
+      const animalId = animalIds[0];
+      const preferenceMap = { ...(state.weeklyPlanningModeByAnimal || {}) };
+      preferenceMap[animalId] = nextMode;
+      try {
+        await persist({ ...state, weeklyPlanningModeByAnimal: preferenceMap });
+      } catch (error) {
+        console.warn("Planungsansicht für Kind konnte nicht gespeichert werden.", error);
+      }
+    }
+
     render();
   };
 
@@ -678,44 +728,61 @@
             + data.lernwoerterFreeTasks.length
             + data.matheFreeTasks.length
             + data.extraFreeTasks.length;
+          const renderDeutschSub = (subject) => {
+            const keys = taskKeys(subject);
+            const title = deutschSubareaTitle(subject);
+            const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : "lernwoerter";
+            const ids = subject === "Deutsch" ? deutschIds : normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
+            const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, dayIndex, scope, animalId, day) : renderFreeTaskList(data[keys.free], prefix, subject, dayIndex, scope, animalId, day);
+            const workbookPart = subject === "Lernwörter"
+              ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}${dayIndex}`)}" value="">`
+              : renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
+            return `<details class="lk-planner-subdetails ${escapeAttribute(cssClass)}" data-accordion-group="${escapeAttribute(`day-${dayIndex}-deutsch`)}" data-accordion-value="${escapeAttribute(subject)}"${lkPlannerOpenAttr(`day-${dayIndex}-deutsch`, subject)} ontoggle="if(this.open) lkExclusivePlannerDetails(this)">
+              <summary>${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong><span class="lk-details-chevron">⌄</span></summary>
+              <div class="lk-planner-details-body">${workbookPart}${freePart}</div>
+            </details>`;
+          };
           return `
             <details class="weekly-day-editor-card lk-weekly-day-details" ${day === lkWeeklyOpenDay ? "open" : ""} ontoggle="if(this.open) lkRememberWeeklyDay('${escapeAttribute(day)}')">
               <summary class="lk-weekly-day-summary">
                 <strong>${escapeHtml(day)}</strong>
                 <span>${count ? `${count} ${count === 1 ? "Aufgabe" : "Aufgaben"}` : "noch leer"}</span>
               </summary>
-              <div class="lk-weekly-day-content">
-                <div class="lk-deutsch-area-block compact">
-                  <div class="lk-deutsch-area-title">${weeklySubjectBadgeHtml("Deutsch")}<div><strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small></div></div>
-                  <div class="lk-deutsch-subarea-stack">
-                    ${sectionOrder.map((subject) => {
-                      const keys = taskKeys(subject);
-                      const title = deutschSubareaTitle(subject);
-                      const cssClass = subject === "Deutsch" ? "deutsch" : subject === "Lesezeit" ? "lesezeit" : "lernwoerter";
-                      const ids = subject === "Deutsch" ? deutschIds : normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
-                      const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, dayIndex, scope, animalId, day) : renderFreeTaskList(data[keys.free], prefix, subject, dayIndex, scope, animalId, day);
-                      const workbookPart = subject === "Lernwörter"
-                        ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}${dayIndex}`)}" value="">`
-                        : renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
-                      return `<section class="weekly-editor-subject lk-editor-subject ${escapeAttribute(cssClass)}"><div class="lk-editor-subject-head">${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong></div>${workbookPart}${freePart}</section>`;
-                    }).join("")}
+              <div class="lk-weekly-day-content lk-subject-collapsible-editor">
+                <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") ? " open" : ""}>
+                  <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
+                  <div class="lk-planner-subject-body">${sectionOrder.map(renderDeutschSub).join("")}</div>
+                </details>
+                <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") ? " open" : ""}>
+                  <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
+                  <div class="lk-planner-subject-body">
+                    <section class="weekly-editor-subject lk-editor-subject mathe">
+                      ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars)}
+                      ${renderFreeTaskList(data.matheFreeTasks, prefix, "Mathe", dayIndex, scope, animalId, day)}
+                    </section>
                   </div>
-                </div>
-                <section class="weekly-editor-subject lk-editor-subject mathe">
-                  <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong></div>
-                  ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars)}
-                  ${renderFreeTaskList(data.matheFreeTasks, prefix, "Mathe", dayIndex, scope, animalId, day)}
-                </section>
-                <section class="lk-editor-subject sonstiges">
-                  <div class="lk-editor-subject-head">${weeklySubjectBadgeHtml("Extra")}<strong>Sonstiges</strong></div>
-                  ${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", dayIndex, scope, animalId, day)}
-                </section>
+                </details>
+                <details class="lk-planner-extra-details day-extra">
+                  <summary>+ Sonstiges</summary>
+                  <div class="lk-planner-subject-body"><section class="lk-editor-subject sonstiges">${renderFreeTaskList(data.extraFreeTasks, prefix, "Extra", dayIndex, scope, animalId, day)}</section></div>
+                </details>
               </div>
             </details>
           `;
         }).join("")}
       </div>
     `;
+  };
+
+  window.lkExclusivePlannerDetails = function lkExclusivePlannerDetails(current) {
+    if (!current?.open) return;
+    const group = current.dataset.accordionGroup;
+    if (!group) return;
+    lkPlannerOpenDetails[group] = current.dataset.accordionValue || "";
+    const root = current.closest('.lk-weekly-day-content, .lk-whole-week-editor, .lk-planner-subject-body') || document;
+    root.querySelectorAll(`details[data-accordion-group="${CSS.escape(group)}"]`).forEach((item) => {
+      if (item !== current) item.open = false;
+    });
   };
 
   window.lkRememberWeeklyDay = function lkRememberWeeklyDay(day) {
@@ -815,7 +882,7 @@
     const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
     const key = freeKey(subject);
     const tasks = normalizeFreeTasks(target[key], subject, subject === "Extra" ? target.freeText : "");
-    tasks.push({ id: makeId(), text: "", starred: false });
+    tasks.push({ id: makeId(), text: "", starred: false, isWorksheet: false });
     target[key] = tasks;
     if (subject === "Extra") target.freeText = tasks[0]?.text || "";
     lkWeeklyOpenDay = day;
@@ -850,6 +917,31 @@
     lkWeeklyOpenDay = day;
     render();
   };
+
+
+  window.toggleWeeklyFreeTaskWorksheet = function toggleWeeklyFreeTaskWorksheet(scope, animalId, day, subject, taskId) {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
+    const key = freeKey(subject);
+    target[key] = normalizeFreeTasks(target[key], subject, subject === "Extra" ? target.freeText : "").map((task) =>
+      task.id === taskId ? { ...task, isWorksheet: !task.isWorksheet } : task
+    );
+    if (subject === "Extra") target.freeText = target[key][0]?.text || "";
+    lkWeeklyOpenDay = day;
+    render();
+  };
+
+  (function addWorksheetOptionStyle() {
+    if (document.getElementById("lk-free-task-ab-style")) return;
+    const style = document.createElement("style");
+    style.id = "lk-free-task-ab-style";
+    style.textContent = `
+      .lk-free-task-ab-option{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .55rem;border:1px solid #d8d8df;border-radius:.7rem;background:#fff;white-space:nowrap;font-size:.88rem;color:#445;}
+      .lk-free-task-ab-option input{width:1rem;height:1rem;accent-color:#5377b7;}
+      .lk-free-task-ab-option:has(input:checked){background:#edf4ff;border-color:#9db8e7;color:#294f88;font-weight:700;}
+    `;
+    document.head.appendChild(style);
+  })();
 
   /* ---------- Aufgaben für Kinder, Status und Druck ---------- */
 
@@ -975,6 +1067,7 @@
       const key = freeKey(subject);
       const tasks = normalizeFreeTasks(source?.[key], subject, subject === "Extra" ? source?.freeText : "");
       tasks.forEach((task) => {
+        if (!String(task.text || "").trim()) return;
         items.push({
           field: `FreieAufgabe:${subject}:${task.id}`,
           subject: subject === "Extra" ? "Extra" : (subject === "Mathe" ? "Mathe" : "Deutsch"),
@@ -987,7 +1080,8 @@
           workbookCatalogId: "",
           catalogItem: null,
           isExtraTask: task.starred,
-          isFreeTask: true
+          isFreeTask: true,
+          isWorksheetTask: task.isWorksheet === true
         });
       });
     });
@@ -1145,14 +1239,23 @@
     };
   }
 
+
+  function renderChildWorksheetCover() {
+    return `<img class="weekly-child-cover lk-child-task-cover" src="./materials/cover-arbeitsblatt.png" alt="Arbeitsblatt">`;
+  }
+
   if (typeof renderChildWeeklyPlanItem === "function") {
     renderChildWeeklyPlanItem = function renderChildWeeklyPlanItem9e(plan, animal, day, item) {
       const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
       const done = status === "fertig";
       const partial = status === "teilweise";
-      const subject = item.weeklySection || (item.subject === "Deutsch" ? "Arbeitsaufträge" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe");
+      const subject = item.weeklySection || (item.subject === "Deutsch" ? "" : item.subject === "Mathe" ? "Mathe" : "Freie Aufgabe");
       const icon = weeklySubjectBadgeHtml(item.weeklySection || item.subject, true);
-      const cover = item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover lk-child-task-cover") : "";
+      const cover = item.catalogItem
+        ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover lk-child-task-cover")
+        : item.isWorksheetTask
+          ? renderChildWorksheetCover()
+          : "";
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
       if (item.catalogItem) {
@@ -1167,7 +1270,7 @@
         <article class="lk-child-task ${done ? "done" : partial ? "partial" : ""} ${item.isExtraTask ? "starred" : ""} ${cover ? "has-cover" : ""}">
           ${cover ? `<div class="lk-child-task-cover-wrap">${cover}</div>` : `<div class="lk-child-task-icon">${icon}</div>`}
           <div class="lk-child-task-body">
-            <div class="lk-child-task-meta"><span class="lk-child-task-subject">${icon}<strong>${escapeHtml(subject)}</strong></span>${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}<span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span></div>
+            <div class="lk-child-task-meta"><span class="lk-child-task-subject">${icon}${subject ? `<strong>${escapeHtml(subject)}</strong>` : ""}</span>${item.isWorksheetTask ? `<span class="lk-child-star-badge">AB</span>` : ""}${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}<span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span></div>
             <h4>${escapeHtml(mainText)}</h4>${detail ? `<p>${escapeHtml(detail)}</p>` : ""}
           </div>
           <div class="lk-child-task-actions">
@@ -1435,6 +1538,39 @@
     .lk-subject-badge.lesezeit { background:#e8f6ee; border-color:rgba(83,155,112,.35); font-size:.88rem; }
     .lk-subject-badge.lernwoerter { background:#f2eafb; border-color:rgba(130,94,170,.30); color:#72539b; font-family:Arial,sans-serif; font-size:.76rem; }
 
+
+    .lk-subject-collapsible-editor { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:start; }
+    .lk-planner-subject-details, .lk-planner-subdetails, .lk-planner-extra-details {
+      border:1px solid rgba(0,0,0,.08); border-radius:15px; background:#fff; overflow:hidden;
+    }
+    .lk-planner-subject-details > summary, .lk-planner-subdetails > summary, .lk-planner-extra-details > summary {
+      list-style:none; cursor:pointer; display:flex; align-items:center; gap:9px; min-height:48px; padding:10px 14px;
+      user-select:none;
+    }
+    .lk-planner-subject-details > summary::-webkit-details-marker,
+    .lk-planner-subdetails > summary::-webkit-details-marker,
+    .lk-planner-extra-details > summary::-webkit-details-marker { display:none; }
+    .lk-planner-subject-details > summary strong { font-size:1.05rem; }
+    .lk-planner-subject-details > summary small { margin-left:2px; color:#748089; font-size:.72rem; }
+    .lk-planner-subject-details.deutsch > summary { background:#fff6c9; }
+    .lk-planner-subject-details.mathe > summary { background:#dff4ff; }
+    .lk-details-chevron { margin-left:auto; font:800 1.1rem/1 Arial,sans-serif; transition:transform .15s ease; }
+    details[open] > summary > .lk-details-chevron { transform:rotate(180deg); }
+    .lk-planner-subject-body { padding:10px; display:grid; gap:9px; }
+    .lk-planner-subdetails > summary { min-height:42px; padding:8px 11px; background:#f8fafb; }
+    .lk-planner-subdetails.deutsch > summary { background:#fffaf0; }
+    .lk-planner-subdetails.lesezeit > summary { background:#edf8f2; }
+    .lk-planner-subdetails.lernwoerter > summary { background:#f6f0fb; }
+    .lk-planner-details-body { padding:10px; border-top:1px solid rgba(0,0,0,.055); }
+    .lk-planner-details-body .lk-editor-subject { border:0; padding:0; background:transparent; }
+    .lk-planner-extra-details { grid-column:1 / -1; justify-self:start; min-width:150px; }
+    .lk-planner-extra-details > summary { min-height:38px; padding:7px 12px; color:#667; background:#f7f7f7; font-size:.86rem; }
+    .lk-planner-extra-details.day-extra { grid-column:1 / -1; }
+    .lk-weekly-day-content.lk-subject-collapsible-editor { grid-template-columns:1fr 1fr; }
+    @media (max-width: 850px) {
+      .lk-subject-collapsible-editor, .lk-weekly-day-content.lk-subject-collapsible-editor { grid-template-columns:1fr; }
+      .lk-planner-extra-details { grid-column:1; }
+    }
     .lk-whole-week-editor { display:grid; gap:12px; }
     .lk-whole-week-note {
       display:flex;
