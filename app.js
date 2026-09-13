@@ -359,8 +359,8 @@ function renderTopbar(subtitle) {
   const isChildArea = screen === "childStart" || screen === "qrScanner" || screen.startsWith("child");
   return `
     <header class="topbar">
-      <div class="brand ${isChildArea ? "" : "teacher-brand"}">
-        ${isChildArea ? "" : `<img class="teacher-topbar-logo" src="./icons/lernstand-kompass.png" alt="">`}
+      <div class="brand ${isChildArea ? "child-brand" : "teacher-brand"}">
+        <img class="${isChildArea ? "child-topbar-logo" : "teacher-topbar-logo"}" src="./icons/lernstand-kompass.png" alt="">
         <div>
           <h1 class="brand-title">${APP_NAME}</h1>
           <p class="brand-subtitle">${escapeHtml(subtitle)} · Aktive Klasse: ${escapeHtml(activeClass()?.name || "keine")}</p>
@@ -3949,6 +3949,59 @@ function renderPreviousWeekPlanningBasis(draft, animals) {
 }
 
 
+function lkWeekWindow(offsetWeeks = 0) {
+  const now = new Date();
+  const day = now.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset + (offsetWeeks * 7));
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  return { start, end, startKey: formatFileDate(start), endKey: formatFileDate(end), label: `${new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit" }).format(start)}–${new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit" }).format(end)}` };
+}
+function lkPlanForAnimalInWeek(animalId, offsetWeeks = 0) {
+  const window = lkWeekWindow(offsetWeeks);
+  return weeklyPlansForAnimal(animalId).filter((plan) => {
+    const from = plan.validFrom || plan.validTo || "";
+    const to = plan.validTo || plan.validFrom || "";
+    if (!from && !to) return false;
+    return (!from || from <= window.endKey) && (!to || to >= window.startKey);
+  }).sort((a,b)=>String(b.updatedAt||b.createdAt||b.validFrom||"").localeCompare(String(a.updatedAt||a.createdAt||a.validFrom||"")))[0] || null;
+}
+function lkWeekResultForAnimal(animalId, plan, future = false) {
+  if (!plan) return null;
+  const rows=[]; const seen=new Set();
+  ["Woche","Montag","Dienstag","Mittwoch","Donnerstag","Freitag"].forEach((day)=>{
+    weeklyPlanItemsForDay(plan,day,animalId).forEach((item)=>{
+      const key=`${day}::${item.field}`; if(seen.has(key)) return; seen.add(key);
+      rows.push({day,item,status:future?"geplant":lkPreviousItemStatus(plan,animalId,day,item)});
+    });
+  });
+  if (future) return {plan,rows,counts:{geplant:rows.length}};
+  const counts=rows.reduce((acc,row)=>{ if(row.status==="fertig") acc.fertig++; else if(row.status==="teilweise") acc.teilweise++; else acc.offen++; return acc; },{fertig:0,teilweise:0,offen:0});
+  return {plan,rows,counts};
+}
+function lkWorkStatusRowsForPeriod(animals, period) {
+  const offset=period==="previous"?-1:period==="next"?1:0; const future=period==="next";
+  return animals.map((animal)=>{ const plan=lkPlanForAnimalInWeek(animal.id,offset); return {animal,result:plan?lkWeekResultForAnimal(animal.id,plan,future):null}; });
+}
+function lkWorkStatusPeriodLabel(period){ if(period==="previous") return "Vorherige Woche"; if(period==="next") return "Nächste Woche"; return "Aktuelle Woche"; }
+function renderWeeklyWorkStatusPeriod(animals, period) {
+  const rows=lkWorkStatusRowsForPeriod(animals,period); const future=period==="next"; const week=lkWeekWindow(period==="previous"?-1:future?1:0);
+  if(!rows.some((row)=>row.result)) return `<div class="weekly-work-status-empty"><strong>${escapeHtml(lkWorkStatusPeriodLabel(period))}</strong><span>${escapeHtml(week.label)}</span><p>Für diese Woche ist noch kein Wochenplan vorhanden.</p></div>`;
+  return `<div class="weekly-work-status-period"><div class="weekly-work-status-period-head"><div><strong>${escapeHtml(lkWorkStatusPeriodLabel(period))}</strong><span>${escapeHtml(week.label)}</span></div>${future?`<span class="weekly-work-status-teacher-only">Nur für Lehrkräfte</span>`:""}</div><div class="weekly-work-status-children">${rows.map(({animal,result})=>{
+    if(!result) return `<div class="weekly-work-status-child no-data"><div><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong><small>Kein Plan für diese Woche</small></div></div>`;
+    const label=weeklyPlanPeriodLabel(result.plan)||result.plan.title||"Wochenplan";
+    return `<details class="weekly-work-status-child"><summary><div class="weekly-work-status-child-name"><strong>${escapeHtml(animal.tierEmoji)} ${escapeHtml(animal.tierName)}</strong><small>${escapeHtml(label)}</small></div>${future?`<div class="weekly-work-status-counts future"><span>${result.counts.geplant} geplant</span></div>`:`<div class="weekly-work-status-counts"><span class="done">✓ ${result.counts.fertig}</span><span class="partial">◐ ${result.counts.teilweise}</span><span class="open">○ ${result.counts.offen}</span></div>`}</summary><div class="weekly-work-status-tasks">${result.rows.length?result.rows.map(({day,item,status})=>{const task=item.text||item.detail||item.label||"Aufgabe"; if(future) return `<div class="weekly-work-status-task"><span class="weekly-work-status-state planned">→</span><div><strong>${escapeHtml(task)}</strong><small>${day==="Woche"?"Ganze Woche":escapeHtml(day)} · geplant</small></div></div>`; const meta=lkPreviousStatusMeta(status); return `<div class="weekly-work-status-task"><span class="weekly-work-status-state ${meta.cls}">${meta.icon}</span><div><strong>${escapeHtml(task)}</strong><small>${day==="Woche"?"Ganze Woche":escapeHtml(day)} · ${escapeHtml(meta.label)}</small></div></div>`;}).join(""):`<div class="weekly-work-status-none">Keine Aufgaben gespeichert.</div>`}</div></details>`;
+  }).join("")}</div></div>`;
+}
+function renderWeeklyWorkStatusPanel(animals) {
+  if(!animals?.length) return "";
+  return `<div class="weekly-work-status-overlay" id="weeklyWorkStatusOverlay" hidden><button class="weekly-work-status-backdrop" type="button" aria-label="Schließen" onclick="closeWeeklyWorkStatusPanel()"></button><section class="weekly-work-status-panel" role="dialog" aria-modal="true" aria-labelledby="weeklyWorkStatusTitle"><div class="weekly-work-status-head"><div><span class="weekly-work-status-kicker">Planungshilfe</span><h3 id="weeklyWorkStatusTitle">Arbeitsstand der Kinder</h3><p>Bearbeitete Aufgaben nachschauen, ohne Platz in der Wochenplanung zu verlieren.</p></div><button class="secondary weekly-work-status-close" type="button" onclick="closeWeeklyWorkStatusPanel()">Schließen</button></div><div class="weekly-work-status-tabs" role="tablist" aria-label="Woche auswählen"><button class="weekly-work-status-tab" type="button" data-period="previous" onclick="switchWeeklyWorkStatusPeriod('previous')">Vorherige Woche</button><button class="weekly-work-status-tab active" type="button" data-period="current" onclick="switchWeeklyWorkStatusPeriod('current')">Aktuelle Woche</button><button class="weekly-work-status-tab" type="button" data-period="next" onclick="switchWeeklyWorkStatusPeriod('next')">Nächste Woche</button></div><div class="weekly-work-status-content" data-period-panel="previous" hidden>${renderWeeklyWorkStatusPeriod(animals,"previous")}</div><div class="weekly-work-status-content" data-period-panel="current">${renderWeeklyWorkStatusPeriod(animals,"current")}</div><div class="weekly-work-status-content" data-period-panel="next" hidden>${renderWeeklyWorkStatusPeriod(animals,"next")}</div></section></div>`;
+}
+function openWeeklyWorkStatusPanel(){const el=document.querySelector("#weeklyWorkStatusOverlay");if(!el)return;el.hidden=false;document.body.classList.add("weekly-work-status-open");switchWeeklyWorkStatusPeriod("current");}
+function closeWeeklyWorkStatusPanel(){const el=document.querySelector("#weeklyWorkStatusOverlay");if(!el)return;el.hidden=true;document.body.classList.remove("weekly-work-status-open");}
+function switchWeeklyWorkStatusPeriod(period){document.querySelectorAll(".weekly-work-status-tab").forEach((b)=>b.classList.toggle("active",b.dataset.period===period));document.querySelectorAll("[data-period-panel]").forEach((p)=>{p.hidden=p.dataset.periodPanel!==period;});}
+window.openWeeklyWorkStatusPanel=openWeeklyWorkStatusPanel; window.closeWeeklyWorkStatusPanel=closeWeeklyWorkStatusPanel; window.switchWeeklyWorkStatusPeriod=switchWeeklyWorkStatusPeriod;
+
 function renderWeeklyCarryoverCheck(draft, animals) {
   const affected = animals.map((animal) => ({ animal, carry: weeklyCarryoverForAnimal(animal.id, draft) }))
     .filter(({ carry }) => carry && carry.rows.length);
@@ -4060,11 +4113,11 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             </select>
           </label>
           <span class="weekly-visibility-badge ${visibility.visible ? "visible" : "hidden-state"}">${escapeHtml(visibility.label)}</span>
+          ${targetAnimals.length ? `<button class="secondary weekly-work-status-button" type="button" onclick="openWeeklyWorkStatusPanel()">Arbeitsstand der Kinder</button>` : ""}
         </div>
       </div>
       ${visibility.detail ? `<div class="weekly-clean-statusline">${escapeHtml(visibility.detail)}</div>` : ""}
 
-      <div class="weekly-editor-workspace ${!focusAnimal ? "with-basis" : ""}">
       <form class="weekly-plan-form weekly-clean-form" onsubmit="saveWeeklyPlan(event)">
         <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
 
@@ -4157,12 +4210,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
         </div>
       </form>
 
-      ${!focusAnimal ? `
-        <aside class="weekly-editor-basis-aside" aria-label="Planungsgrundlage aus der Vorwoche">
-          ${renderPreviousWeekPlanningBasis(draft, targetAnimals)}
-        </aside>
-      ` : ""}
-      </div>
+      ${renderWeeklyWorkStatusPanel(targetAnimals)}
     </section>
   `;
 }
