@@ -2,12 +2,22 @@
 
 Eine statische Web-App für eine einzelne Lehrkraft. Der Webspeicherort enthält nur diese App-Dateien. Lernstände, Trainingszeit und Lernzielkontrollen werden lokal auf dem iPad/in diesem Browser gespeichert.
 
+## Urheberrecht und Nutzung
+
+**Copyright © 2026 Ute Holzschneider-Riedl. Alle Rechte vorbehalten.**
+
+Der Lernstand-Kompass wurde von Ute Holzschneider-Riedl konzipiert und entwickelt. Die veröffentlichte App darf in ihrer bereitgestellten Form unentgeltlich genutzt werden. Ohne vorherige ausdrückliche Zustimmung ist es insbesondere nicht gestattet, den Quellcode oder wesentliche Teile der App weiterzugeben oder erneut zu veröffentlichen, veränderte Fassungen als eigenes Produkt zu verbreiten, die Urheberkennzeichnung zu entfernen oder die App als eigene Entwicklung auszugeben.
+
+Die vollständigen Nutzungsbedingungen stehen in der Datei `LICENSE`. Für eingebundene Fremdbibliotheken gelten deren jeweilige Lizenzbedingungen.
+
 ## Dateien der App
 
 Diese Dateien müssen gemeinsam im App-Ordner liegen:
 
 - `index.html`
 - `styles.css`
+- `legal-info.css`
+- `legal-info.js`
 - `models.js`
 - `storage.js`
 - `exceljs.min.js`
@@ -19,6 +29,7 @@ Diese Dateien müssen gemeinsam im App-Ordner liegen:
 - `pwa.js`
 - `manifest.json`
 - `service-worker.js`
+- `LICENSE`
 - `materials/toni-nomen.png`
 - `icons/icon-180.png`
 - `icons/icon-192.png`
