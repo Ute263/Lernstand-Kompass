@@ -3817,7 +3817,7 @@ function weeklyPreviousResultsForAnimal(animalId, draft = {}) {
       const key = `${day}::${item.field}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const status = weeklyPlanItemStatus(previous.id, animalId, day, item.field) || "offen";
+      const status = weeklyPlanCompatibleItemStatus(previous.id, animalId, day, item);
       rows.push({ day, item, status });
     });
   });
@@ -3866,7 +3866,7 @@ function renderWeeklyPreviousResults(draft, animals) {
         <div>
           <span class="weekly-previous-kicker">Planungsgrundlage</span>
           <h3>Ergebnisse der vorherigen Woche</h3>
-          <p>Diese Ergebnisse bleiben beim Erstellen der neuen Woche sichtbar. So kannst du offene und teilweise bearbeitete Aufgaben direkt berücksichtigen.</p>
+          <p>Alle Ergebnisse der Vorwoche bleiben sichtbar – auch erledigte Aufgaben mit Haken. Offene und teilweise bearbeitete Aufgaben kannst du so direkt bei der neuen Planung berücksichtigen.</p>
         </div>
       </div>
 
@@ -3907,7 +3907,7 @@ function renderWeeklyPreviousResults(draft, animals) {
                       <span class="weekly-previous-status ${meta.className}" title="${escapeAttribute(meta.label)}">${meta.icon}</span>
                       <div>
                         <strong>${escapeHtml(taskText)}</strong>
-                        <small>${section ? `${escapeHtml(section)} · ` : ""}${day === "Woche" ? "Ganze Woche" : escapeHtml(day)}</small>
+                        <small>${section ? `${escapeHtml(section)} · ` : ""}${day === "Woche" ? "Ganze Woche" : escapeHtml(day)} · <span class="weekly-previous-inline-status ${meta.className}">${escapeHtml(meta.label)}</span></small>
                       </div>
                     </div>
                   `;
@@ -8938,6 +8938,60 @@ function weeklyPlanStatusRecord(planId, animalId, day, field) {
   return (state.weeklyPlanStatuses || [])
     .filter((item) => item.planId === planId && item.animalId === animalId && item.day === day && item.field === field)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+}
+
+
+function weeklyPlanCompatibleStatusRecord(planId, animalId, day, item) {
+  if (!item) return null;
+  const statuses = (state.weeklyPlanStatuses || [])
+    .filter((row) => row.planId === planId && row.animalId === animalId && row.day === day)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+
+  // 1. Heutiges Format: exaktes Feld.
+  const exact = statuses.find((row) => row.field === item.field);
+  if (exact) return exact;
+
+  // 2. Ältere App-Stände speicherten teils nur workbookCatalogId bzw. Deutsch/Mathe
+  //    statt "Deutsch:<catalog-id>". Diese Ergebnisse dürfen beim Versionswechsel
+  //    nicht wie neue/offene Aufgaben wirken.
+  if (item.workbookCatalogId) {
+    const byCatalog = statuses.find((row) => row.workbookCatalogId && row.workbookCatalogId === item.workbookCatalogId);
+    if (byCatalog) return byCatalog;
+  }
+
+  const subject = String(item.field || "").split(":")[0];
+  const legacySameSubject = statuses.filter((row) => row.field === subject || row.field === item.label);
+  if (legacySameSubject.length === 1) return legacySameSubject[0];
+
+  // 3. Freie Aufgaben aus älteren Versionen: Text als letzte sichere Zuordnung.
+  if (item.freeText) {
+    const byText = statuses.find((row) => row.freeText && String(row.freeText).trim() === String(item.freeText).trim());
+    if (byText) return byText;
+  }
+
+  return null;
+}
+
+function weeklyPlanCompatibleItemStatus(planId, animalId, day, item) {
+  const statusRecord = weeklyPlanCompatibleStatusRecord(planId, animalId, day, item);
+  if (statusRecord) return normalizeSimpleWorkStatus(statusRecord.status || "offen");
+
+  // Zusätzliche Rückfallebene: Bereits in den Lernfortschritt übernommene
+  // Wochenplan-Ergebnisse enthalten die Verknüpfung ebenfalls. Das schützt
+  // ältere Datenbestände, bei denen der reine Wochenstatus fehlt.
+  if (item?.catalogItem) {
+    const linked = (state.entries || [])
+      .filter((entry) => entry.classId === (state.weeklyPlans || []).find((plan) => plan.id === planId)?.classId)
+      .filter((entry) => entry.tierID === animalId)
+      .filter((entry) => entry.weeklyPlanId === planId)
+      .filter((entry) => (
+        (entry.weeklyPlanDay === day && entry.weeklyPlanField === item.field)
+        || (item.workbookCatalogId && entry.workbookCatalogId === item.workbookCatalogId)
+      ))
+      .sort((a, b) => new Date(b.updatedAt || b.datumUhrzeit || 0) - new Date(a.updatedAt || a.datumUhrzeit || 0))[0];
+    if (linked) return normalizeSimpleWorkStatus(linked.workStatus || linked.status || "fertig");
+  }
+  return "offen";
 }
 
 function weeklyStatusBadge(status) {

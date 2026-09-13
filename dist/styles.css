@@ -4371,3 +4371,20 @@ body {
     margin-left: 0;
   }
 }
+
+/* v200: Vorwochenergebnisse klar lesbar und abwärtskompatibel */
+.weekly-previous-status.done {
+  background: #d8f3e2;
+  color: #166534;
+  border: 1px solid #9bd4ad;
+}
+.weekly-previous-status.partial {
+  border: 1px solid #efd17b;
+}
+.weekly-previous-status.open {
+  border: 1px solid #ccd9e3;
+}
+.weekly-previous-inline-status { font-weight: 850; }
+.weekly-previous-inline-status.done { color: #166534; }
+.weekly-previous-inline-status.partial { color: #8b6500; }
+.weekly-previous-inline-status.open { color: #526476; }
