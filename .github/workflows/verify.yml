@@ -1,0 +1,26 @@
+name: Verify app
+
+on:
+  push:
+    branches:
+      - main
+      - cleanup-architecture-v2
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Anwendung prüfen und bauen
+        run: npm run verify
