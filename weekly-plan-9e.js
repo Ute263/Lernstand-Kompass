@@ -153,6 +153,35 @@
     return list.slice(0, length);
   }
 
+  const LK_SOCIAL_FORMS = ["individual", "partner", "group"];
+
+  function normalizeSocialForm(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return LK_SOCIAL_FORMS.includes(normalized) ? normalized : "";
+  }
+
+  function socialFormList(value, length = 0) {
+    const list = Array.isArray(value) ? value.map(normalizeSocialForm) : [];
+    while (list.length < length) list.push("");
+    return list.slice(0, length);
+  }
+
+  function socialFormMeta(value) {
+    const normalized = normalizeSocialForm(value);
+    if (normalized === "individual") return { value: normalized, label: "Einzelarbeit", index: 0 };
+    if (normalized === "partner") return { value: normalized, label: "Partnerarbeit", index: 1 };
+    if (normalized === "group") return { value: normalized, label: "Gruppenarbeit", index: 2 };
+    return { value: "", label: "Keine Sozialform", index: -1 };
+  }
+
+  function socialFormIconHtml(value, className = "") {
+    const meta = socialFormMeta(value);
+    if (!meta.value) return "";
+    return `<span class="lk-social-form-icon ${escapeAttribute(meta.value)} ${escapeAttribute(className)}" role="img" aria-label="${escapeAttribute(meta.label)}" title="${escapeAttribute(meta.label)}"><img src="./materials/socialform-icons.png" alt=""></span>`;
+  }
+
+  window.weeklySocialFormIconHtml = socialFormIconHtml;
+
   function duplicateDefaults(ids) {
     const seen = new Map();
     return ids.map((id) => {
@@ -182,7 +211,9 @@
         id: object.id || `free-${subject.toLowerCase()}-${index}-${simpleHash(text)}`,
         text,
         starred: object.starred === true,
-        isWorksheet: object.isWorksheet === true
+        isWorksheet: object.isWorksheet === true,
+        isMicrophone: object.isMicrophone === true && object.isWorksheet !== true,
+        socialForm: normalizeSocialForm(object.socialForm)
       };
     });
   }
@@ -211,6 +242,7 @@
       numbers: `${low}TaskNumbers`,
       legacyNumber: `${low}TaskNumber`,
       stars: `${low}TaskStars`,
+      socialForms: `${low}TaskSocialForms`,
       free: `${low}FreeTasks`
     };
   }
@@ -252,6 +284,7 @@
       target[keys.numbers] = numberList(source?.[keys.numbers], source?.[keys.legacyNumber] || "", ids.length);
       target[keys.legacyNumber] = target[keys.numbers][0] || "";
       target[keys.stars] = boolList(source?.[keys.stars], ids.length, duplicateDefaults(ids));
+      target[keys.socialForms] = socialFormList(source?.[keys.socialForms], ids.length);
       target[keys.free] = normalizeFreeTasks(source?.[keys.free], subject);
     });
     target.extraFreeTasks = normalizeFreeTasks(source?.extraFreeTasks, "Extra", source?.freeText || "");
@@ -289,6 +322,7 @@
     const target = dayTarget(draft, scope, animalId, day);
     const beforeIds = normalizeIdArray(target[keys.ids] || target[keys.legacyId]);
     const beforeStars = boolList(target[keys.stars], beforeIds.length, duplicateDefaults(beforeIds));
+    const beforeSocialForms = socialFormList(target[keys.socialForms], beforeIds.length);
     const duplicate = value ? beforeIds.includes(String(value)) : false;
 
     if (field === "Lesezeit" || field === "Lernwörter") {
@@ -304,6 +338,9 @@
     if (value) afterTarget[keys.stars] = [...beforeStars, duplicate];
     else afterTarget[keys.stars] = [];
     afterTarget[keys.stars] = boolList(afterTarget[keys.stars], afterIds.length, duplicateDefaults(afterIds));
+    if (value) afterTarget[keys.socialForms] = [...beforeSocialForms, ""];
+    else afterTarget[keys.socialForms] = [];
+    afterTarget[keys.socialForms] = socialFormList(afterTarget[keys.socialForms], afterIds.length);
   };
 
   /* ---------- Wochenplan-Editor ---------- */
@@ -316,7 +353,9 @@
       const text = row.querySelector("[data-free-text]")?.value.trim() || "";
       const starred = row.querySelector("[data-free-star]")?.value === "1";
       const isWorksheet = row.querySelector("[data-free-worksheet]")?.checked === true;
-      return { id, text, starred, isWorksheet };
+      const isMicrophone = !isWorksheet && row.querySelector("[data-free-microphone]")?.checked === true;
+      const socialForm = normalizeSocialForm(row.querySelector("[data-free-social-form]")?.value || "");
+      return { id, text, starred, isWorksheet, isMicrophone, socialForm };
     });
   }
 
@@ -334,11 +373,15 @@
         const stars = ids.map((_, itemIndex) =>
           document.getElementById(`${prefix}${subject}${dayIndex}Star_${itemIndex}`)?.value === "1"
         );
+        const socialForms = ids.map((_, itemIndex) => normalizeSocialForm(
+          document.getElementById(`${prefix}${subject}${dayIndex}SocialForm_${itemIndex}`)?.value || ""
+        ));
         result[keys.legacyId] = ids[0] || "";
         result[keys.ids] = ids;
         result[keys.legacyNumber] = numbers[0] || "";
         result[keys.numbers] = numbers;
         result[keys.stars] = stars;
+        result[keys.socialForms] = socialForms;
         result[keys.free] = readFreeTasks(prefix, subject, dayIndex);
       });
       const extraFreeTasks = readFreeTasks(prefix, "Extra", dayIndex);
@@ -377,6 +420,47 @@
       >${starred ? "⭐" : "☆"}</button>
     `;
   }
+
+  function renderSocialFormPicker(inputAttributes, value = "") {
+    const selected = normalizeSocialForm(value);
+    const options = [
+      { value: "", label: "Keine Sozialform", short: "–" },
+      { value: "individual", label: "Einzelarbeit" },
+      { value: "partner", label: "Partnerarbeit" },
+      { value: "group", label: "Gruppenarbeit" }
+    ];
+    return `
+      <div class="lk-social-form-picker" aria-label="Sozialform auswählen">
+        <span class="lk-social-form-title">Sozialform <small>optional</small></span>
+        <input type="hidden" ${inputAttributes} value="${escapeAttribute(selected)}">
+        <div class="lk-social-form-options">
+          ${options.map((option) => `
+            <button
+              class="lk-social-form-option ${selected === option.value ? "active" : ""} ${option.value ? escapeAttribute(option.value) : "none"}"
+              type="button"
+              data-social-form-value="${escapeAttribute(option.value)}"
+              title="${escapeAttribute(option.label)}"
+              aria-label="${escapeAttribute(option.label)}"
+              aria-pressed="${selected === option.value ? "true" : "false"}"
+              onclick="setWeeklySocialForm(this, '${escapeAttribute(option.value)}')"
+            >${option.value ? socialFormIconHtml(option.value) : `<span aria-hidden="true">${option.short}</span>`}</button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  window.setWeeklySocialForm = function setWeeklySocialForm(button, value) {
+    const picker = button?.closest(".lk-social-form-picker");
+    const input = picker?.querySelector('input[type="hidden"]');
+    if (!picker || !input) return;
+    input.value = normalizeSocialForm(value);
+    picker.querySelectorAll(".lk-social-form-option").forEach((option) => {
+      const active = option.dataset.socialFormValue === input.value;
+      option.classList.toggle("active", active);
+      option.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  };
 
   function moveTargetIndex(stars, itemIndex, direction, weekMode = false) {
     if (itemIndex < 0 || itemIndex >= stars.length) return -1;
@@ -466,11 +550,20 @@
               <input type="hidden" data-free-star value="${task.starred ? "1" : "0"}">
               ${renderStarButton(scope, animalId, day, subject, 0, task.starred, task.id)}
               ${renderFreeTaskOrderButtons(scope, animalId, day, subject, normalized, taskIndex)}
-              <label class="lk-free-task-ab-option" title="AB-Symbol im Wochenplan anzeigen">
-                <input type="checkbox" data-free-worksheet ${task.isWorksheet ? "checked" : ""}>
-                <span>AB-Symbol</span>
-              </label>
+              <div class="lk-free-task-symbol-options" role="group" aria-label="Symbol im Wochenplan">
+                <label class="lk-free-task-symbol-option" title="Arbeitsblatt im Wochenplan anzeigen">
+                  <input type="checkbox" data-free-worksheet ${task.isWorksheet ? "checked" : ""} onchange="setWeeklyFreeTaskSymbol(this, 'worksheet')">
+                  <span class="lk-free-task-symbol-ab" aria-hidden="true">AB</span>
+                  <span>Arbeitsblatt</span>
+                </label>
+                <label class="lk-free-task-symbol-option" title="Mikrofon im Wochenplan anzeigen">
+                  <input type="checkbox" data-free-microphone ${task.isMicrophone ? "checked" : ""} onchange="setWeeklyFreeTaskSymbol(this, 'microphone')">
+                  <img class="lk-free-task-symbol-microphone" src="./materials/icon-microphone.png" alt="">
+                  <span>Mikrofon</span>
+                </label>
+              </div>
               <input class="text-input" data-free-text value="${escapeAttribute(task.text)}" placeholder="Aufgabe frei eintragen …">
+              ${renderSocialFormPicker("data-free-social-form", task.socialForm)}
               <button class="weekly-task-remove" type="button" aria-label="Freie Aufgabe entfernen" onclick="removeWeeklyFreeTask('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}','${escapeAttribute(task.id)}')">×</button>
             </div>
           `).join("")}
@@ -491,6 +584,7 @@
             <input type="hidden" data-free-star value="${primary.starred ? "1" : "0"}">
             ${renderStarButton(scope, animalId, day, "Lernwörter", 0, primary.starred, primary.id)}
             <textarea class="text-input lk-learning-words-textarea" data-free-text rows="3" placeholder="z. B. Haus, Häuser, Maus, Mäuse …">${escapeHtml(primary.text)}</textarea>
+            ${renderSocialFormPicker("data-free-social-form", primary.socialForm)}
           </div>
         </div>
       </div>`;
@@ -505,13 +599,14 @@
 
   renderWeeklyPickCell = function renderWeeklyPickCell9e(
     subject, day, index, selectedIds, inputId, scope, animalId = "",
-    legacyTaskNumber = "", taskNumbers = [], taskStars = []
+    legacyTaskNumber = "", taskNumbers = [], taskStars = [], taskSocialForms = []
   ) {
     const ids = normalizeIdArray(selectedIds);
     const catalog = workbookCatalogForWeeklyPlanClass(state.activeClassId);
     const items = ids.map((id) => catalog.find((entry) => entry.id === id)).filter(Boolean);
     const numbers = numberList(taskNumbers, legacyTaskNumber, ids.length);
     const stars = boolList(taskStars, ids.length, duplicateDefaults(ids));
+    const socialForms = socialFormList(taskSocialForms, ids.length);
 
     return `
       <div class="weekly-pick-cell weekly-pick-cell-multi lk-weekly-pick-cell">
@@ -529,6 +624,7 @@
               <label class="weekly-task-number-label">Nr.
                 <input class="text-input weekly-task-number-input" id="${escapeAttribute(`${inputId}TaskNumber_${itemIndex}`)}" value="${escapeAttribute(numbers[itemIndex] || "")}" placeholder="z. B. 1 + 3">
               </label>
+              ${renderSocialFormPicker(`id="${escapeAttribute(`${inputId}SocialForm_${itemIndex}`)}"`, socialForms[itemIndex])}
               <button class="weekly-task-remove" type="button" title="Nur diese Aufgabe entfernen" aria-label="Diese Aufgabe entfernen" onclick="removeWeeklyPickOccurrence('${escapeAttribute(scope)}','${escapeAttribute(animalId)}','${escapeAttribute(day)}','${escapeAttribute(subject)}',${itemIndex})">×</button>
             </div>
           `).join("") : `<span class="lk-no-book-task">Noch keine Heftseite gewählt.</span>`}
@@ -560,10 +656,10 @@
 
   function emptyWeeklyModeDay() {
     return {
-      deutschId: "", deutschIds: [], deutschTaskNumber: "", deutschTaskNumbers: [], deutschTaskStars: [], deutschFreeTasks: [],
-      lesezeitId: "", lesezeitIds: [], lesezeitTaskNumber: "", lesezeitTaskNumbers: [], lesezeitTaskStars: [], lesezeitFreeTasks: [],
-      lernwoerterId: "", lernwoerterIds: [], lernwoerterTaskNumber: "", lernwoerterTaskNumbers: [], lernwoerterTaskStars: [], lernwoerterFreeTasks: [],
-      matheId: "", matheIds: [], matheTaskNumber: "", matheTaskNumbers: [], matheTaskStars: [], matheFreeTasks: [],
+      deutschId: "", deutschIds: [], deutschTaskNumber: "", deutschTaskNumbers: [], deutschTaskStars: [], deutschTaskSocialForms: [], deutschFreeTasks: [],
+      lesezeitId: "", lesezeitIds: [], lesezeitTaskNumber: "", lesezeitTaskNumbers: [], lesezeitTaskStars: [], lesezeitTaskSocialForms: [], lesezeitFreeTasks: [],
+      lernwoerterId: "", lernwoerterIds: [], lernwoerterTaskNumber: "", lernwoerterTaskNumbers: [], lernwoerterTaskStars: [], lernwoerterTaskSocialForms: [], lernwoerterFreeTasks: [],
+      matheId: "", matheIds: [], matheTaskNumber: "", matheTaskNumbers: [], matheTaskStars: [], matheTaskSocialForms: [], matheFreeTasks: [],
       extraFreeTasks: [], freeText: ""
     };
   }
@@ -577,9 +673,11 @@
         const ids = normalizeIdArray(data[keys.ids] || data[keys.legacyId]);
         const numbers = numberList(data[keys.numbers], data[keys.legacyNumber], ids.length);
         const stars = boolList(data[keys.stars], ids.length, duplicateDefaults(ids));
+        const socialForms = socialFormList(data[keys.socialForms], ids.length);
         result[keys.ids].push(...ids);
         result[keys.numbers].push(...numbers);
         result[keys.stars].push(...stars);
+        result[keys.socialForms].push(...socialForms);
         result[keys.free].push(...normalizeFreeTasks(data[keys.free], subject));
       });
       result.extraFreeTasks.push(...normalizeFreeTasks(data.extraFreeTasks, "Extra", data.freeText || ""));
@@ -600,10 +698,12 @@
       const ids = normalizeIdArray(result[keys.ids] || result[keys.legacyId]);
       const numbers = numberList(result[keys.numbers], result[keys.legacyNumber], ids.length);
       const stars = boolList(result[keys.stars], ids.length, duplicateDefaults(ids));
+      const socialForms = socialFormList(result[keys.socialForms], ids.length);
       const order = ids.map((_, index) => index).sort((a, b) => Number(stars[a]) - Number(stars[b]) || a - b);
       result[keys.ids] = order.map((index) => ids[index]);
       result[keys.numbers] = order.map((index) => numbers[index] || "");
       result[keys.stars] = order.map((index) => Boolean(stars[index]));
+      result[keys.socialForms] = order.map((index) => socialForms[index] || "");
       result[keys.legacyId] = result[keys.ids][0] || "";
       result[keys.legacyNumber] = result[keys.numbers][0] || "";
       result[keys.free] = normalizeFreeTasks(result[keys.free], subject)
@@ -652,7 +752,7 @@
       const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, 0, scope, animalId, "Montag") : renderFreeTaskList(data[keys.free], prefix, subject, 0, scope, animalId, "Montag");
       const workbookPart = subject === "Lernwörter"
         ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}0`)}" value="">`
-        : renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
+        : renderWeeklyPickCell(subject, "Montag", 0, ids, `${prefix}${subject}0`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars], data[keys.socialForms]);
       return `<details class="lk-planner-subdetails ${escapeAttribute(cssClass)}" data-accordion-group="${escapeAttribute(groupName)}" data-accordion-value="${escapeAttribute(subject)}"${lkPlannerOpenAttr(groupName, subject)} ontoggle="if(this.open) lkExclusivePlannerDetails(this)">
         <summary>${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong><span class="lk-details-chevron">⌄</span></summary>
         <div class="lk-planner-details-body">${workbookPart}${freePart}</div>
@@ -736,7 +836,7 @@
             const freePart = subject === "Lernwörter" ? renderLearningWordsFreeField(data[keys.free], prefix, dayIndex, scope, animalId, day) : renderFreeTaskList(data[keys.free], prefix, subject, dayIndex, scope, animalId, day);
             const workbookPart = subject === "Lernwörter"
               ? `<input type="hidden" id="${escapeAttribute(`${prefix}${subject}${dayIndex}`)}" value="">`
-              : renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars]);
+              : renderWeeklyPickCell(subject, day, dayIndex, ids, `${prefix}${subject}${dayIndex}`, scope, animalId, data[keys.legacyNumber] || "", data[keys.numbers], data[keys.stars], data[keys.socialForms]);
             return `<details class="lk-planner-subdetails ${escapeAttribute(cssClass)}" data-accordion-group="${escapeAttribute(`day-${dayIndex}-deutsch`)}" data-accordion-value="${escapeAttribute(subject)}"${lkPlannerOpenAttr(`day-${dayIndex}-deutsch`, subject)} ontoggle="if(this.open) lkExclusivePlannerDetails(this)">
               <summary>${weeklySubjectBadgeHtml(subject)}<strong>${escapeHtml(title)}</strong><span class="lk-details-chevron">⌄</span></summary>
               <div class="lk-planner-details-body">${workbookPart}${freePart}</div>
@@ -757,7 +857,7 @@
                   <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
                   <div class="lk-planner-subject-body">
                     <section class="weekly-editor-subject lk-editor-subject mathe">
-                      ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars)}
+                      ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars, data.matheTaskSocialForms)}
                       ${renderFreeTaskList(data.matheFreeTasks, prefix, "Mathe", dayIndex, scope, animalId, day)}
                     </section>
                   </div>
@@ -809,6 +909,7 @@
     const ids = normalizeIdArray(target[keys.ids] || target[keys.legacyId]);
     const numbers = numberList(target[keys.numbers], target[keys.legacyNumber], ids.length);
     const stars = boolList(target[keys.stars], ids.length, duplicateDefaults(ids));
+    const socialForms = socialFormList(target[keys.socialForms], ids.length);
 
     const targetIndex = moveTargetIndex(
       stars,
@@ -821,12 +922,14 @@
     [ids[itemIndex], ids[targetIndex]] = [ids[targetIndex], ids[itemIndex]];
     [numbers[itemIndex], numbers[targetIndex]] = [numbers[targetIndex], numbers[itemIndex]];
     [stars[itemIndex], stars[targetIndex]] = [stars[targetIndex], stars[itemIndex]];
+    [socialForms[itemIndex], socialForms[targetIndex]] = [socialForms[targetIndex], socialForms[itemIndex]];
 
     target[keys.ids] = ids;
     target[keys.legacyId] = ids[0] || "";
     target[keys.numbers] = numbers;
     target[keys.legacyNumber] = numbers[0] || "";
     target[keys.stars] = stars;
+    target[keys.socialForms] = socialForms;
     lkWeeklyOpenDay = day;
     render();
   };
@@ -866,13 +969,15 @@
     const ids = normalizeIdArray(target[keys.ids] || target[keys.legacyId]);
     const numbers = numberList(target[keys.numbers], target[keys.legacyNumber], ids.length);
     const stars = boolList(target[keys.stars], ids.length, duplicateDefaults(ids));
+    const socialForms = socialFormList(target[keys.socialForms], ids.length);
     if (itemIndex < 0 || itemIndex >= ids.length) return;
-    ids.splice(itemIndex, 1); numbers.splice(itemIndex, 1); stars.splice(itemIndex, 1);
+    ids.splice(itemIndex, 1); numbers.splice(itemIndex, 1); stars.splice(itemIndex, 1); socialForms.splice(itemIndex, 1);
     target[keys.ids] = ids;
     target[keys.legacyId] = ids[0] || "";
     target[keys.numbers] = numbers;
     target[keys.legacyNumber] = numbers[0] || "";
     target[keys.stars] = stars;
+    target[keys.socialForms] = socialForms;
     lkWeeklyOpenDay = day;
     render();
   };
@@ -882,7 +987,7 @@
     const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
     const key = freeKey(subject);
     const tasks = normalizeFreeTasks(target[key], subject, subject === "Extra" ? target.freeText : "");
-    tasks.push({ id: makeId(), text: "", starred: false, isWorksheet: false });
+    tasks.push({ id: makeId(), text: "", starred: false, isWorksheet: false, isMicrophone: false, socialForm: "" });
     target[key] = tasks;
     if (subject === "Extra") target.freeText = tasks[0]?.text || "";
     lkWeeklyOpenDay = day;
@@ -919,29 +1024,13 @@
   };
 
 
-  window.toggleWeeklyFreeTaskWorksheet = function toggleWeeklyFreeTaskWorksheet(scope, animalId, day, subject, taskId) {
-    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
-    const target = dayTarget(weeklyPlanDraft, scope, animalId, day);
-    const key = freeKey(subject);
-    target[key] = normalizeFreeTasks(target[key], subject, subject === "Extra" ? target.freeText : "").map((task) =>
-      task.id === taskId ? { ...task, isWorksheet: !task.isWorksheet } : task
-    );
-    if (subject === "Extra") target.freeText = target[key][0]?.text || "";
-    lkWeeklyOpenDay = day;
-    render();
+  window.setWeeklyFreeTaskSymbol = function setWeeklyFreeTaskSymbol(input, kind) {
+    const row = input?.closest("[data-free-task-row]");
+    if (!row || !input.checked) return;
+    const otherSelector = kind === "microphone" ? "[data-free-worksheet]" : "[data-free-microphone]";
+    const other = row.querySelector(otherSelector);
+    if (other) other.checked = false;
   };
-
-  (function addWorksheetOptionStyle() {
-    if (document.getElementById("lk-free-task-ab-style")) return;
-    const style = document.createElement("style");
-    style.id = "lk-free-task-ab-style";
-    style.textContent = `
-      .lk-free-task-ab-option{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .55rem;border:1px solid #d8d8df;border-radius:.7rem;background:#fff;white-space:nowrap;font-size:.88rem;color:#445;}
-      .lk-free-task-ab-option input{width:1rem;height:1rem;accent-color:#5377b7;}
-      .lk-free-task-ab-option:has(input:checked){background:#edf4ff;border-color:#9db8e7;color:#294f88;font-weight:700;}
-    `;
-    document.head.appendChild(style);
-  })();
 
   /* ---------- Aufgaben für Kinder, Status und Druck ---------- */
 
@@ -1008,6 +1097,7 @@
         source[keys.legacyNumber] || "",
         ids.length
       );
+      const socialForms = socialFormList(source[keys.socialForms], ids.length);
       const starred = Boolean(stars[index]);
       const taskNumber = numbers[index] || "";
       const catalogId = String(item?.workbookCatalogId || item?.catalogItem?.id || "");
@@ -1027,7 +1117,8 @@
         taskNumber,
         text: `${starred ? "⭐ " : ""}${stripStar(item.text)}`,
         label: `${starred ? "⭐ " : ""}${stripStar(item.label || subject)}`,
-        isExtraTask: starred
+        isExtraTask: starred,
+        socialForm: socialForms[index] || ""
       };
     });
 
@@ -1038,6 +1129,7 @@
       const ids = normalizeIdArray(source?.[keys.ids] || source?.[keys.legacyId]);
       const numbers = numberList(source?.[keys.numbers], source?.[keys.legacyNumber] || "", ids.length);
       const stars = boolList(source?.[keys.stars], ids.length, duplicateDefaults(ids));
+      const socialForms = socialFormList(source?.[keys.socialForms], ids.length);
       ids.forEach((id, index) => {
         const catalogItem = catalog.find((entry) => entry.id === id);
         if (!catalogItem) return;
@@ -1053,7 +1145,8 @@
           taskNumber,
           text: `${starred ? "⭐ " : ""}${weeklyWorkbookPlanLabel(catalogItem, taskNumber)}`,
           detail: workbookCatalogFullLabel(catalogItem),
-          isExtraTask: starred
+          isExtraTask: starred,
+          socialForm: socialForms[index] || ""
         });
       });
     });
@@ -1081,7 +1174,9 @@
           catalogItem: null,
           isExtraTask: task.starred,
           isFreeTask: true,
-          isWorksheetTask: task.isWorksheet === true
+          isWorksheetTask: task.isWorksheet === true,
+          isMicrophoneTask: task.isMicrophone === true,
+          socialForm: normalizeSocialForm(task.socialForm)
         });
       });
     });
@@ -1244,6 +1339,10 @@
     return `<img class="weekly-child-cover lk-child-task-cover" src="./materials/cover-arbeitsblatt.png" alt="Arbeitsblatt">`;
   }
 
+  function renderChildMicrophoneCover() {
+    return `<img class="weekly-child-cover lk-child-task-cover lk-microphone-task-image" src="./materials/icon-microphone.png" alt="Mikrofon">`;
+  }
+
   if (typeof renderChildWeeklyPlanItem === "function") {
     renderChildWeeklyPlanItem = function renderChildWeeklyPlanItem9e(plan, animal, day, item) {
       const status = normalizeSimpleWorkStatus(weeklyPlanItemStatus(plan.id, animal.id, day, item.field));
@@ -1255,7 +1354,9 @@
         ? renderWorkbookCoverImage(item.catalogItem, "weekly-child-cover lk-child-task-cover")
         : item.isWorksheetTask
           ? renderChildWorksheetCover()
-          : "";
+          : item.isMicrophoneTask
+            ? renderChildMicrophoneCover()
+            : "";
       let mainText = stripStar(item.text || "");
       let detail = item.detail || "";
       if (item.catalogItem) {
@@ -1266,11 +1367,12 @@
         }
         detail = item.catalogItem.title || item.catalogItem.area || detail || "";
       }
+      const socialForm = socialFormMeta(item.socialForm);
       return `
         <article class="lk-child-task ${done ? "done" : partial ? "partial" : ""} ${item.isExtraTask ? "starred" : ""} ${cover ? "has-cover" : ""}">
           ${cover ? `<div class="lk-child-task-cover-wrap">${cover}</div>` : `<div class="lk-child-task-icon">${icon}</div>`}
           <div class="lk-child-task-body">
-            <div class="lk-child-task-meta"><span class="lk-child-task-subject">${icon}${subject ? `<strong>${escapeHtml(subject)}</strong>` : ""}</span>${item.isWorksheetTask ? `<span class="lk-child-star-badge">AB</span>` : ""}${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}<span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span></div>
+            <div class="lk-child-task-meta"><span class="lk-child-task-subject">${icon}${subject ? `<strong>${escapeHtml(subject)}</strong>` : ""}</span>${item.isWorksheetTask ? `<span class="lk-child-star-badge">AB</span>` : ""}${item.isMicrophoneTask ? `<span class="lk-child-star-badge lk-child-microphone-badge"><img src="./materials/icon-microphone.png" alt=""> Mikrofon</span>` : ""}${item.isExtraTask ? `<span class="lk-child-star-badge">⭐ Zusatz</span>` : ""}${socialForm.value ? `<span class="lk-child-social-form">${socialFormIconHtml(socialForm.value)}<strong>${escapeHtml(socialForm.label)}</strong></span>` : ""}<span class="lk-child-status ${done ? "done" : partial ? "partial" : "open"}">${done ? "✓ Fertig" : partial ? "● Angefangen" : "○ Offen"}</span></div>
             <h4>${escapeHtml(mainText)}</h4>${detail ? `<p>${escapeHtml(detail)}</p>` : ""}
           </div>
           <div class="lk-child-task-actions">
@@ -1393,6 +1495,26 @@
   const style = document.createElement("style");
   style.id = "lk-weekly-plan-9e-style";
   style.textContent = `
+    .weekly-pick-label-multi { display:grid; gap:7px; }
+    .weekly-selected-task {
+      display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center;
+      padding:9px 10px; border:1px solid rgba(0,0,0,.08); border-radius:13px;
+      background:rgba(255,255,255,.76);
+    }
+    .weekly-selected-task.is-extra { background:rgba(255,244,196,.48); border-color:rgba(204,155,34,.26); }
+    .weekly-selected-task-label { display:grid; gap:3px; min-width:0; }
+    .weekly-extra-star {
+      display:inline-flex; width:max-content; max-width:100%; padding:3px 7px;
+      border-radius:999px; background:#fff0b8; font-size:.72rem; font-weight:800;
+    }
+    .weekly-selected-task .weekly-task-number-label { margin:0; white-space:nowrap; }
+    .weekly-selected-task .weekly-task-number-input { width:92px; min-width:72px; }
+    .weekly-task-remove {
+      width:32px; height:32px; display:grid; place-items:center; padding:0; border:0;
+      border-radius:50%; background:rgba(0,0,0,.055); cursor:pointer;
+      font:inherit; font-size:1.1rem;
+    }
+    .weekly-task-remove:hover { background:rgba(180,65,65,.12); }
     .lk-weekly-day-accordion { display:grid; gap:10px; }
     .lk-weekly-day-details { padding:0 !important; overflow:hidden; }
     .lk-weekly-day-summary {
@@ -1462,6 +1584,14 @@
     .lk-weekly-pick-cell .weekly-selected-task {
       grid-template-columns:auto auto minmax(0,1fr) auto auto;
     }
+    .lk-weekly-pick-cell .weekly-selected-task > .lk-social-form-picker {
+      grid-column:3 / 5;
+      grid-row:2;
+    }
+    .lk-weekly-pick-cell .weekly-selected-task > .weekly-task-remove {
+      grid-column:5;
+      grid-row:1;
+    }
     .lk-star-toggle {
       width:34px; height:34px; padding:0; border:1px solid rgba(0,0,0,.1); border-radius:10px;
       background:#fff; display:grid; place-items:center; cursor:pointer; font-size:1.12rem;
@@ -1473,9 +1603,61 @@
     .lk-free-task-head > span { font-size:.78rem; font-weight:750; opacity:.7; }
     .lk-free-task-list { display:grid; gap:7px; }
     .lk-free-task-row {
-      display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; gap:7px; align-items:center;
+      display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; gap:7px; align-items:start;
       padding:7px; border-radius:12px; background:rgba(47,111,145,.045);
     }
+    .lk-free-task-row > .lk-star-toggle { grid-column:1; grid-row:1; }
+    .lk-free-task-row > .lk-task-order-controls { grid-column:2; grid-row:1; }
+    .lk-free-task-row > [data-free-text] { grid-column:3; grid-row:1; width:100%; min-width:0; }
+    .lk-free-task-row > .lk-free-task-symbol-options { grid-column:3; grid-row:2; }
+    .lk-free-task-row > .lk-social-form-picker { grid-column:3; grid-row:3; }
+    .lk-free-task-row > .weekly-task-remove { grid-column:4; grid-row:1; }
+    .lk-free-task-symbol-options { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+    .lk-free-task-symbol-option {
+      display:inline-flex; align-items:center; gap:.3rem; padding:.3rem .5rem;
+      border:1px solid #d8d8df; border-radius:.7rem; background:#fff;
+      white-space:nowrap; font-size:.8rem; color:#445; cursor:pointer;
+    }
+    .lk-free-task-symbol-option input { width:1rem; height:1rem; accent-color:#5377b7; }
+    .lk-free-task-symbol-option:has(input:checked) { background:#edf4ff; border-color:#9db8e7; color:#294f88; font-weight:700; }
+    .lk-free-task-symbol-ab {
+      display:grid; place-items:center; width:1.45rem; height:1.45rem;
+      border:1px solid #8b96a0; border-radius:.25rem; background:#fff;
+      font-size:.63rem; font-weight:900;
+    }
+    .lk-free-task-symbol-microphone { width:1.45rem; height:1.45rem; object-fit:contain; border-radius:.25rem; background:#fff; }
+    .lk-microphone-task-image { object-fit:contain; background:#fff; }
+    .lk-child-microphone-badge { display:inline-flex; align-items:center; gap:4px; background:#eef5f8; }
+    .lk-child-microphone-badge img { width:17px; height:17px; object-fit:contain; border-radius:50%; }
+    .lk-learning-words-free-row > .lk-social-form-picker { grid-column:2; }
+    .lk-social-form-picker { display:flex; align-items:center; gap:7px; min-width:0; flex-wrap:wrap; }
+    .lk-social-form-title { color:#687681; font-size:.7rem; font-weight:800; white-space:nowrap; }
+    .lk-social-form-title small { font-weight:650; opacity:.72; }
+    .lk-social-form-options { display:inline-flex; gap:4px; align-items:center; }
+    .lk-social-form-option {
+      width:34px; height:34px; padding:3px; display:grid; place-items:center;
+      border:1px solid rgba(47,111,145,.16); border-radius:10px; background:#fff;
+      color:#52636d; cursor:pointer;
+    }
+    .lk-social-form-option:hover { border-color:rgba(47,111,145,.4); background:#f5fbfe; }
+    .lk-social-form-option.active { border-color:#3d819f; background:#e6f5fb; box-shadow:0 0 0 2px rgba(61,129,159,.12); }
+    .lk-social-form-option.none { font:800 1rem/1 Arial,sans-serif; }
+    .lk-social-form-icon {
+      position:relative; display:inline-block; flex:0 0 auto; overflow:hidden;
+      width:27px; height:27px; border-radius:50%; vertical-align:middle;
+    }
+    .lk-social-form-icon img {
+      position:absolute; top:0; left:0; width:300%; height:100%; max-width:none;
+      object-fit:fill; pointer-events:none;
+    }
+    .lk-social-form-icon.partner img { left:-100%; }
+    .lk-social-form-icon.group img { left:-200%; }
+    .lk-child-social-form {
+      display:inline-flex; align-items:center; gap:5px; padding:3px 7px 3px 4px;
+      border:1px solid rgba(47,111,145,.14); border-radius:999px; background:#fff;
+      color:#3d5968; font-size:.7rem;
+    }
+    .lk-child-social-form .lk-social-form-icon { width:23px; height:23px; }
     .lk-task-order-controls {
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -1695,8 +1877,9 @@
     @media (max-width:820px) {
       .lk-weekly-day-content { grid-template-columns:1fr; }
       .lk-editor-subject.sonstiges { grid-column:auto; }
-      .lk-weekly-pick-cell .weekly-selected-task { grid-template-columns:auto auto minmax(0,1fr) auto; }
-      .lk-weekly-pick-cell .weekly-task-number-label { grid-column:3; }
+      .lk-weekly-pick-cell .weekly-selected-task { grid-template-columns:auto auto minmax(0,1fr) auto auto; }
+      .lk-weekly-pick-cell .weekly-task-number-label { grid-column:3 / 5; }
+      .lk-weekly-pick-cell .weekly-selected-task > .lk-social-form-picker { grid-column:3 / 5; grid-row:auto; }
       .lk-free-task-row { grid-template-columns:auto auto minmax(0,1fr) auto; }
       .lk-workbook-head-actions { justify-content:flex-start; }
     }
@@ -1712,7 +1895,17 @@
       .lk-child-task-actions { grid-column:1 / -1; justify-content:flex-end; }
       .lk-child-task-actions button { min-height:38px; }
       .lk-child-status { margin-left:0; }
-      .lk-free-task-row { grid-template-columns:auto minmax(0,1fr) auto; }
+      .lk-free-task-row { grid-template-columns:auto auto minmax(0,1fr) auto; }
+      .lk-free-task-row > .lk-free-task-symbol-options { grid-column:3; grid-row:2; }
+      .lk-free-task-row > [data-free-text] { grid-column:3; grid-row:1; }
+      .lk-free-task-row > .lk-social-form-picker { grid-column:3; grid-row:3; }
+      .lk-free-task-row > .weekly-task-remove { grid-column:4; grid-row:1; }
+    }
+    @media (max-width:700px) {
+      .weekly-selected-task { grid-template-columns:minmax(0,1fr) auto; }
+      .weekly-selected-task .weekly-task-number-label { grid-column:1; }
+      .weekly-task-remove { grid-column:2; grid-row:1; }
+      .lk-free-task-row > .weekly-task-remove { grid-column:4; grid-row:1; }
     }
   `;
   if (!document.getElementById(style.id)) document.head.appendChild(style);

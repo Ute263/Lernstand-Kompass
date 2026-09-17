@@ -7,6 +7,8 @@ const dist = path.join(root, "dist");
 const files = [
   "index.html",
   "styles.css",
+  "progress-children-overview.css",
+  "legal-info.css",
   "models.js",
   "storage.js",
   "exceljs.min.js",
@@ -37,10 +39,14 @@ const files = [
   "weekly-calendar-overview.js",
   "weekly-editor-compact.js",
   "simple-ui.js",
+  "progress-children-overview.js",
+  "legal-info.js",
   "pwa.js",
   "manifest.json",
   "service-worker.js",
   "README.md",
+  "LICENSE",
+  "lernstand-kompass.png",
   "materials/cover-abc-der-tiere-1.svg",
   "materials/cover-abc-der-tiere-2.svg",
   "materials/cover-minimax-1.svg",
@@ -53,7 +59,8 @@ const files = [
   "icons/icon-512.png",
   "icons/icon-maskable-512.png",
   "icons/icon-192.svg",
-  "icons/icon-512.svg"
+  "icons/icon-512.svg",
+  "icons/lernstand-kompass.png"
 ];
 
 function copyFile(relativePath) {

@@ -518,6 +518,11 @@
     return `<img class="${escapeAttribute(classes)}" src="./materials/cover-arbeitsblatt.png" alt="Arbeitsblatt">`;
   }
 
+  function renderMicrophoneImage(className = "") {
+    const classes = ["lk-wp-book-cover", "lk-wp-microphone-image", className].filter(Boolean).join(" ");
+    return `<img class="${escapeAttribute(classes)}" src="./materials/icon-microphone.png" alt="Mikrofon">`;
+  }
+
   function printSubjectBadge(subject) {
     if (subject === "Deutsch") {
       return `<span class="lk-wp-subject-badge deutsch" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
@@ -551,6 +556,7 @@
     const workbook = String(item?.catalogItem?.workbook || "");
     const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
     const showWorksheetCover = Boolean(item.isWorksheetTask && !item.catalogItem);
+    const showMicrophone = Boolean(item.isMicrophoneTask && !item.catalogItem);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
@@ -558,9 +564,10 @@
             ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
             ${printSubjectBadge(parentSubject)}
             <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
+            ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
           </span>
-          <div class="lk-wp-task-assignment ${(item.catalogItem || showWorksheetCover) ? "with-cover" : ""}">
-            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : showWorksheetCover ? renderWorksheetCoverImage() : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
+          <div class="lk-wp-task-assignment ${(item.catalogItem || showWorksheetCover || showMicrophone) ? "with-cover" : ""}">
+            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : showWorksheetCover ? renderWorksheetCoverImage() : showMicrophone ? renderMicrophoneImage() : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
             <div class="lk-wp-task-copy">
               <strong>${escapeHtml(pageText(item))}</strong>
             </div>
@@ -635,15 +642,16 @@
         const key = workbook;
         const last = groups[groups.length - 1];
         if (last && last.key === key) last.items.push(item);
-        else groups.push({ key, workbook, catalogItem: item.catalogItem || null, showWorksheetCover: false, showBlankCoverCell: false, items: [item] });
+        else groups.push({ key, workbook, catalogItem: item.catalogItem || null, showWorksheetCover: false, showMicrophone: false, showBlankCoverCell: false, items: [item] });
       } else {
         const worksheet = item.isWorksheetTask === true;
-        const key = worksheet ? "__worksheet__" : `__free__${groups.length}`;
+        const microphone = item.isMicrophoneTask === true;
+        const key = worksheet ? "__worksheet__" : microphone ? "__microphone__" : `__free__${groups.length}`;
         const last = groups[groups.length - 1];
         // Mehrere direkt aufeinanderfolgende Arbeitsblätter werden wie ein Heft
         // als gemeinsame Gruppe dargestellt. Dadurch erscheint das AB-Symbol
         // nur einmal neben der gesamten Aufgabenliste.
-        if (worksheet && last && last.key === key && last.showWorksheetCover) {
+        if ((worksheet || microphone) && last && last.key === key && (last.showWorksheetCover || last.showMicrophone)) {
           last.items.push(item);
         } else {
           groups.push({
@@ -651,7 +659,8 @@
             workbook: "",
             catalogItem: null,
             showWorksheetCover: worksheet,
-            showBlankCoverCell: !worksheet,
+            showMicrophone: microphone,
+            showBlankCoverCell: !worksheet && !microphone,
             items: [item]
           });
         }
@@ -659,19 +668,22 @@
     });
 
     return groups.map((group) => `
-      <div class="lk-wp-workbook-group ${(group.catalogItem || group.showWorksheetCover || group.showBlankCoverCell) ? "has-cover" : "no-cover"}">
+      <div class="lk-wp-workbook-group ${(group.catalogItem || group.showWorksheetCover || group.showMicrophone || group.showBlankCoverCell) ? "has-cover" : "no-cover"}">
         ${group.catalogItem
           ? `<div class="lk-wp-workbook-cover-cell">${renderWorkbookCoverImage(group.catalogItem, "lk-wp-book-cover grouped")}</div>`
           : group.showWorksheetCover
             ? `<div class="lk-wp-workbook-cover-cell">${renderWorksheetCoverImage("grouped")}</div>`
-            : group.showBlankCoverCell
-              ? `<div class="lk-wp-workbook-cover-cell blank" aria-hidden="true"></div>`
-              : ""}
+            : group.showMicrophone
+              ? `<div class="lk-wp-workbook-cover-cell">${renderMicrophoneImage("grouped")}</div>`
+              : group.showBlankCoverCell
+                ? `<div class="lk-wp-workbook-cover-cell blank" aria-hidden="true"></div>`
+                : ""}
         <div class="lk-wp-workbook-tasks">
           ${group.items.map((item) => `
             <div class="lk-wp-week-row">
               <div class="lk-wp-week-row-main">
                 ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+                ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
                 <div class="lk-wp-task-copy">
                   <strong>${escapeHtml(pageText(item))}</strong>
                 </div>
@@ -1043,9 +1055,17 @@
           font-size: 13.2pt;
           line-height: 1.08;
         }
-        .lk-wp-task-main > span:last-child {
+        .lk-wp-task-subject-label {
           min-width: 0;
           overflow-wrap: anywhere;
+        }
+        .lk-wp-social-form {
+          width: 7.5mm;
+          height: 7.5mm;
+          flex: 0 0 7.5mm;
+        }
+        .lk-wp-social-form img {
+          max-width: none !important;
         }
         .lk-wp-task-assignment {
           display:grid;
@@ -1075,6 +1095,7 @@
           align-self:center;
           flex:none;
         }
+        .lk-wp-microphone-image { object-fit:contain; background:#fff; }
         .lk-wp-book-cover.small {
           width:13mm;
           height:18mm;

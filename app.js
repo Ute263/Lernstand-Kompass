@@ -7107,9 +7107,10 @@ function renderWeeklyPrintSubject(icon, label, items, options) {
     <div class="weekly-print-subject ${escapeAttribute(subjectClass)}">
       <h3>${icon} ${escapeHtml(label)}</h3>
       ${items.length ? items.map((item) => `
-        <div class="weekly-print-task ${item.catalogItem ? "with-cover" : "no-cover"}">
+        <div class="weekly-print-task ${(item.catalogItem || item.isWorksheetTask || item.isMicrophoneTask) ? "with-cover" : "no-cover"} ${item.socialForm ? "has-social-form" : ""}">
           ${checkbox}
-          ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-print-cover") : ""}
+          ${item.catalogItem ? renderWorkbookCoverImage(item.catalogItem, "weekly-print-cover") : item.isWorksheetTask ? `<img class="weekly-print-cover" src="./materials/cover-arbeitsblatt.png" alt="Arbeitsblatt">` : item.isMicrophoneTask ? `<img class="weekly-print-cover weekly-print-microphone" src="./materials/icon-microphone.png" alt="Mikrofon">` : ""}
+          ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "weekly-print-social-form") : ""}
           <div>
             <strong>${escapeHtml(weeklyPrintTaskTitle(item))}</strong>
             ${weeklyPrintTaskMeta(item) ? `<span>${escapeHtml(weeklyPrintTaskMeta(item))}</span>` : ""}
@@ -7664,6 +7665,16 @@ function printViewCss(landscape = false) {
     .weekly-print-task.no-cover {
       grid-template-columns: auto minmax(0, 1fr);
     }
+    .weekly-print-task.has-social-form {
+      grid-template-columns: auto auto auto minmax(0, 1fr);
+    }
+    .weekly-print-task.no-cover.has-social-form {
+      grid-template-columns: auto auto minmax(0, 1fr);
+    }
+    .weekly-print-social-form {
+      width: 25px;
+      height: 25px;
+    }
     .weekly-print-cover {
       width: 22px;
       height: 31px;
@@ -7672,6 +7683,7 @@ function printViewCss(landscape = false) {
       border-radius: 4px;
       background: #fff;
     }
+    .weekly-print-microphone { object-fit: contain; }
     .weekly-print-task strong,
     .weekly-print-task div span {
       display: block;
@@ -7752,6 +7764,13 @@ function printViewCss(landscape = false) {
       padding: 5px 6px;
       font-size: 0.9rem;
       line-height: 1.14;
+    }
+    .weekly-print-page.compact .weekly-print-task.has-social-form {
+      grid-template-columns: auto auto minmax(0, 1fr);
+    }
+    .weekly-print-page.compact .weekly-print-social-form {
+      width: 21px;
+      height: 21px;
     }
     .weekly-print-page.compact .weekly-print-cover {
       display: none;

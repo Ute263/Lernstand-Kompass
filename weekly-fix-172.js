@@ -160,7 +160,7 @@
     const low = subject === "Deutsch" ? "deutsch"
       : subject === "Lesezeit" ? "lesezeit"
         : subject === "Lernwörter" ? "lernwoerter" : "mathe";
-    return { ids: `${low}Ids`, legacy: `${low}Id` };
+    return { ids: `${low}Ids`, legacy: `${low}Id`, socialForms: `${low}TaskSocialForms` };
   }
 
   function effectiveDayForSubject(plan, day, animalId, subject) {
@@ -213,6 +213,9 @@
         const source = effectiveDayForSubject(plan, day, animalId, subject);
         const keys = subjectKeys(subject);
         const ids = normalizeIdArray(source?.[keys.ids] || source?.[keys.legacy] || "");
+        const socialForms = typeof socialFormList === "function"
+          ? socialFormList(source?.[keys.socialForms], ids.length)
+          : Array.from({ length: ids.length }, (_, itemIndex) => String(source?.[keys.socialForms]?.[itemIndex] || ""));
         const seen = new Map();
         ids.forEach((id, index) => {
           const key = `${subject}:${id}`;
@@ -232,7 +235,8 @@
             taskNumber: "",
             text: page,
             detail: typeof workbookCatalogFullLabel === "function" ? workbookCatalogFullLabel(catalogItem) : "",
-            isExtraTask: false
+            isExtraTask: false,
+            socialForm: socialForms[index] || ""
           });
         });
       });

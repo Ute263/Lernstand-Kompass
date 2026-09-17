@@ -1,5 +1,5 @@
 const APP_VERSION = 4;
-const DATA_VERSION = "1.2";
+const DATA_VERSION = "1.3";
 const STORE_KEY = "arbeitsheftKompass_v1";
 const LEGACY_STORE_KEYS = ["arbeitsheft-kompass-state-v2"];
 const APP_NAME = "Lernstand-Kompass";
@@ -133,106 +133,107 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
     ["63", "Meine Reise", "", ""],
     ["64", "Einladung", "", ""]
   ]),
-  ...abc2ReadingCatalog("Ferienende und Schulbeginn", [
-    ["6", "Ferienende und Schulbeginn"],
-    ["7", "Kartengrüße aus den Ferien"],
-    ["8", "Kartengrüße aus Europa"],
-    ["10", "Allein mit der Bahn"],
-    ["12", "Das beste Fundstück"],
-    ["14", "Jule und der Wunderstein"],
-    ["16", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Wieder in der Schule", [
+    ["11", "Mach mit!"],
+    ["12", "Grüße aus den Ferien"],
+    ["14", "Das neue Buch"],
+    ["16", "In der großen Pause"],
+    ["18", "Alles Müll, oder was?"],
+    ["20", "Drei Ameisen und der Elefant"],
+    ["21", "Wir"],
+    ["22", "Lesetraining – Lesen auf 2 Stufen"],
+    ["24", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Ich – Du – Wir", [
-    ["20", "Ich – Du – Wir"],
-    ["21", "Ich bin ich"],
-    ["22", "Drei Ameisen und der Elefant"],
-    ["23", "Nina und das Gänseblümchen"],
-    ["24", "Meine Füße sind der Rollstuhl"],
-    ["28", "Kai will nicht zum Kaufmann gehen"],
-    ["30", "Die Geschichte vom Schmetterling"],
-    ["32", "Wie Franz das Piepsen besiegte"],
-    ["36", "Die Torte"],
-    ["39", "Maren"],
-    ["40", "Murat ist nicht doof"],
-    ["42", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Rund um das Abc", [
+    ["26", "Tiere rund ums Abc"],
+    ["27", "Klassenspiegel"],
+    ["28", "So klingt das Abc"]
   ]),
-  ...abc2ReadingCatalog("Erlebt – geträumt – erfunden", [
-    ["47", "Erlebt – geträumt – erfunden"],
-    ["48", "Mio bei den Prärieindianern"],
-    ["53", "Kapitän Kralle"],
-    ["58", "Ebbe und Flut"],
-    ["60", "Flucht im Dschungel"],
-    ["62", "Der Computer-Arbeitsplatz"],
-    ["63", "Ohne Worte"],
-    ["64", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Im Wald und auf dem Feld", [
+    ["31", "Mach mit!"],
+    ["32", "Natur mit unseren Sinnen erleben"],
+    ["34", "Mit dem Förster im Wald"],
+    ["36", "Tiere im Wald"],
+    ["38", "Basteln mit Naturmaterialien"],
+    ["40", "Lesetraining – Lesen auf 2 Stufen"],
+    ["42", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Kinder und Tiere", [
-    ["69", "Kinder und Tiere"],
-    ["70", "Ein Welpe kommt ins Haus"],
-    ["74", "Der Kuckuck – ein seltsamer Vogel"],
-    ["78", "Endlich Reitstunden!"],
-    ["82", "Pferde helfen Menschen"],
-    ["83", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Bei uns und anderswo", [
+    ["45", "Mach mit!"],
+    ["46", "Projekt: Wir schenken Ziegen"],
+    ["48", "Geld für die Ziegen"],
+    ["49", "Wie eine Ziege ein Leben verändert"],
+    ["50", "Bhan – ein Junge aus Äthiopien"],
+    ["52", "Schenke mir deine Wörter"],
+    ["53", "100 Kinder – wie sie leben"],
+    ["54", "Lesetraining – Lesen auf 2 Stufen"],
+    ["56", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Die Welt um uns", [
-    ["86", "Die Welt um uns"],
-    ["87", "Wie die Bohnen wachsen"],
-    ["89", "Die Wiese, ein kleiner Dschungel"],
-    ["91", "Was ist eine Wiese?"],
-    ["92", "Der Löwenzahn hat viele Namen"],
-    ["94", "Gemüseball"],
-    ["95", "Mit dem Förster im Wald"],
-    ["97", "Die Rote Waldameise"],
-    ["98", "Der Traum vom Fliegen"],
-    ["100", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Wir – Du – Ich", [
+    ["59", "Mach mit!"],
+    ["60", "Wunder des Alltags"],
+    ["61", "Es gibt viele Gefühle"],
+    ["62", "Das kleine WIR zu Hause"],
+    ["64", "Die Torte"],
+    ["66", "Steckbrief: Das ist Lena"],
+    ["67", "Lena bei den „Rolli-Kids“"],
+    ["68", "Aller Anfang ist schwer?"],
+    ["70", "Lesetraining – Lesen auf 2 Stufen"],
+    ["72", "Lies mit Memo"]
   ]),
   ...abc2ReadingCatalog("Märchenhafte Welten", [
-    ["104", "Märchenhafte Welten"],
-    ["105", "Der gestiefelte Kater"],
-    ["113", "Frau Holle"],
-    ["120", "Joshi, der Steinmetz"],
-    ["123", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+    ["75", "Mach mit!"],
+    ["76", "Lügenmärchen"],
+    ["77", "Hexengedicht"],
+    ["78", "Die Sterntaler"],
+    ["80", "Frau Holle: Auf einen Blick"],
+    ["81", "Frau Holle: Das gesamte Märchen"],
+    ["84", "Ali Baba und die 40 Räuber"],
+    ["86", "Lesetraining – Lesen auf 2 Stufen"],
+    ["88", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Kinder der Welt – ein Projekt", [
-    ["126", "Kinder der Welt – ein Projekt"],
-    ["127", "Ein Kind aus Indien erzählt"],
-    ["131", "Hunger und Armut in Indien heute"],
-    ["132", "Kinder aus Deutschland erzählen"],
-    ["134", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Natur erleben und entdecken", [
+    ["91", "Mach mit!"],
+    ["92", "Projekt: Wie die Bohnen wachsen"],
+    ["94", "Die Wiese, ein kleiner Dschungel"],
+    ["96", "Der Löwenzahn hat viele Namen"],
+    ["97", "Experiment mit dem Löwenzahn"],
+    ["98", "Was ist eine Wiese?"],
+    ["100", "Der Kuckuck – ein seltsamer Vogel"],
+    ["103", "Zugvögel"],
+    ["104", "Lesetraining – Lesen auf 2 Stufen"],
+    ["106", "Lies mit Memo"]
   ]),
   ...abc2ReadingCatalog("Rund um Bücher und Medien", [
-    ["138", "Rund um Bücher und Medien"],
-    ["139", "Nils Holgerssons wunderbare Reise"],
-    ["148", "Wir erstellen ein Hörbuch"],
-    ["150", "Filmtiere für Nils Holgersson"],
-    ["152", "Worüber der Franz unzufrieden ist"],
-    ["155", "Steckbrief Christine Nöstlinger"],
-    ["156", "Besuch in der Stadtbücherei"],
-    ["161", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+    ["109", "Mach mit!"],
+    ["110", "In der Bibliothek"],
+    ["112", "Buchvorstellung"],
+    ["113", "Die Leseratte"],
+    ["114", "Die Schule der magischen Tiere"],
+    ["116", "Wir erstellen ein Hörspiel"],
+    ["118", "Die Schule der magischen Tiere: Der Film"],
+    ["120", "Kinderbuchautorin Margit Auer"],
+    ["122", "Lesetraining – Lesen auf 2 Stufen"],
+    ["124", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Gedichte und Feste im Jahreskreis", [
-    ["165", "Gedichte und Feste im Jahreskreis"],
-    ["166", "Wenn ein Löwe in die Schule geht"],
-    ["167", "Der Herbst steht auf der Leiter"],
-    ["168", "Der Wind vor dem Richter"],
-    ["169", "Bruder Jakob"],
-    ["170", "Nikolauslegende"],
-    ["171", "Nikolausgedicht"],
-    ["172", "Der Adventskalender"],
-    ["173", "Wer kommt zur Weihnachtszeit?"],
-    ["174", "Die Zwölf mit der Post"],
-    ["177", "Winterbild"],
-    ["178", "Frühling"],
-    ["179", "Ostern"],
-    ["180", "Zum Muttertag"],
-    ["181", "Sommer"],
-    ["182", "Mit Texten umgehen – Lesetraining – Lerntagebuch"]
+  ...abc2ReadingCatalog("Tiere als Freunde", [
+    ["127", "Mach mit!"],
+    ["128", "Ein Welpe kommt ins Haus"],
+    ["131", "Manchmal..."],
+    ["132", "Ein Vögelchen in Not"],
+    ["134", "Pferde helfen Menschen"],
+    ["136", "Lesetraining – Lesen auf 2 Stufen"],
+    ["138", "Lies mit Memo"]
   ]),
-  ...abc2ReadingCatalog("Werkstatt und Anhang", [
-    ["186", "Lesetipps"],
-    ["192", "Das Darstellende Spiel"],
-    ["193", "Sachwörter-Lexikon"],
-    ["194", "Quellen- und Illustratorenverzeichnis"]
+  ...abc2ReadingCatalog("Fantasie und Wirklichkeit", [
+    ["141", "Mach mit!"],
+    ["142", "Ein Dachboden voller Geheimnisse"],
+    ["144", "Piraten und Piratinnen im Lexikon"],
+    ["145", "Auf zur Piratenparty"],
+    ["146", "Jede Menge Wunschpunkte"],
+    ["148", "Zippel, das Schlossgespenst"],
+    ["150", "Lesetraining – Lesen auf 2 Stufen"],
+    ["152", "Lies mit Memo"]
   ]),
   ...abcCatalog("Teil A", "Wir sind in Klasse 2", [
     ["4", "Wir sind in Klasse 2"], ["6", "Nomen"],["7", "Nomen"], ["8", "Nomen"], ["9", "Nomen"], ["10", "Silbenhaus A und Silbenhaus B"], ["11", "Bestimmter Artikel: der, die, das"], ["12", "Unbestimmter Artikel: ein, eine"], ["13", "Einzahl – Mehrzahl"], ["14", "Nomen-Probe"], ["15", "Eine Infotafel gestalten"], ["3-6", "Das kann ich schon – Lernstandsheft", "Lernstandsheft"]
@@ -1209,11 +1210,12 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
 
 function normalizeState(candidate) {
   if (!candidate || typeof candidate !== "object") return emptyState();
+  const shouldMigrateAbc2ReadingCatalog = (Number.parseFloat(candidate.dataVersion) || 0) < 1.3;
   const state = {
     ...emptyState(),
     ...candidate,
     version: APP_VERSION,
-    dataVersion: candidate.dataVersion || DATA_VERSION,
+    dataVersion: DATA_VERSION,
     savedAt: candidate.savedAt || candidate.lastSavedAt || null,
     lastSavedAt: candidate.lastSavedAt || candidate.savedAt || null,
     pinHash: candidate.pinHash || "",
@@ -1300,6 +1302,9 @@ function normalizeState(candidate) {
       .map(normalizeWorkbookMaterialName)
       .filter((item) => !isRetiredDefaultWorkbookCatalogItem(item))
   );
+  if (shouldMigrateAbc2ReadingCatalog) {
+    state.workbookCatalog = migrateAbc2ReadingCatalog(state.workbookCatalog, state.classes);
+  }
   state.classes.forEach((classItem) => {
     state.workbookCatalog = mergeDefaultWorkbookCatalogForClass(state.workbookCatalog, classItem.id);
   });
@@ -1647,6 +1652,20 @@ function inferSchoolYearFromClassName(name) {
 
 function workbookCatalogMergeKey(item) {
   return `${item.classId || ""}|${item.catalogKey || makeWorkbookCatalogKey(item)}`.toLowerCase();
+}
+
+function migrateAbc2ReadingCatalog(catalog, classes) {
+  const workbook = "ABC der Tiere 2 - Lesebuch";
+  const migratedAt = nowIso();
+  const migratedCatalog = (catalog || []).map((item) => (
+    item.workbook === workbook
+      ? { ...item, active: false, updatedAt: migratedAt }
+      : item
+  ));
+  const replacementItems = (classes || []).flatMap((classItem) => (
+    createDefaultWorkbookCatalog(classItem.id).filter((item) => item.workbook === workbook)
+  ));
+  return [...migratedCatalog, ...replacementItems];
 }
 
 function mergeDefaultWorkbookCatalogForClass(catalog, classId) {
