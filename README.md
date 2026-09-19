@@ -133,3 +133,11 @@ Für den Lernstand-Kompass gilt die Datei [`LICENSE`](LICENSE). Für eingebunden
 - Vor dem Wechsel zu einem anderen Kind oder Wochenplan wird der aktuelle Stand zuerst gespeichert.
 - Ein sichtbarer Status zeigt „Speichert …“ bzw. „✓ automatisch gespeichert“.
 - Der bisherige notwendige Speichern-Button im Wochenplan entfällt.
+
+
+## V15 – Korrektur Lernübersicht (19.09.2026 17:20)
+- Die Lernübersicht verwendet pro Kind den tatsächlich relevanten neuesten datierten Wochenplan.
+- Alte Wochenpläne ohne Zeitraum gelten nicht mehr dauerhaft als aktuell.
+- Am Wochenende bzw. nach Ende einer Woche bleibt der zuletzt begonnene datierte Wochenplan für offene Aufgaben maßgeblich.
+- Legacy-Status „fertig“ wird bei mehrseitigen Einträgen nicht mehr pauschal auf nicht ausdrücklich erledigte Seiten übertragen.
+- V13-Autospeicherung und die V14-Abhakliste bleiben enthalten.

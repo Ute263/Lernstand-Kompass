@@ -2066,7 +2066,13 @@ function weeklyRowPageStatus(row, page) {
   if (completed.has(String(page))) return "fertig";
   const overall = normalizeSimpleWorkStatus(record?.status || row?.status || "offen");
   const pages = weeklyRowPages(row);
-  if (overall === "fertig") return "fertig";
+  if (overall === "fertig") {
+    // Legacy-Schutz: Enthält ein älterer Datensatz bereits eine konkrete Liste
+    // erledigter Seiten, darf "fertig" nicht pauschal auf weitere Seiten
+    // desselben Katalogeintrags übertragen werden.
+    if (record?.completedPages?.length && pages.length > 1) return "offen";
+    return "fertig";
+  }
   if (overall === "teilweise" && pages.length === 1) return "teilweise";
   return "offen";
 }
@@ -2196,7 +2202,7 @@ function workedPagesForAnimal(animalId, subject) {
           ? normalizeSimpleWorkStatus(explicit)
           : completed.has(String(page))
             ? "fertig"
-            : overall === "fertig"
+            : overall === "fertig" && (!completed.size || pages.length === 1)
               ? "fertig"
               : overall === "teilweise" && pages.length === 1
                 ? "teilweise"
@@ -5544,12 +5550,49 @@ function renderWeeklyProgressForAnimal(classId, animalId) {
   `;
 }
 
+function weeklyPlanDateKey(plan) {
+  return String(plan?.validFrom || plan?.validTo || plan?.updatedAt || plan?.createdAt || "");
+}
+
+function overviewWeeklyPlanForAnimal(classId, animalId) {
+  const today = formatFileDate(new Date());
+  const candidates = (state.weeklyPlans || [])
+    .filter((plan) => plan.classId === classId && plan.active !== false)
+    .filter((plan) => weeklyPlanAppliesToAnimal(plan, animalId));
+  if (!candidates.length) return null;
+
+  // Wichtig: Ein alter Plan ohne Zeitraum darf nicht für immer als "aktuell" gelten.
+  // Für die Lernübersicht zählt zuerst ein datierter Plan, der heute gilt.
+  // Gibt es heute keinen (z. B. am Wochenende), bleibt der zuletzt begonnene
+  // datierte Wochenplan maßgeblich. Erst wenn überhaupt kein datierter Plan
+  // existiert, wird auf einen undatierten Plan zurückgegriffen.
+  const dated = candidates.filter((plan) => plan.validFrom || plan.validTo);
+  const current = dated
+    .filter((plan) => (!plan.validFrom || today >= plan.validFrom) && (!plan.validTo || today <= plan.validTo))
+    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+  if (current.length) return current[0];
+
+  const past = dated
+    .filter((plan) => !plan.validFrom || plan.validFrom <= today)
+    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+  if (past.length) return past[0];
+
+  const future = dated
+    .slice()
+    .sort((a, b) => weeklyPlanDateKey(a).localeCompare(weeklyPlanDateKey(b)));
+  if (future.length) return future[0];
+
+  return candidates
+    .slice()
+    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0] || null;
+}
+
 function buildWeeklyProgressRows(classId) {
-  const plans = (state.weeklyPlans || []).filter((plan) => plan.classId === classId && plan.active !== false && weeklyPlanIsCurrent(plan));
   const animals = animalsForClass(classId).filter((animal) => animal.aktiv);
-  return plans.flatMap((plan) => animals
-    .filter((animal) => weeklyPlanAppliesToAnimal(plan, animal.id))
-    .flatMap((animal) => WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day, animal.id)
+  return animals.flatMap((animal) => {
+    const plan = overviewWeeklyPlanForAnimal(classId, animal.id);
+    if (!plan) return [];
+    return WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day, animal.id)
       .filter((item) => item.catalogItem)
       .map((item) => {
         const statusRecord = weeklyPlanStatusRecord(plan.id, animal.id, day, item.field);
@@ -5569,7 +5612,8 @@ function buildWeeklyProgressRows(classId) {
           progressLinked: statusRecord?.progressLinked === true,
           progressEntryId: statusRecord?.progressEntryId || ""
         };
-      }))));
+      }));
+  });
 }
 
 function weeklyPagesForSummary(rows, subject, mode) {
@@ -10057,7 +10101,8 @@ async function setWeeklyPlanPageStatus(planId, animalId, day, field, page, statu
     const completed = new Set((existing?.completedPages || []).map(String));
     const overall = normalizeSimpleWorkStatus(existing?.status || "offen");
     pages.forEach((p) => {
-      if (completed.has(p) || overall === "fertig") pageStatuses[p] = "fertig";
+      if (completed.has(p)) pageStatuses[p] = "fertig";
+      else if (overall === "fertig" && !completed.size) pageStatuses[p] = "fertig";
       else if (overall === "teilweise" && pages.length === 1) pageStatuses[p] = "teilweise";
       else pageStatuses[p] = "offen";
     });
