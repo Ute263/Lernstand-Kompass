@@ -24,3 +24,22 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+
+// Lädt ausschließlich die App-Dateien neu. Lernstände in IndexedDB/localStorage bleiben erhalten.
+window.lkForceAppRefresh = async function lkForceAppRefresh() {
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => String(key).startsWith("lernstand-kompass-")).map((key) => caches.delete(key)));
+    }
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+  } catch (error) {
+    console.warn("App-Cache konnte nicht vollständig geleert werden.", error);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set("lk_build", window.LK_BUILD_INFO?.id || String(Date.now()));
+  window.location.replace(url.toString());
+};

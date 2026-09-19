@@ -453,6 +453,7 @@ function finishRecoveryReveal() {
 }
 
 function renderStart() {
+  const buildLabel = window.LK_BUILD_INFO?.label || "Versionsdatum unbekannt";
   return `
     <main class="app-shell modern-start-shell">
       <section class="modern-start">
@@ -478,7 +479,10 @@ function renderStart() {
         </div>
 
         <div class="modern-start-bottom">
-          <div class="modern-start-class">${activeClass()?.name ? `Aktive Klasse: <strong>${escapeHtml(activeClass().name)}</strong>` : "Noch keine aktive Klasse"}</div>
+          <div>
+            <div class="modern-start-class">${activeClass()?.name ? `Aktive Klasse: <strong>${escapeHtml(activeClass().name)}</strong>` : "Noch keine aktive Klasse"}</div>
+            <div class="lk-build-info">App-Version: <strong>${escapeHtml(buildLabel)}</strong> <button class="lk-build-refresh" type="button" onclick="lkForceAppRefresh()">App-Version neu laden</button></div>
+          </div>
           <button class="modern-teacher-entry" type="button" onclick="openLogin()"><span>🔒</span> Für Lehrkräfte</button>
         </div>
       </section>
@@ -6570,9 +6574,33 @@ async function finishBackupImport(mode) {
     const backup = JSON.parse(pendingBackup.content);
     if (mode === "restore") {
       if (!confirm("Alle aktuellen lokalen Daten werden durch die Backup-Datei ersetzt. Das kann nicht rückgängig gemacht werden. Fortfahren?")) return;
-      await persist(restoreFullBackup(backup));
+      const restored = restoreFullBackup(backup);
+      const expectedCounts = {
+        entries: (restored.entries || []).length,
+        weeklyPlanStatuses: (restored.weeklyPlanStatuses || []).length,
+        weeklyPlans: (restored.weeklyPlans || []).length
+      };
+      // Wiederherstellung bewusst direkt lokal speichern. Kein Cloud-Abgleich und keine Auto-Sicherung.
+      const safeRestored = {
+        ...restored,
+        microsoftSync: { ...(restored.microsoftSync || {}), autoBackup: false }
+      };
+      state = await storage.save(safeRestored);
+      const verified = await storage.load();
+      const actualCounts = {
+        entries: (verified.entries || []).length,
+        weeklyPlanStatuses: (verified.weeklyPlanStatuses || []).length,
+        weeklyPlans: (verified.weeklyPlans || []).length
+      };
+      const ok = expectedCounts.entries === actualCounts.entries
+        && expectedCounts.weeklyPlanStatuses === actualCounts.weeklyPlanStatuses
+        && expectedCounts.weeklyPlans === actualCounts.weeklyPlans;
+      if (!ok) {
+        throw new Error(`Wiederherstellung konnte nicht verifiziert werden. Erwartet: ${expectedCounts.entries} Lernstände / ${expectedCounts.weeklyPlanStatuses} Wochenplanstatus. Gespeichert: ${actualCounts.entries} / ${actualCounts.weeklyPlanStatuses}.`);
+      }
+      state = verified;
       lastMergeReport = null;
-      globalMessage = "Backup wurde wiederhergestellt.";
+      globalMessage = `Backup sicher wiederhergestellt und geprüft: ${actualCounts.entries} Lernstände, ${actualCounts.weeklyPlanStatuses} Wochenplanstatus, ${actualCounts.weeklyPlans} Wochenpläne.`;
     } else {
       const result = mergeBackupData(state, backup);
       await persist(result.state);
