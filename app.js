@@ -453,7 +453,7 @@ function finishRecoveryReveal() {
 }
 
 function renderStart() {
-  const buildLabel = window.LK_BUILD_INFO?.label || "Versionsdatum unbekannt";
+  const buildLabel = window.LK_BUILD_INFO?.label || "19.09.2026 · 15:01:00 Uhr";
   return `
     <main class="app-shell modern-start-shell">
       <section class="modern-start">
@@ -481,7 +481,6 @@ function renderStart() {
         <div class="modern-start-bottom">
           <div>
             <div class="modern-start-class">${activeClass()?.name ? `Aktive Klasse: <strong>${escapeHtml(activeClass().name)}</strong>` : "Noch keine aktive Klasse"}</div>
-            <div class="lk-build-info">App-Version: <strong>${escapeHtml(buildLabel)}</strong> <button class="lk-build-refresh" type="button" onclick="lkForceAppRefresh()">App-Version neu laden</button></div>
           </div>
           <button class="modern-teacher-entry" type="button" onclick="openLogin()"><span>🔒</span> Für Lehrkräfte</button>
         </div>

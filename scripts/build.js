@@ -6,6 +6,7 @@ const dist = path.join(root, "dist");
 
 const files = [
   "index.html",
+  "build-info.js",
   "styles.css",
   "progress-children-overview.css",
   "legal-info.css",
@@ -83,6 +84,47 @@ function copyDirectory(relativeDir) {
   }
 }
 
+
+function berlinBuildStamp() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(now).reduce((acc, item) => {
+    acc[item.type] = item.value;
+    return acc;
+  }, {});
+  const id = `${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}${parts.second}`;
+  const label = `${parts.day}.${parts.month}.${parts.year} · ${parts.hour}:${parts.minute}:${parts.second} Uhr`;
+  return { id, label, date: `${parts.day}.${parts.month}.${parts.year}`, time: `${parts.hour}:${parts.minute}:${parts.second}` };
+}
+
+function writeBuildStamp() {
+  const stamp = berlinBuildStamp();
+  const buildInfo = `window.LK_BUILD_INFO = ${JSON.stringify(stamp, null, 2)};\n`;
+  fs.writeFileSync(path.join(dist, "build-info.js"), buildInfo, "utf8");
+
+  const indexPath = path.join(dist, "index.html");
+  let index = fs.readFileSync(indexPath, "utf8");
+  index = index.replace(/App-Version: \d{2}\.\d{2}\.\d{4} · \d{2}:\d{2}:\d{2} Uhr/g, `App-Version: ${stamp.label}`);
+  index = index.replace(/Lernstand-Kompass · \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/g, `Lernstand-Kompass · ${stamp.date} ${stamp.time.slice(0,5)}`);
+  index = index.replace(/v=\d{8}-\d{6}/g, `v=${stamp.id}`);
+  fs.writeFileSync(indexPath, index, "utf8");
+
+  const swPath = path.join(dist, "service-worker.js");
+  let sw = fs.readFileSync(swPath, "utf8");
+  sw = sw.replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "lernstand-kompass-${stamp.id}";`);
+  fs.writeFileSync(swPath, sw, "utf8");
+
+  console.log(`App-Version: ${stamp.label}`);
+}
+
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 files.forEach(copyFile);
@@ -90,5 +132,6 @@ files.forEach(copyFile);
 // Materialien werden vollständig übernommen. So müssen neue Lehrwerks-Cover
 // nicht bei jeder Ergänzung einzeln in der Build-Liste nachgetragen werden.
 copyDirectory("materials");
+writeBuildStamp();
 
 console.log(`Build fertig: ${path.relative(root, dist)}`);
