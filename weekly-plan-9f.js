@@ -1106,8 +1106,8 @@
           white-space:nowrap;
         }
         .lk-wp-book-cover {
-          width:17mm;
-          height:24mm;
+          width:14mm;
+          height:17mm;
           object-fit:contain;
           justify-self:center;
           align-self:center;
@@ -1240,7 +1240,7 @@
         .lk-wp-week-groups {
           display:flex;
           flex-direction:column;
-          flex:1 1 auto;
+          flex:0 0 auto;
           min-height:0;
           gap:3mm;
           margin-top:1.8mm;
@@ -1248,7 +1248,7 @@
         .lk-wp-week-subject-block {
           display:flex;
           flex-direction:column;
-          flex:1 1 0;
+          flex:0 0 auto;
           min-height:0;
           gap:1mm;
           break-inside:auto;
@@ -1297,14 +1297,14 @@
         .lk-wp-week-subsections {
           display:flex;
           flex-direction:column;
-          flex:1 1 auto;
+          flex:0 0 auto;
           min-height:0;
           gap:1mm;
         }
         .lk-wp-week-section {
           display:flex;
           flex-direction:column;
-          flex:var(--section-weight,1) 1 0;
+          flex:0 0 auto;
           min-height:0;
           border:.35mm solid #6b6b6b;
           border-radius:3.5mm;
@@ -1327,13 +1327,13 @@
         .lk-wp-week-list {
           display:flex;
           flex-direction:column;
-          flex:1 1 auto;
+          flex:0 0 auto;
           min-height:0;
         }
         .lk-wp-workbook-group {
           display:grid;
           grid-template-columns:22mm minmax(0,1fr);
-          flex:var(--group-weight,1) 1 0;
+          flex:0 0 auto;
           min-height:0;
           border-bottom:.32mm solid #aeb8be;
         }
@@ -1350,8 +1350,8 @@
         }
         .lk-wp-workbook-cover-cell.blank { background:#fff; }
         .lk-wp-book-cover.grouped {
-          width:17mm;
-          height:24mm;
+          width:14mm;
+          height:17mm;
           object-fit:contain;
         }
         .lk-wp-workbook-tasks {
@@ -1361,8 +1361,9 @@
           flex-direction:column;
         }
         .lk-wp-week-row {
-          min-height:9mm;
-          flex:1 1 0;
+          min-height:8.5mm;
+          height:8.5mm;
+          flex:0 0 8.5mm;
           display:grid;
           grid-template-columns:1fr 12mm;
           align-items:center;
