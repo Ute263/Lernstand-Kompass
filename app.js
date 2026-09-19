@@ -4633,7 +4633,11 @@ function collectWeeklyPlanDraftFromDom() {
     progressMode: document.querySelector("#weeklyProgressMode")?.value || existing.progressMode || "confirm",
     autoCreateEntries: (document.querySelector("#weeklyProgressMode")?.value || existing.progressMode) === "auto",
     days: standardVisible ? readWeeklyDaysFromDom("standard") : { ...(weeklyPlanDraft?.days || existing.days || {}) },
-    overrides: { ...(existing.overrides || weeklyPlanDraft?.overrides || {}) }
+    // Sobald zwischen Kindern gewechselt wurde, enthält weeklyPlanDraft alle
+    // bisher bearbeiteten individuellen Pläne. Dieser Entwurf muss Vorrang vor
+    // dem zuletzt gespeicherten Stand haben, sonst gehen die Eingaben des zuvor
+    // bearbeiteten Kindes beim nächsten Wechsel wieder verloren.
+    overrides: { ...(weeklyPlanDraft?.overrides || existing.overrides || {}) }
   };
   if (weeklyOverrideAnimalId && overrideVisible) {
     const overrideDays = readWeeklyDaysFromDom("override", weeklyOverrideAnimalId);

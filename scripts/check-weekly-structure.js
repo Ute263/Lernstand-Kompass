@@ -13,6 +13,7 @@ const extra = read("weekly-extra-tasks.js");
 const weekly = read("weekly-plan-9e.js");
 const print = read("weekly-plan-9f.js");
 const serviceWorker = read("service-worker.js");
+const app = read("app.js");
 
 const orderedScripts = [
   "weekly-extra-tasks.js",
@@ -69,5 +70,14 @@ orderedScripts.forEach((file) => {
 ].forEach((asset) => {
   assert(serviceWorker.includes(asset), `Offline-Datei fehlt im Service Worker: ${asset}`);
 });
+
+assert(
+  app.includes("overrides: { ...(weeklyPlanDraft?.overrides || existing.overrides || {}) }"),
+  "Individuelle Kinderpläne müssen beim Wechsel aus dem aktuellen Entwurf übernommen werden."
+);
+assert(
+  !app.includes("overrides: { ...(existing.overrides || weeklyPlanDraft?.overrides || {}) }"),
+  "Der gespeicherte Altstand darf den aktuellen Kinderplan-Entwurf nicht überschreiben."
+);
 
 console.log("Wochenplan-Strukturprüfung erfolgreich.");
