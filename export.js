@@ -1073,6 +1073,39 @@ function replaceWithNewerImported(list, importedItem, idField = "id") {
   return false;
 }
 
+
+function weeklyPlanStatusNaturalKey(item) {
+  if (!item || typeof item !== "object") return "";
+  return [
+    item.classId || "",
+    item.planId || "",
+    item.animalId || "",
+    item.day || "",
+    item.field || ""
+  ].join("|");
+}
+
+function mergeWeeklyPlanStatusesPreferNewest(currentList, incomingList) {
+  const byKey = new Map();
+  const order = [];
+  const add = (item, source) => {
+    if (!item || typeof item !== "object") return;
+    const key = weeklyPlanStatusNaturalKey(item) || `id:${item.id || makeId()}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, item);
+      order.push(key);
+      return;
+    }
+    const previous = byKey.get(key);
+    const previousTime = recordSyncTimestamp(previous);
+    const nextTime = recordSyncTimestamp(item);
+    if (nextTime > previousTime) byKey.set(key, { ...previous, ...item, id: previous.id || item.id || makeId() });
+  };
+  (currentList || []).forEach((item) => add(item, "local"));
+  (incomingList || []).forEach((item) => add(item, "remote"));
+  return order.map((key) => byKey.get(key));
+}
+
 function mergeBackupData(currentState, importedBackup) {
   const current = normalizeState(currentState);
   const imported = stateFromBackup(importedBackup);
@@ -1158,7 +1191,7 @@ function mergeBackupData(currentState, importedBackup) {
     childWorkbookReports: [...(current.childWorkbookReports || [])],
     activeWorkbookMaterials: [...(current.activeWorkbookMaterials || [])],
     weeklyPlans: [...(current.weeklyPlans || [])],
-    weeklyPlanStatuses: [...(current.weeklyPlanStatuses || [])],
+    weeklyPlanStatuses: mergeWeeklyPlanStatusesPreferNewest(current.weeklyPlanStatuses || [], []),
     learningGameSessions: [...(current.learningGameSessions || [])]
   };
 
@@ -1382,16 +1415,19 @@ function mergeBackupData(currentState, importedBackup) {
     report.addedWeeklyPlans += 1;
   });
 
-  (imported.weeklyPlanStatuses || []).forEach((item) => {
-    if (weeklyPlanStatusIds.has(item.id)) {
-      if (replaceWithNewerImported(next.weeklyPlanStatuses, item)) report.updatedRecords += 1;
+  {
+    const before = next.weeklyPlanStatuses.length;
+    const previousByKey = new Map(next.weeklyPlanStatuses.map((item) => [weeklyPlanStatusNaturalKey(item), item]));
+    const mergedStatuses = mergeWeeklyPlanStatusesPreferNewest(next.weeklyPlanStatuses, imported.weeklyPlanStatuses || []);
+    mergedStatuses.forEach((item) => {
+      const key = weeklyPlanStatusNaturalKey(item);
+      const previous = previousByKey.get(key);
+      if (!previous) report.addedWeeklyPlanStatuses += 1;
+      else if (recordSyncTimestamp(item) > recordSyncTimestamp(previous) || item.id !== previous.id) report.updatedRecords += 1;
       else report.skippedDuplicateWeeklyPlanStatuses += 1;
-      return;
-    }
-    next.weeklyPlanStatuses.push(item);
-    weeklyPlanStatusIds.add(item.id);
-    report.addedWeeklyPlanStatuses += 1;
-  });
+    });
+    next.weeklyPlanStatuses = mergedStatuses;
+  }
   (imported.learningGameSessions || []).forEach((item) => {
     if (!item?.id || learningGameSessionIds.has(item.id)) {
       report.skippedDuplicateLearningGameSessions += 1;

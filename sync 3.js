@@ -233,11 +233,9 @@ async function initCloudSync() {
 
   window.addEventListener("online", () => {
     syncPendingLearningGameSessions().catch(() => {});
+    scheduleMicrosoftAutoBackup();
   });
   setTimeout(() => syncPendingLearningGameSessions().catch(() => {}), 1200);
-  // OneDrive-Lehrkraftdaten werden bewusst NICHT beim Start synchronisiert.
-  // Ein Geräteabgleich wird nur durch die Lehrkraft ausgelöst. Das verhindert,
-  // dass ein älterer Gerätebestand beim Öffnen unbemerkt einen neueren Stand ersetzt.
 }
 
 async function startMicrosoftLoginRedirect(action = "connect") {
@@ -284,7 +282,7 @@ function renderCloudSyncPanel() {
         </label>
       </div>
       <p class="message"><strong>Diese Redirect-URL muss in der Microsoft-Appregistrierung als „Single-page application (SPA)“ eingetragen sein.</strong><br>${detectedRedirect ? `Aktuell erkannt: <code>${escapeHtml(detectedRedirect)}</code>` : "Lokaler Datei-Modus erkannt – bitte die Web-Version öffnen."}</p>
-      <label class="toggle-label cloud-auto-toggle"><input id="microsoftAutoBackup" type="checkbox" disabled> automatische OneDrive-Synchronisation ist aus Sicherheitsgründen deaktiviert</label>
+      <label class="toggle-label cloud-auto-toggle"><input id="microsoftAutoBackup" type="checkbox" ${ms.autoBackup ? "checked" : ""}> nach Änderungen automatisch in OneDrive sichern</label>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="saveMicrosoftSyncSettings()">Microsoft-Einstellungen speichern</button>
         ${msConnected
@@ -297,11 +295,11 @@ function renderCloudSyncPanel() {
         <div><span>Status</span><strong>${escapeHtml(syncRuntime.msMessage || ms.lastSyncStatus || (msConnected ? "bereit" : "nicht verbunden"))}</strong></div>
       </div>
       <div class="backup-actions">
-        <button class="primary" type="button" ${msConnected ? "" : "disabled"} onclick="syncWithOneDriveNow()">Sicher abgleichen</button>
-        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="replaceLocalWithOneDriveNow()">Cloud vollständig auf dieses Gerät übernehmen</button>
-        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="replaceOneDriveWithLocalNow()">Cloud mit diesem Gerät ersetzen</button>
+        <button class="primary" type="button" ${msConnected ? "" : "disabled"} onclick="syncWithOneDriveNow()">Jetzt abgleichen</button>
+        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="uploadOneDriveBackupNow()">Nur sichern</button>
+        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="mergeOneDriveBackupNow()">Nur Cloud-Daten holen</button>
       </div>
-      <p class="privacy-text"><strong>Kein automatischer Abgleich:</strong> Änderungen bleiben zuerst lokal. „Sicher abgleichen“ führt identische Kinder-/Aufgabenstände über ihren Aufgaben-Schlüssel zusammen. Die beiden vollständigen Übernahmefunktionen sind für Wiederherstellung und Gerätewechsel gedacht.</p>
+      <p class="privacy-text">„Jetzt abgleichen“ holt zuerst das vorhandene OneDrive-Backup, führt neue Einträge zusammen und speichert anschließend den gemeinsamen Stand wieder in OneDrive.</p>
     </section>
 
     <section class="panel cloud-sync-card">
@@ -348,7 +346,7 @@ function renderCloudSyncPanel() {
 async function saveMicrosoftSyncSettings() {
   const clientId = String(document.querySelector("#microsoftClientId")?.value || "").trim();
   const redirectUri = String(document.querySelector("#microsoftRedirectUri")?.value || "").trim();
-  const autoBackup = false;
+  const autoBackup = !!document.querySelector("#microsoftAutoBackup")?.checked;
   if (clientId && !isValidClientId(clientId)) {
     syncRuntime.msStatus = "error";
     syncRuntime.msMessage = "Die Client-ID sieht nicht vollständig aus.";
@@ -548,76 +546,6 @@ async function putOneDriveBackup(backup) {
   return response.json();
 }
 
-async function putOneDriveNamedBackup(backup, filename) {
-  await ensureOneDriveFolder();
-  const backupPath = oneDrivePath(LK_ONEDRIVE_FOLDER, filename);
-  const response = await graphFetch(`/me/drive/root:/${backupPath}:/content`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(backup)
-  });
-  return response.json();
-}
-
-function safeBackupTimestamp() {
-  return new Date().toISOString().replace(/[:.]/g, "-");
-}
-
-async function replaceOneDriveWithLocalNow() {
-  if (syncRuntime.msStatus === "working") return;
-  if (!confirm("Den aktuellen Stand dieses Geräts als neuen gemeinsamen Cloud-Stand verwenden? Der bisherige Cloud-Stand wird vorher als Sicherheitskopie gespeichert.")) return;
-  syncRuntime.msStatus = "working";
-  syncRuntime.msMessage = "Cloud-Sicherheitskopie wird erstellt …";
-  render();
-  try {
-    const remote = await getOneDriveBackup();
-    if (remote) {
-      await putOneDriveNamedBackup(remote, `lernstand-kompass-vor-ersetzung-${safeBackupTimestamp()}.json`);
-    }
-    const localBackup = makeFullBackup(state);
-    await putOneDriveBackup(localBackup);
-    const verify = await getOneDriveBackup();
-    const localJson = JSON.stringify(localBackup.state || {});
-    const remoteJson = JSON.stringify(verify?.state || {});
-    if (localJson !== remoteJson) throw new Error("Die Cloud-Prüfung nach dem Schreiben war nicht identisch. Es wurde nichts weiter automatisch verändert.");
-    await updateMicrosoftSyncMetadata(nowIso(), "Cloud wurde kontrolliert mit diesem Gerätestand ersetzt.");
-    syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = "Cloud entspricht jetzt diesem Gerät. Der vorige Cloud-Stand wurde als Sicherheitskopie erhalten.";
-  } catch (error) {
-    console.error("Cloud-Ersetzung fehlgeschlagen", error);
-    syncRuntime.msStatus = "error";
-    syncRuntime.msMessage = friendlySyncError(error);
-  }
-  render();
-}
-
-async function replaceLocalWithOneDriveNow() {
-  if (syncRuntime.msStatus === "working") return;
-  if (!confirm("Den lokalen Stand dieses Geräts vollständig durch den aktuellen Cloud-Stand ersetzen? Erstelle vorher bei Bedarf ein Gesamtbackup.")) return;
-  syncRuntime.msStatus = "working";
-  syncRuntime.msMessage = "Cloud-Stand wird vollständig übernommen …";
-  render();
-  try {
-    const remote = await getOneDriveBackup();
-    if (!remote) throw new Error("In OneDrive wurde keine Sicherung gefunden.");
-    const nextState = stateFromBackup(remote);
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-    await updateMicrosoftSyncMetadata(nowIso(), "Cloud-Stand vollständig auf dieses Gerät übernommen.");
-    syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = "Dieses Gerät entspricht jetzt vollständig dem Cloud-Stand.";
-  } catch (error) {
-    console.error("Vollständige Cloud-Übernahme fehlgeschlagen", error);
-    syncRuntime.msStatus = "error";
-    syncRuntime.msMessage = friendlySyncError(error);
-  }
-  render();
-}
-
 function mergeLearningGameSessions(baseState, importedBackup) {
   const imported = importedBackup?.type === "full-backup" ? importedBackup.state : importedBackup;
   const incoming = Array.isArray(imported?.learningGameSessions) ? imported.learningGameSessions : [];
@@ -670,9 +598,6 @@ async function syncWithOneDriveNow() {
           + Number(merged.report?.addedTrainingCompletions || 0)
           + Number(merged.report?.addedAssessmentResults || 0)
           + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
           + gameMerge.added;
       }
     }
@@ -703,58 +628,23 @@ async function syncWithOneDriveNow() {
 }
 
 async function uploadOneDriveBackupNow(silent = false) {
-  // Wichtig für mehrere Lehrkraftgeräte:
-  // Niemals einen rein lokalen Stand blind nach OneDrive schreiben. Vor jedem
-  // Upload wird der vorhandene Cloud-Stand eingelesen und nach Zeitstempeln
-  // zusammengeführt. So kann ein älteres iPad/MacBook neuere Daten des
-  // jeweils anderen Geräts nicht mehr überschreiben.
-  if (syncRuntime.msStatus === "working") return false;
-  syncRuntime.msStatus = "working";
   if (!silent) {
-    syncRuntime.msMessage = "Cloud und Gerät werden sicher zusammengeführt …";
+    syncRuntime.msStatus = "working";
+    syncRuntime.msMessage = "Sicherung wird in OneDrive gespeichert …";
     render();
   }
   try {
     const remote = await getOneDriveBackup();
-    let nextState = state;
-    let changed = 0;
-
-    if (remote) {
-      const cloudFirst = shouldPreferCloudOnThisDevice(nextState, remote);
-      if (cloudFirst) {
-        nextState = stateFromBackup(remote);
-        changed = oneDriveMeaningfulDataCount(remote);
-      } else {
-        const merged = mergeBackupData(nextState, remote);
-        nextState = merged.state;
-        const gameMerge = mergeLearningGameSessions(nextState, remote);
-        nextState = gameMerge.state;
-        changed += Number(merged.report?.addedEntries || 0)
-          + Number(merged.report?.updatedRecords || 0)
-          + Number(merged.report?.addedTrainingCompletions || 0)
-          + Number(merged.report?.addedAssessmentResults || 0)
-          + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
-          + gameMerge.added;
-      }
+    if (remote && shouldPreferCloudOnThisDevice(state, remote)) {
+      syncRuntime.msStatus = "success";
+      syncRuntime.msMessage = "In OneDrive liegt bereits ein vollständiger Stand. Auf diesem Gerät bitte zuerst Cloud-Daten holen.";
+      if (!silent) render();
+      return false;
     }
-
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-
     await putOneDriveBackup(makeFullBackup(state));
-    const status = changed
-      ? `${changed} Cloud-/Geräteänderungen zusammengeführt und gesichert.`
-      : "Cloud und Gerät sind sicher zusammengeführt und gesichert.";
-    await updateMicrosoftSyncMetadata(nowIso(), status);
+    await updateMicrosoftSyncMetadata(nowIso(), "OneDrive-Sicherung aktuell.");
     syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = status;
+    syncRuntime.msMessage = "OneDrive-Sicherung gespeichert.";
     if (!silent) render();
     return true;
   } catch (error) {
@@ -795,9 +685,6 @@ async function mergeOneDriveBackupNow() {
         + Number(merged.report?.addedTrainingCompletions || 0)
         + Number(merged.report?.addedAssessmentResults || 0)
         + Number(merged.report?.addedWeeklyPlans || 0)
-        + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-        + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-        + Number(merged.report?.addedChildWorkbookReports || 0)
         + gameMerge.added;
     }
 
@@ -839,8 +726,17 @@ async function updateMicrosoftSyncMetadata(at, status) {
 }
 
 function scheduleMicrosoftAutoBackup() {
-  // Bewusst deaktiviert: Lehrkraft-OneDrive wird ausschließlich manuell abgeglichen.
-  return;
+  if (syncRuntime.suppressAuto) return;
+  const settings = currentMicrosoftSettings();
+  if (!settings.autoBackup || !settings.clientId || !navigator.onLine) return;
+  if (!syncRuntime.msAccount) return;
+  clearTimeout(syncRuntime.autoTimer);
+  syncRuntime.autoTimer = setTimeout(async () => {
+    const fingerprint = `${state.lastSavedAt || ""}|${(state.entries || []).length}|${(state.learningGameSessions || []).length}|${(state.trainingCompletions || []).length}|${(state.assessmentResults || []).length}`;
+    if (fingerprint === syncRuntime.lastAutoFingerprint) return;
+    syncRuntime.lastAutoFingerprint = fingerprint;
+    await uploadOneDriveBackupNow(true);
+  }, 4500);
 }
 
 function friendlySyncError(error) {

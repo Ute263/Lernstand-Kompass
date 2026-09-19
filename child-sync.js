@@ -377,26 +377,41 @@
     }, LK_CHILD_PUSH_DELAY_MS);
   }
 
-  function mergeByIdPreferNewest(current, incoming) {
-    const list = Array.isArray(current) ? [...current] : [];
-    const map = new Map(list.filter((item) => item?.id).map((item) => [item.id, item]));
+  function childMergeKey(item, field = "") {
+    if (field === "weeklyPlanStatuses") {
+      return [item?.classId || "", item?.planId || "", item?.animalId || "", item?.day || "", item?.field || ""].join("|");
+    }
+    if (field === "entries" && item?.weeklyPlanId) {
+      return [item?.classId || "", item?.tierID || "", item?.weeklyPlanId || "", item?.weeklyPlanDay || "", item?.weeklyPlanField || ""].join("|");
+    }
+    return item?.id ? `id:${item.id}` : "";
+  }
+
+  function mergeByIdPreferNewest(current, incoming, field = "") {
+    const list = [];
+    const map = new Map();
     let changed = 0;
-    (incoming || []).forEach((item) => {
-      if (!item?.id) return;
-      const previous = map.get(item.id);
+    const add = (item, incomingItem = false) => {
+      const key = childMergeKey(item, field);
+      if (!key) return;
+      const previous = map.get(key);
       if (!previous) {
-        list.push(item);
-        map.set(item.id, item);
-        changed += 1;
+        const copy = { ...item };
+        list.push(copy);
+        map.set(key, copy);
+        if (incomingItem) changed += 1;
         return;
       }
       if (recordTimestamp(item) > recordTimestamp(previous)) {
-        const index = list.findIndex((entry) => entry?.id === item.id);
-        list[index] = { ...previous, ...item };
-        map.set(item.id, list[index]);
-        changed += 1;
+        const index = list.indexOf(previous);
+        const merged = { ...previous, ...item, id: previous.id || item.id };
+        list[index] = merged;
+        map.set(key, merged);
+        if (incomingItem) changed += 1;
       }
-    });
+    };
+    (current || []).forEach((item) => add(item, false));
+    (incoming || []).forEach((item) => add(item, true));
     return { list, changed };
   }
 
@@ -429,7 +444,7 @@
     ];
     fields.forEach(([field, key]) => {
       const valid = validIncomingList(incoming[field], animal.id, state.activeClassId, key);
-      const merged = mergeByIdPreferNewest(next[field], valid);
+      const merged = mergeByIdPreferNewest(next[field], valid, field);
       next[field] = merged.list;
       changed += merged.changed;
     });
@@ -579,7 +594,7 @@
 
     mergeFields.forEach(([field, key]) => {
       const incoming = validIncomingList(snapshot[field], animal.id, classId, key);
-      next[field] = mergeByIdPreferNewest(next[field], incoming).list;
+      next[field] = mergeByIdPreferNewest(next[field], incoming, field).list;
     });
     return next;
   }

@@ -1117,7 +1117,7 @@ async function updateChildWeeklyStatus(planId, day, field, status) {
   ));
   const nextStatus = {
     ...(existing || {}),
-    id: existing?.id || makeId(),
+    id: existing?.id || weeklyPlanStatusStableId(planId, animal.id, day, field),
     classId: state.activeClassId,
     planId,
     animalId: animal.id,
@@ -9053,6 +9053,16 @@ function weeklyPlanItemsForDay(plan, day, animalId = "") {
   ].filter(Boolean);
 }
 
+function weeklyPlanStatusStableId(planId, animalId, day, field) {
+  const raw = [planId || "", animalId || "", day || "", field || ""].join("|");
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `wps-${(hash >>> 0).toString(16).padStart(8, "0")}-${String(planId || "").slice(0, 8)}-${String(animalId || "").slice(0, 8)}`;
+}
+
 function weeklyPlanItemStatus(planId, animalId, day, field) {
   return normalizeSimpleWorkStatus(weeklyPlanStatusRecord(planId, animalId, day, field)?.status || "offen");
 }
@@ -9205,7 +9215,7 @@ async function setWeeklyPlanStatusFromTeacher(planId, animalId, day, field, stat
   const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
   const nextStatus = {
     ...(existing || {}),
-    id: existing?.id || makeId(),
+    id: existing?.id || weeklyPlanStatusStableId(planId, animalId, day, field),
     classId: state.activeClassId,
     planId,
     animalId,
@@ -9807,7 +9817,7 @@ async function setWeeklyPlanSimpleStatus(planId, animalId, day, field, status) {
   const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
   const nextStatus = {
     ...(existing || {}),
-    id: existing?.id || makeId(),
+    id: existing?.id || weeklyPlanStatusStableId(planId, animalId, day, field),
     classId: state.activeClassId,
     planId,
     animalId,
