@@ -2048,27 +2048,64 @@ function compactWeeklyTaskStatus(row) {
   return { symbol: "○", label: "nicht fertig", css: "open" };
 }
 
+function weeklyRowPages(row) {
+  const catalog = row?.item?.catalogItem;
+  if (catalog) {
+    const pages = weeklyCatalogPages(catalog).map(Number).filter((page) => Number.isFinite(page) && page > 0);
+    if (pages.length) return [...new Set(pages)].sort((a, b) => a - b);
+  }
+  const label = String(row?.pagesLabel || row?.item?.text || "");
+  return [...new Set((label.match(/\d+/g) || []).map(Number).filter((page) => Number.isFinite(page) && page > 0))].sort((a, b) => a - b);
+}
+
+function weeklyRowPageStatus(row, page) {
+  const record = row?.statusRecord || weeklyPlanStatusRecord(row?.plan?.id, row?.animal?.id, row?.day, row?.item?.field);
+  const explicit = record?.pageStatuses && record.pageStatuses[String(page)];
+  if (explicit) return normalizeSimpleWorkStatus(explicit);
+  const completed = new Set((record?.completedPages || []).map(String));
+  if (completed.has(String(page))) return "fertig";
+  const overall = normalizeSimpleWorkStatus(record?.status || row?.status || "offen");
+  const pages = weeklyRowPages(row);
+  if (overall === "fertig") return "fertig";
+  if (overall === "teilweise" && pages.length === 1) return "teilweise";
+  return "offen";
+}
+
 function compactWeeklyTaskList(rows) {
   if (!rows.length) return `<span class="weekly-compact-empty">–</span>`;
-  const pendingRows = rows.filter((row) => normalizeSimpleWorkStatus(row?.status || "offen") !== "fertig");
+
+  const pageRows = [];
+  rows.forEach((row) => {
+    const pages = weeklyRowPages(row);
+    if (pages.length) {
+      pages.forEach((page) => pageRows.push({ row, page, status: weeklyRowPageStatus(row, page) }));
+    } else {
+      pageRows.push({ row, page: null, status: normalizeSimpleWorkStatus(row?.status || "offen") });
+    }
+  });
+
+  const pendingRows = pageRows.filter((entry) => entry.status !== "fertig");
   if (!pendingRows.length) return `<span class="weekly-compact-empty weekly-all-done">✓ alles bearbeitet</span>`;
-  return `<div class="weekly-compact-task-list">${pendingRows.map((row) => {
-    const current = normalizeSimpleWorkStatus(row?.status || "offen");
+
+  return `<div class="weekly-compact-task-list">${pendingRows.map(({ row, page, status: current }) => {
+    const label = page ? `S. ${page}` : compactWeeklyTaskLabel(row);
     const controls = [
       ["offen", "○", "offen"],
       ["teilweise", "◐", "begonnen"],
       ["fertig", "✓", "fertig"]
-    ].map(([value, symbol, label]) => `
+    ].map(([value, symbol, labelText]) => `
       <button
         class="weekly-compact-status-button ${current === value ? "active " + value : ""}"
         type="button"
-        title="${escapeAttribute(label)}"
-        aria-label="${escapeAttribute(`${compactWeeklyTaskLabel(row).replace(/<[^>]*>/g, "")} – ${label}`)}"
-        onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${value}')"
+        title="${escapeAttribute(labelText)}"
+        aria-label="${escapeAttribute(`${String(label).replace(/<[^>]*>/g, "")} – ${labelText}`)}"
+        onclick="${page
+          ? `setWeeklyPlanPageStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${page}','${value}')`
+          : `setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${value}')`}"
       >${symbol}</button>
     `).join("");
     return `<span class="weekly-compact-task weekly-compact-task-editable">
-      <span class="weekly-compact-task-label">${compactWeeklyTaskLabel(row)}</span>
+      <span class="weekly-compact-task-label">${page ? escapeHtml(label) : label}</span>
       <span class="weekly-compact-status-controls" role="group" aria-label="Status ändern">${controls}</span>
     </span>`;
   }).join("")}</div>`;
@@ -2076,12 +2113,18 @@ function compactWeeklyTaskList(rows) {
 
 function weeklyAnimalOverviewState(rows) {
   const required = rows.filter((row) => !row.item?.isExtraTask);
-  const done = required.filter((row) => normalizeSimpleWorkStatus(row.status) === "fertig").length;
-  const started = required.filter((row) => normalizeSimpleWorkStatus(row.status) !== "offen").length;
-  if (!required.length) return { key: "none", label: "kein Wochenplan", done: 0, total: 0 };
-  if (done === required.length) return { key: "done", label: "fertig", done, total: required.length };
-  if (!started) return { key: "not-started", label: "nicht begonnen", done, total: required.length };
-  return { key: "incomplete", label: "nicht fertig", done, total: required.length };
+  const pageStates = [];
+  required.forEach((row) => {
+    const pages = weeklyRowPages(row);
+    if (pages.length) pages.forEach((page) => pageStates.push(weeklyRowPageStatus(row, page)));
+    else pageStates.push(normalizeSimpleWorkStatus(row.status || "offen"));
+  });
+  const done = pageStates.filter((status) => status === "fertig").length;
+  const started = pageStates.filter((status) => status !== "offen").length;
+  if (!pageStates.length) return { key: "none", label: "kein Wochenplan", done: 0, total: 0 };
+  if (done === pageStates.length) return { key: "done", label: "fertig", done, total: pageStates.length };
+  if (!started) return { key: "not-started", label: "nicht begonnen", done, total: pageStates.length };
+  return { key: "incomplete", label: "nicht fertig", done, total: pageStates.length };
 }
 
 function setClassOverviewFilter(value) {
@@ -2134,7 +2177,6 @@ function workedPagesForAnimal(animalId, subject) {
 
   (state.weeklyPlanStatuses || [])
     .filter((status) => status.classId === state.activeClassId && status.animalId === animalId)
-    .filter((status) => normalizeSimpleWorkStatus(status.status) !== "offen")
     .forEach((status) => {
       const plan = (state.weeklyPlans || []).find((item) => item.id === status.planId);
       if (!plan) return;
@@ -2146,7 +2188,21 @@ function workedPagesForAnimal(animalId, subject) {
       const taskSubject = String(task.subject || (String(status.field || "").startsWith("Mathe") ? "Mathe" : "Deutsch"));
       if (taskSubject !== subject) return;
       const pages = task.catalogItem ? weeklyCatalogPages(task.catalogItem).map(Number) : [];
-      pages.filter((page) => Number.isFinite(page) && page > 0).forEach((page) => addPage(page, status.status, status.updatedAt || status.completedAt || status.createdAt));
+      const completed = new Set((status.completedPages || []).map(String));
+      const overall = normalizeSimpleWorkStatus(status.status || "offen");
+      pages.filter((page) => Number.isFinite(page) && page > 0).forEach((page) => {
+        const explicit = status.pageStatuses?.[String(page)];
+        const pageStatus = explicit
+          ? normalizeSimpleWorkStatus(explicit)
+          : completed.has(String(page))
+            ? "fertig"
+            : overall === "fertig"
+              ? "fertig"
+              : overall === "teilweise" && pages.length === 1
+                ? "teilweise"
+                : "offen";
+        if (pageStatus !== "offen") addPage(page, pageStatus, status.updatedAt || status.completedAt || status.createdAt);
+      });
     });
 
   return [...rows.values()].sort((a, b) => a.page - b.page);
@@ -2155,14 +2211,11 @@ function workedPagesForAnimal(animalId, subject) {
 function currentWeeklyPageNumbers(rows, includeFinished = true) {
   const pages = new Set();
   (rows || []).forEach((row) => {
-    if (!includeFinished && normalizeSimpleWorkStatus(row?.status || "offen") === "fertig") return;
-    const catalog = row?.item?.catalogItem;
-    if (catalog) {
-      weeklyCatalogPages(catalog).map(Number).filter((page) => Number.isFinite(page) && page > 0).forEach((page) => pages.add(page));
-      return;
-    }
-    const label = String(row?.pagesLabel || row?.item?.text || "");
-    (label.match(/\d+/g) || []).map(Number).filter((page) => Number.isFinite(page) && page > 0).forEach((page) => pages.add(page));
+    weeklyRowPages(row).forEach((page) => {
+      const status = weeklyRowPageStatus(row, page);
+      if (!includeFinished && status === "fertig") return;
+      pages.add(page);
+    });
   });
   return pages;
 }
@@ -5512,6 +5565,7 @@ function buildWeeklyProgressRows(classId) {
           topic: catalog.title || catalog.area || "",
           source: plan.weekLabel || plan.title,
           status: normalizeSimpleWorkStatus(statusRecord?.status || "offen"),
+          statusRecord: statusRecord || null,
           progressLinked: statusRecord?.progressLinked === true,
           progressEntryId: statusRecord?.progressEntryId || ""
         };
@@ -9981,6 +10035,98 @@ async function saveDirectWorkbookProgress(event, subject, animalId) {
   });
   globalMessage = "Fortschritt wurde gespeichert.";
   await persistAndRender(nextState);
+}
+
+async function setWeeklyPlanPageStatus(planId, animalId, day, field, page, status) {
+  const normalized = normalizeSimpleWorkStatus(status);
+  const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+  const animal = animalsForActiveClass().find((item) => item.id === animalId);
+  const item = plan && animal ? weeklyPlanItemsForDay(plan, day, animal.id).find((entry) => entry.field === field) : null;
+  if (!plan || !animal || !item || !item.catalogItem || !WEEKLY_PLAN_STATUSES.includes(normalized)) return;
+
+  const pages = weeklyCatalogPages(item.catalogItem).map(String);
+  const pageKey = String(page);
+  if (!pages.includes(pageKey)) return;
+
+  const timestamp = nowIso();
+  const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
+  const pageStatuses = { ...(existing?.pageStatuses || {}) };
+
+  // Alte Datensätze ohne Seitenstatus in die neue Seitenlogik übernehmen.
+  if (!Object.keys(pageStatuses).length) {
+    const completed = new Set((existing?.completedPages || []).map(String));
+    const overall = normalizeSimpleWorkStatus(existing?.status || "offen");
+    pages.forEach((p) => {
+      if (completed.has(p) || overall === "fertig") pageStatuses[p] = "fertig";
+      else if (overall === "teilweise" && pages.length === 1) pageStatuses[p] = "teilweise";
+      else pageStatuses[p] = "offen";
+    });
+  }
+
+  pageStatuses[pageKey] = normalized;
+  const values = pages.map((p) => normalizeSimpleWorkStatus(pageStatuses[p] || "offen"));
+  const overallStatus = values.every((value) => value === "fertig")
+    ? "fertig"
+    : values.some((value) => value !== "offen")
+      ? "teilweise"
+      : "offen";
+  const completedPages = pages.filter((p) => normalizeSimpleWorkStatus(pageStatuses[p]) === "fertig");
+  const openPages = pages.filter((p) => normalizeSimpleWorkStatus(pageStatuses[p]) !== "fertig");
+
+  const nextStatus = {
+    ...(existing || {}),
+    id: existing?.id || weeklyPlanStatusStableId(planId, animalId, day, field),
+    classId: state.activeClassId,
+    planId,
+    animalId,
+    day,
+    field,
+    workbookCatalogId: item.workbookCatalogId || "",
+    freeText: item.freeText || "",
+    status: overallStatus,
+    pageStatuses,
+    completedPages,
+    openPages,
+    completedAt: overallStatus === "fertig" ? timestamp : (existing?.completedAt || ""),
+    updatedAt: timestamp,
+    createdAt: existing?.createdAt || timestamp
+  };
+
+  let nextState = {
+    ...state,
+    weeklyPlanStatuses: existing
+      ? (state.weeklyPlanStatuses || []).map((entry) => entry.id === existing.id ? nextStatus : entry)
+      : [...(state.weeklyPlanStatuses || []), nextStatus]
+  };
+
+  if (overallStatus === "offen" && existing?.progressLinked) {
+    nextState = removeWeeklyProgressLink(nextState, existing.id);
+  }
+
+  if (overallStatus !== "offen") {
+    nextState = upsertWorkbookProgressEntry(nextState, {
+      classId: state.activeClassId,
+      animal,
+      catalog: item.catalogItem,
+      status: overallStatus,
+      source: "Wochenplan",
+      weeklyPlan: plan,
+      weeklyStatus: nextStatus,
+      completedPages
+    });
+    const linkedEntry = findWorkbookProgressDuplicate(nextState.entries || [], state.activeClassId, animal.id, item.catalogItem);
+    nextState = {
+      ...nextState,
+      weeklyPlanStatuses: (nextState.weeklyPlanStatuses || []).map((entry) => entry.id === nextStatus.id ? {
+        ...entry,
+        progressLinked: true,
+        progressEntryId: linkedEntry?.id || entry.progressEntryId || ""
+      } : entry)
+    };
+  }
+
+  await persist(nextState);
+  render();
 }
 
 async function setWeeklyPlanSimpleStatus(planId, animalId, day, field, status) {
