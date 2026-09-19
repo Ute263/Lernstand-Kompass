@@ -1,0 +1,1576 @@
+/* Paket 9l: Wochenplan – Schuljahreskalender nach Kalenderwochen
+ *
+ * Ziele:
+ * - "Diese Woche" und "Vorlagen" als eigene Bereiche entfernen
+ * - Wochenübersicht wird Startpunkt des Wochenplans
+ * - Schuljahr August bis Juli mit Kalenderwochen anzeigen
+ * - Status: offen / begonnen / fertig geplant
+ * - Woche anklicken -> Bearbeiten / Drucken / Kopieren direkt erreichbar
+ * - Hefte bleiben als eigener, kompakter Bereich erhalten
+ *
+ * Lädt NACH weekly-minimax-pages.js.
+ */
+(() => {
+  if (
+    typeof renderWeeklyPlans !== "function" ||
+    typeof renderWeeklyPlanEditor !== "function" ||
+    typeof renderWorkbookCatalogManager !== "function" ||
+    typeof weeklyPlansForActiveClass !== "function" ||
+    typeof openWeeklyPrintDialog !== "function"
+  ) {
+    console.warn("Paket 9l konnte nicht initialisiert werden.");
+    return;
+  }
+
+  const baseSaveWeeklyPlan = typeof saveWeeklyPlan === "function" ? saveWeeklyPlan : null;
+  const baseCopyWeeklyPlan = typeof copyWeeklyPlan === "function" ? copyWeeklyPlan : null;
+
+  let lkCalendarSelectedMonday = "";
+  let lkCalendarStartYear = null;
+  let lkCalendarAutoYear = true;
+  let lkCalendarCreatingWeek = null;
+  let lkCalendarWeekDialogOpen = false;
+  let lkCalendarAudienceChoiceOpen = false;
+  let lkCalendarSelectedMonthKey = "";
+  let lkCalendarShowWholeYear = false;
+  let lkCalendarYearPickerOpen = false;
+
+  const MONTHS = [
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember"
+  ];
+
+  function pad2(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function localDateKey(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  }
+
+  function fromDateKey(value) {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0);
+  }
+
+  function addDays(date, amount) {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+    next.setDate(next.getDate() + amount);
+    return next;
+  }
+
+  function startOfWeek(date) {
+    const source = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+    const day = source.getDay();
+    const delta = day === 0 ? -6 : 1 - day;
+    source.setDate(source.getDate() + delta);
+    return source;
+  }
+
+  function isoWeekInfo(date) {
+    const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNumber = target.getUTCDay() || 7;
+    target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+    const isoYear = target.getUTCFullYear();
+    const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+    const week = Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
+    return { week, year: isoYear };
+  }
+
+  function shortDate(date) {
+    return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.`;
+  }
+
+  function longDateRange(monday) {
+    const friday = addDays(monday, 4);
+    return `${shortDate(monday)} – ${shortDate(friday)}${friday.getFullYear() !== monday.getFullYear() ? ` ${friday.getFullYear()}` : ""}`;
+  }
+
+  function schoolYearLabel(startYear) {
+    return `${startYear}/${String(startYear + 1).slice(-2)}`;
+  }
+
+  function automaticSchoolYearStart(date = new Date()) {
+    // Schuljahr läuft in dieser Ansicht immer August bis Juli:
+    // Aug–Dez -> aktuelles Jahr / Folgejahr
+    // Jan–Jul -> Vorjahr / aktuelles Jahr
+    return date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  }
+
+  function schoolYearStartFromClass() {
+    const classItem = typeof activeClass === "function" ? activeClass() : null;
+
+    // Nur archivierte Klassen behalten bewusst ihr archiviertes Schuljahr.
+    const archivedLabel = String(classItem?.archiveSchoolYearLabel || "");
+    const archivedMatch = archivedLabel.match(/(20\d{2})\s*\/\s*(\d{2,4})/);
+    if (archivedMatch) return Number(archivedMatch[1]);
+
+    // Für eine aktive Klasse entscheidet immer das heutige Datum.
+    // Dadurch springt die Übersicht am 1. August automatisch ins neue Schuljahr.
+    return automaticSchoolYearStart(new Date());
+  }
+
+  function calendarStartYear() {
+    const automatic = schoolYearStartFromClass();
+
+    if (lkCalendarAutoYear) {
+      if (lkCalendarStartYear !== automatic) {
+        lkCalendarStartYear = automatic;
+        lkCalendarSelectedMonday = "";
+      }
+      return automatic;
+    }
+
+    if (Number.isFinite(lkCalendarStartYear)) return lkCalendarStartYear;
+    lkCalendarStartYear = automatic;
+    return automatic;
+  }
+
+  function schoolYearForDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+    return date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  }
+
+  function schoolYearOptionYears() {
+    const today = new Date();
+    const current = today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1;
+    const selected = calendarStartYear();
+    const years = new Set();
+
+    // In der aktiven Wochenplanung werden keine vergangenen Schuljahre mehr angeboten.
+    // Das aktuelle Schuljahr und kommende Schuljahre bleiben dynamisch verfügbar.
+    for (let year = current; year <= current + 8; year += 1) years.add(year);
+
+    // Falls bereits bewusst ein kommendes Schuljahr ausgewählt wurde, bleibt es sichtbar.
+    if (Number.isFinite(selected) && selected >= current) years.add(selected);
+
+    return [...years].sort((a, b) => a - b);
+  }
+
+  function schoolYearWeeks(startYear) {
+    const firstDay = new Date(startYear, 7, 1, 12, 0, 0, 0);      // 1. August
+    const lastDay = new Date(startYear + 1, 6, 31, 12, 0, 0, 0); // 31. Juli
+    let monday = startOfWeek(firstDay);
+    const weeks = [];
+
+    // Eine ISO-Woche wird eindeutig dem Schuljahr zugeordnet, in dem ihr
+    // Donnerstag liegt. So gibt es am Juli/August-Übergang keine doppelte
+    // oder fehlende Kalenderwoche.
+    while (monday <= addDays(lastDay, 7)) {
+      const thursday = addDays(monday, 3);
+      if (thursday >= firstDay && thursday <= lastDay) {
+        const friday = addDays(monday, 4);
+        const info = isoWeekInfo(monday);
+        weeks.push({
+          key: localDateKey(monday),
+          monday: new Date(monday),
+          friday,
+          thursday,
+          week: info.week,
+          isoYear: info.year,
+          month: thursday.getMonth(),
+          monthYear: thursday.getFullYear()
+        });
+      }
+      monday = addDays(monday, 7);
+    }
+    return weeks;
+  }
+
+  function currentMondayKey() {
+    return localDateKey(startOfWeek(new Date()));
+  }
+
+  function ensureSelectedWeek() {
+    const weeks = schoolYearWeeks(calendarStartYear());
+    if (!weeks.length) return "";
+    if (weeks.some((week) => week.key === lkCalendarSelectedMonday)) return lkCalendarSelectedMonday;
+
+    const current = currentMondayKey();
+    const inYear = weeks.find((week) => week.key === current);
+    lkCalendarSelectedMonday = inYear?.key || weeks[0].key;
+    return lkCalendarSelectedMonday;
+  }
+
+  function planMatchesWeek(plan, week) {
+    if (!plan || !week) return false;
+    const mondayKey = week.key;
+    const fridayKey = localDateKey(week.friday);
+    const from = String(plan.validFrom || "");
+    const to = String(plan.validTo || "");
+
+    if (from || to) {
+      const planFrom = from || to;
+      const planTo = to || from;
+      return planFrom <= fridayKey && planTo >= mondayKey;
+    }
+
+    const match = String(plan.weekLabel || "").match(/KW\s*(\d{1,2})/i);
+    if (!match) return false;
+    return Number(match[1]) === week.week;
+  }
+
+  function plansForWeek(week) {
+    return weeklyPlansForActiveClass()
+      .filter((plan) => plan.active !== false && planMatchesWeek(plan, week))
+      .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "de", { numeric: true }));
+  }
+
+  function planningStateMap() {
+    return state.weeklyPlanningStatus && typeof state.weeklyPlanningStatus === "object"
+      ? state.weeklyPlanningStatus
+      : {};
+  }
+
+  function planPlanningState(plan) {
+    const stored = planningStateMap()[plan?.id];
+    if (stored === "draft" || stored === "ready") return stored;
+    // Bestehende, schon vor dem Kalender gespeicherte Pläne gelten als fertig geplant.
+    return "ready";
+  }
+
+  function weekPlanningState(week) {
+    const plans = plansForWeek(week);
+    if (!plans.length) return "open";
+    return plans.every((plan) => planPlanningState(plan) === "ready") ? "ready" : "draft";
+  }
+
+  function stateMeta(value) {
+    if (value === "ready") return { icon: "✓", label: "fertig", className: "ready" };
+    if (value === "draft") return { icon: "◐", label: "begonnen", className: "draft" };
+    return { icon: "○", label: "offen", className: "open" };
+  }
+
+  function weekByKey(key) {
+    return schoolYearWeeks(calendarStartYear()).find((week) => week.key === key) || null;
+  }
+
+  function selectedWeek() {
+    return weekByKey(ensureSelectedWeek());
+  }
+
+  function emptyDays() {
+    return Object.fromEntries(WEEK_DAYS.map((day) => [day, {
+      deutschId: "",
+      deutschIds: [],
+      deutschTaskNumber: "",
+      deutschTaskNumbers: [],
+      deutschTaskStars: [],
+      deutschFreeTasks: [],
+      matheId: "",
+      matheIds: [],
+      matheTaskNumber: "",
+      matheTaskNumbers: [],
+      matheTaskStars: [],
+      matheFreeTasks: [],
+      extraFreeTasks: [],
+      freeText: ""
+    }]));
+  }
+
+  function activeCalendarAnimals() {
+    try {
+      return animalsForActiveClass().filter((animal) => animal.aktiv !== false);
+    } catch {
+      return (state.animals || []).filter((animal) => animal.classId === state.activeClassId && animal.aktiv !== false);
+    }
+  }
+
+  function calendarAnimalPlainName(animal) {
+    if (!animal) return "Kind";
+    if (state.teacherShowFirstNames && animal.firstName) return String(animal.firstName);
+    return String(animal.tierName || "Kind");
+  }
+
+  function sameAnimalSelection(a, b) {
+    const left = [...new Set(a || [])].sort();
+    const right = [...new Set(b || [])].sort();
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  }
+
+  function matchingCalendarGroup(animalIds) {
+    const ids = [...new Set(animalIds || [])];
+    if (!ids.length) return null;
+    return (state.animalGroups || []).find((group) =>
+      group.classId === state.activeClassId
+      && sameAnimalSelection(group.animalIds || [], ids)
+    ) || null;
+  }
+
+  function calendarPlanAudience(plan) {
+    if (!plan || plan.assignmentMode === "all" || !Array.isArray(plan.animalIds) || !plan.animalIds.length) {
+      return { label: "Ganze Klasse", kind: "all", count: activeCalendarAnimals().length };
+    }
+
+    const ids = [...new Set(plan.animalIds || [])];
+    const group = matchingCalendarGroup(ids);
+    if (group) {
+      return { label: `Gruppe: ${group.name || "Gruppe"}`, kind: "group", count: ids.length };
+    }
+
+    const animals = activeCalendarAnimals().filter((animal) => ids.includes(animal.id));
+    if (animals.length === 1) {
+      return { label: `Einzelplan: ${calendarAnimalPlainName(animals[0])}`, kind: "single", count: 1 };
+    }
+
+    return {
+      label: `Auswahl: ${animals.length || ids.length} Kinder`,
+      kind: "selected",
+      count: animals.length || ids.length
+    };
+  }
+
+  function suggestedCalendarPlanTitle({ mode = "all", animalIds = [], group = null } = {}) {
+    if (mode === "all") return "Klasse";
+    if (group?.name) return String(group.name);
+
+    const animals = activeCalendarAnimals().filter((animal) => animalIds.includes(animal.id));
+    const matchedGroup = matchingCalendarGroup(animalIds);
+    if (matchedGroup?.name) return String(matchedGroup.name);
+    if (animals.length === 1) return `Einzelplan – ${calendarAnimalPlainName(animals[0])}`;
+    if (animals.length > 1) return `Auswahl – ${animals.length} Kinder`;
+    return "Wochenplan";
+  }
+
+  function renderCalendarAudienceChoice(week) {
+    const animals = activeCalendarAnimals();
+    const groups = (state.animalGroups || [])
+      .filter((group) => group.classId === state.activeClassId && Array.isArray(group.animalIds) && group.animalIds.length);
+
+    return `
+      <section class="lk-cal-audience-picker">
+        <div class="lk-cal-audience-heading">
+          <div>
+            <span class="lk-cal-audience-kicker">Neuer Wochenplan</span>
+            <h3>Für wen gilt dieser Plan?</h3>
+            <p>Wähle zuerst die Kinder. Den vorgeschlagenen Titel kannst du anschließend noch ändern.</p>
+          </div>
+          ${plansForWeek(week).length ? `<button class="link-button" type="button" onclick="lkCancelCalendarAudienceChoice()">Abbrechen</button>` : ""}
+        </div>
+
+        <div class="lk-cal-audience-quick">
+          <button class="lk-cal-audience-option" type="button" onclick="lkCreateCalendarPlanForAll('${escapeAttribute(week.key)}')">
+            <span>👥</span>
+            <strong>Ganze Klasse</strong>
+            <small>${animals.length} Kinder · Titelvorschlag „Klasse“</small>
+          </button>
+
+          ${groups.map((group) => `
+            <button class="lk-cal-audience-option" type="button" onclick="lkCreateCalendarPlanForGroup('${escapeAttribute(week.key)}','${escapeAttribute(group.id)}')">
+              <span>🧩</span>
+              <strong>${escapeHtml(group.name || "Gruppe")}</strong>
+              <small>${(group.animalIds || []).length} Kinder · Gruppenplan</small>
+            </button>
+          `).join("")}
+        </div>
+
+        <details class="lk-cal-individual-choice">
+          <summary>Einzelne Kinder auswählen</summary>
+          <div class="lk-cal-audience-animal-grid">
+            ${animals.map((animal) => `
+              <label>
+                <input class="lkCalendarAudienceAnimal" type="checkbox" value="${escapeAttribute(animal.id)}">
+                <span>${escapeHtml(animal.tierEmoji || "🐾")}</span>
+                <strong>${escapeHtml(calendarAnimalPlainName(animal))}</strong>
+                ${state.teacherShowFirstNames && animal.firstName && animal.tierName
+                  ? `<small>${escapeHtml(animal.tierName)}</small>`
+                  : ""}
+              </label>
+            `).join("")}
+          </div>
+          <button class="primary" type="button" onclick="lkCreateCalendarPlanForSelected('${escapeAttribute(week.key)}')">
+            Mit Auswahl weiter
+          </button>
+          <p class="message error lk-cal-audience-error" id="lkCalendarAudienceError"></p>
+        </details>
+      </section>
+    `;
+  }
+
+  function preferredPlanningModeForAudience(mode, animalIds = []) {
+    const ids = Array.isArray(animalIds) ? animalIds.filter(Boolean) : [];
+    if (mode === "selected" && ids.length === 1) {
+      return state.weeklyPlanningModeByAnimal?.[ids[0]] === "days" ? "days" : "week";
+    }
+    // Neue Klassen- und Gruppenpläne starten grundsätzlich in der Wochenübersicht.
+    return "week";
+  }
+
+  function makeDraftForWeek(week) {
+    return {
+      title: "Wochenplan",
+      weekLabel: `KW ${week.week}`,
+      validFrom: week.key,
+      validTo: localDateKey(week.friday),
+      note: "",
+      planningMode: "week",
+      assignmentMode: "all",
+      animalIds: [],
+      progressMode: "confirm",
+      autoCreateEntries: false,
+      days: emptyDays(),
+      overrides: {}
+    };
+  }
+
+  function taskCountForDay(plan, day) {
+    try {
+      return weeklyPlanItemsForDay(plan, day, "").length;
+    } catch {
+      return 0;
+    }
+  }
+
+  function totalTasks(plan) {
+    return WEEK_DAYS.reduce((sum, day) => sum + taskCountForDay(plan, day), 0);
+  }
+
+  function selectedWeekTitle(week) {
+    return `KW ${week.week} · ${longDateRange(week.monday)}`;
+  }
+
+  function renderWeekTile(week) {
+    const status = weekPlanningState(week);
+    const meta = stateMeta(status);
+    const selected = week.key === ensureSelectedWeek();
+    const current = week.key === currentMondayKey();
+    return `
+      <button
+        class="lk-cal-week ${meta.className} ${selected ? "selected" : ""} ${current ? "current" : ""}"
+        type="button"
+        onclick="lkSelectCalendarWeek('${escapeAttribute(week.key)}')"
+        aria-label="KW ${week.week}, ${escapeAttribute(meta.label)}"
+      >
+        <span class="lk-cal-week-number">KW ${week.week}</span>
+        <span class="lk-cal-week-dates">${escapeHtml(shortDate(week.monday))}–${escapeHtml(shortDate(week.friday))}</span>
+        <span class="lk-cal-week-state">${meta.icon}</span>
+      </button>
+    `;
+  }
+
+
+  function monthGroups(weeks) {
+    const groups = new Map();
+    weeks.forEach((week) => {
+      const key = `${week.monthYear}-${pad2(week.month + 1)}`;
+      if (!groups.has(key)) groups.set(key, {
+        key,
+        month: week.month,
+        year: week.monthYear,
+        label: `${MONTHS[week.month]} ${week.monthYear}`,
+        weeks: []
+      });
+      groups.get(key).weeks.push(week);
+    });
+    return [...groups.values()];
+  }
+
+  function defaultCalendarMonthKey(weeks) {
+    const groups = monthGroups(weeks);
+    if (!groups.length) return "";
+    const selected = selectedWeek();
+    if (selected) {
+      const selectedKey = `${selected.monthYear}-${pad2(selected.month + 1)}`;
+      if (groups.some((group) => group.key === selectedKey)) return selectedKey;
+    }
+    const today = new Date();
+    const currentKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
+    if (groups.some((group) => group.key === currentKey)) return currentKey;
+    return groups[0].key;
+  }
+
+  function ensureSelectedMonthKey(weeks) {
+    const groups = monthGroups(weeks);
+    if (!groups.length) {
+      lkCalendarSelectedMonthKey = "";
+      return "";
+    }
+    if (groups.some((group) => group.key === lkCalendarSelectedMonthKey)) return lkCalendarSelectedMonthKey;
+    lkCalendarSelectedMonthKey = defaultCalendarMonthKey(weeks);
+    return lkCalendarSelectedMonthKey;
+  }
+
+  function renderMonthSelector(weeks) {
+    const groups = monthGroups(weeks);
+    const selectedMonthKey = ensureSelectedMonthKey(weeks);
+    const startYear = calendarStartYear();
+    const years = schoolYearOptionYears();
+    const automaticYear = automaticSchoolYearStart(new Date());
+    const isAutomaticYear = lkCalendarAutoYear && startYear === automaticYear;
+    return `
+      <div class="lk-cal-month-selector">
+        <div class="lk-cal-month-selector-top">
+          <div class="lk-cal-month-chips" aria-label="Monat auswählen">
+            ${groups.map((group) => `
+              <button
+                class="small-button lk-cal-month-chip ${group.key === selectedMonthKey ? "active" : ""}"
+                type="button"
+                onclick="lkSetCalendarMonth('${escapeAttribute(group.key)}')"
+              >${escapeHtml(MONTHS[group.month])}</button>
+            `).join("")}
+          </div>
+          <div class="lk-cal-month-actions">
+            <span class="lk-cal-schoolyear-tag" title="Aktuelles Schuljahr in dieser Übersicht">SJ ${startYear}/${String(startYear + 1).slice(-2)}</span>
+            <button class="secondary small-button" type="button" onclick="lkToggleCalendarYearOverview()">
+              ${lkCalendarShowWholeYear ? "Nur gewählten Monat zeigen" : "Ganzes Schuljahr anzeigen"}
+            </button>
+            <button class="link-button small-button lk-cal-schoolyear-toggle" type="button" onclick="lkToggleCalendarYearPicker()">
+              ${lkCalendarYearPickerOpen ? "Schuljahr schließen" : "Schuljahr ändern"}
+            </button>
+          </div>
+        </div>
+        ${lkCalendarYearPickerOpen ? `
+          <div class="lk-cal-year-picker-row">
+            <div class="lk-cal-year-picker lk-cal-year-picker-compact" aria-label="Schuljahr auswählen">
+              <button class="link-button lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(-1)" aria-label="Vorheriges Schuljahr">←</button>
+              <label title="Schuljahr auswählen">
+                <select class="select-input" onchange="lkSetCalendarSchoolYear(Number(this.value))" aria-label="Schuljahr">
+                  ${years.map((year) => `
+                    <option value="${year}" ${year === startYear ? "selected" : ""}>
+                      ${escapeHtml(schoolYearLabel(year))}${year === automaticYear ? " · aktuell" : ""}
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+              <button class="link-button lk-cal-year-arrow" type="button" onclick="lkShiftCalendarSchoolYear(1)" aria-label="Nächstes Schuljahr">→</button>
+              ${!isAutomaticYear ? `<button class="link-button lk-cal-today-year" type="button" onclick="lkUseAutomaticSchoolYear()">aktuell</button>` : ""}
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function renderMonthCards(weeks) {
+    const groups = monthGroups(weeks);
+    const selectedMonthKey = ensureSelectedMonthKey(weeks);
+    const visibleGroups = lkCalendarShowWholeYear
+      ? groups
+      : groups.filter((group) => group.key === selectedMonthKey);
+
+    return visibleGroups.map((group) => `
+      <section class="lk-cal-month ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
+        <h3>${escapeHtml(MONTHS[group.month])}<small>${group.year}</small></h3>
+        <div class="lk-cal-month-weeks ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
+          ${group.weeks.map(renderWeekTile).join("")}
+        </div>
+      </section>
+    `).join("");
+  }
+
+  function renderCalendarHeader(weeks) {
+    const counts = weeks.reduce((acc, week) => {
+      acc[weekPlanningState(week)] += 1;
+      return acc;
+    }, { ready: 0, draft: 0, open: 0 });
+    return `
+      <section class="panel lk-cal-hero">
+        <div class="lk-cal-hero-main">
+          <p class="lk-cal-kicker">Wochenplan</p>
+          <div class="lk-cal-title-line">
+            <div>
+              <h2>Wochenübersicht</h2>
+              <p class="privacy-text">
+                Wähle zuerst einen Monat und dann die passende Kalenderwoche.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="lk-cal-summary" aria-label="Planungsstand">
+          <span class="ready">✓ ${counts.ready} fertig</span>
+          <span class="draft">◐ ${counts.draft} begonnen</span>
+          <span class="open">○ ${counts.open} offen</span>
+        </div>
+        ${renderMonthSelector(weeks)}
+      </section>
+    `;
+  }
+
+  function renderSelectedPlanCard(plan, week) {
+    const status = planPlanningState(plan);
+    const meta = stateMeta(status);
+    const taskCount = totalTasks(plan);
+    const visibility = typeof weeklyPlanChildVisibility === "function"
+      ? weeklyPlanChildVisibility(plan)
+      : { label: "" };
+    const audience = calendarPlanAudience(plan);
+
+    return `
+      <article class="lk-cal-plan-card">
+        <div class="lk-cal-plan-main">
+          <div class="lk-cal-plan-title">
+            <div class="lk-cal-plan-badges">
+              <span class="lk-cal-plan-status ${meta.className}">${meta.icon} ${escapeHtml(meta.label)}</span>
+              <span class="lk-cal-audience-badge ${escapeAttribute(audience.kind)}">${escapeHtml(audience.label)}</span>
+            </div>
+            <h3>${escapeHtml(plan.title || "Wochenplan")}</h3>
+            <p>
+              ${taskCount} Aufgabe${taskCount === 1 ? "" : "n"}
+              ${visibility?.label ? ` · ${escapeHtml(visibility.label)}` : ""}
+            </p>
+          </div>
+          <div class="lk-cal-plan-actions">
+            <button class="primary" type="button" onclick="lkEditCalendarPlan('${escapeAttribute(plan.id)}')">Bearbeiten</button>
+            <button class="primary lk-cal-print" type="button" onclick="lkOpenCalendarPrint('${escapeAttribute(plan.id)}')">🖨 Wochenplan drucken</button>
+            <button class="secondary small-button" type="button" onclick="lkCopyCalendarPlan('${escapeAttribute(plan.id)}')">Kopieren</button>
+          </div>
+        </div>
+
+        <div class="lk-cal-day-summary">
+          ${WEEK_DAYS.map((day) => {
+            const count = taskCountForDay(plan, day);
+            return `<span class="${count ? "has-tasks" : ""}">${escapeHtml(day.slice(0, 2))} <b>${count}</b></span>`;
+          }).join("")}
+        </div>
+
+        <div class="lk-cal-plan-footer">
+          <button
+            class="${status === "ready" ? "link-button" : "secondary"}"
+            type="button"
+            onclick="lkTogglePlanningReady('${escapeAttribute(plan.id)}')"
+          >${status === "ready" ? "Als begonnen markieren" : "✓ Als fertig geplant markieren"}</button>
+          <button class="link-button danger-text" type="button" onclick="deleteWeeklyPlan('${escapeAttribute(plan.id)}')">Löschen</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderSelectedWeekPanel(week) {
+    const plans = plansForWeek(week);
+    const meta = stateMeta(weekPlanningState(week));
+
+    return `
+      <div class="lk-cal-dialog-backdrop" role="presentation" onclick="if (event.target === this) lkCloseCalendarWeekDialog()">
+        <section class="panel lk-cal-selected" role="dialog" aria-modal="true" aria-labelledby="lk-cal-week-dialog-title">
+          <button class="lk-cal-dialog-close" type="button" onclick="lkCloseCalendarWeekDialog()" aria-label="Wochenfenster schließen">×</button>
+          <div class="lk-cal-selected-head">
+            <div>
+              <span class="lk-cal-week-status ${meta.className}">${meta.icon} ${escapeHtml(meta.label)}</span>
+              <h2 id="lk-cal-week-dialog-title">${escapeHtml(selectedWeekTitle(week))}</h2>
+            </div>
+            <button class="primary" type="button" onclick="lkStartCalendarAudienceChoice('${escapeAttribute(week.key)}')">
+              ${plans.length ? "+ Weiteren Wochenplan anlegen" : "+ Wochenplan anlegen"}
+            </button>
+          </div>
+
+          ${lkCalendarAudienceChoiceOpen ? renderCalendarAudienceChoice(week) : ""}
+
+          ${plans.length
+            ? `<div class="lk-cal-plan-list">${plans.map((plan) => renderSelectedPlanCard(plan, week)).join("")}</div>`
+            : (!lkCalendarAudienceChoiceOpen
+              ? `<div class="lk-cal-empty">
+                  <span>○</span>
+                  <div>
+                    <strong>Für diese Woche ist noch kein Plan angelegt.</strong>
+                    <small>Lege einen Plan für die Klasse, eine Gruppe oder einzelne Kinder an.</small>
+                  </div>
+                </div>`
+              : "")}
+        </section>
+      </div>
+    `;
+  }
+
+  function renderOverview() {
+    const weeks = schoolYearWeeks(calendarStartYear());
+    const week = selectedWeek();
+    return `
+      ${renderCalendarHeader(weeks)}
+      <section class="lk-cal-grid ${lkCalendarShowWholeYear ? "year-view" : "single-view"}">
+        ${renderMonthCards(weeks)}
+      </section>
+      ${week && lkCalendarWeekDialogOpen ? renderSelectedWeekPanel(week) : ""}
+    `;
+  }
+
+  function renderTopTabs(section) {
+    return `
+      <section class="panel lk-cal-nav">
+        <div class="section-tabs weekly-section-tabs lk-cal-tabs">
+          <button class="small-button ${section === "current" ? "active" : ""}" type="button" onclick="lkSetCalendarSection('current')">📅 Wochenübersicht</button>
+          <button class="small-button ${section === "create" ? "active" : ""}" type="button" onclick="lkReturnToWeeklyEditorFromCatalog()">✏️ Plan bearbeiten</button>
+          <button class="small-button ${section === "catalog" ? "active" : ""}" type="button" onclick="lkSetCalendarSection('catalog')">📚 Hefte</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCalendarWeeklyEditor(plan) {
+    const html = renderWeeklyPlanEditor(plan, null);
+    let rendered = String(html || "").replace(
+      /onclick="newWeeklyPlan\(\)">Formular leeren/g,
+      'onclick="lkClearWeeklyPlanForm()">Plan leeren'
+    );
+
+    // Beim Bearbeiten eines bereits gespeicherten Plans gibt es zusätzlich
+    // eine eindeutige Möglichkeit, den gesamten Plan zu löschen.
+    if (plan?.id) {
+      rendered = rendered.replace(
+        /(<button class="secondary" type="button" onclick="lkClearWeeklyPlanForm\(\)">Plan leeren<\/button>)/,
+        `$1<button class="danger" type="button" onclick="lkDeleteWeeklyPlanCompletely('${escapeAttribute(plan.id)}')">Plan komplett löschen</button>`
+      );
+    }
+
+    return rendered;
+  }
+
+  function clearedWeeklyPlanDraft() {
+    let domDraft = null;
+    try {
+      domDraft = collectWeeklyPlanDraftFromDom();
+    } catch {}
+
+    const planId = domDraft?.id || weeklyPlanEditorId || "";
+    const existing = planId
+      ? (state.weeklyPlans || []).find((plan) => plan.id === planId)
+      : null;
+
+    const week = selectedWeek();
+    const fallback = week ? makeDraftForWeek(week) : {
+      title: "Wochenplan",
+      weekLabel: "",
+      validFrom: "",
+      validTo: "",
+      assignmentMode: "all",
+      animalIds: [],
+      progressMode: "confirm",
+      autoCreateEntries: false
+    };
+
+    const source = {
+      ...fallback,
+      ...(existing || {}),
+      ...(domDraft || {})
+    };
+
+    return {
+      ...source,
+
+      // Ein bestehender Plan bleibt derselbe Plan.
+      id: planId || source.id || "",
+
+      // Woche und Zuordnung bleiben erhalten; nur die eigentlichen
+      // Wochenplan-Inhalte werden geleert.
+      title: source.title || "Wochenplan",
+      weekLabel: source.weekLabel || fallback.weekLabel || "",
+      validFrom: source.validFrom || fallback.validFrom || "",
+      validTo: source.validTo || fallback.validTo || "",
+      assignmentMode: source.assignmentMode || "all",
+      animalIds: Array.isArray(source.animalIds) ? [...source.animalIds] : [],
+      progressMode: source.progressMode || "confirm",
+      autoCreateEntries: source.autoCreateEntries === true,
+
+      note: "",
+      days: emptyDays(),
+      overrides: {}
+    };
+  }
+
+
+  window.lkDeleteWeeklyPlanCompletely = async function lkDeleteWeeklyPlanCompletely(planId) {
+    const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+    if (!plan) return;
+
+    const confirmed = window.confirm(
+      "Soll dieser Wochenplan wirklich komplett gelöscht werden?\n\n" +
+      "Der Wochenplan und alle dazu gespeicherten Bearbeitungsstände der Kinder werden entfernt. Das kann nicht rückgängig gemacht werden."
+    );
+    if (!confirmed) return;
+
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    weeklyPickRequest = null;
+    weeklyOverrideAnimalId = "";
+    weeklyPlanFocusAnimalId = "";
+    weeklyPlanSection = "current";
+    lkCalendarWeekDialogOpen = false;
+
+    await persistAndRender({
+      ...state,
+      weeklyPlans: (state.weeklyPlans || []).filter((item) => item.id !== planId),
+      weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.planId !== planId)
+    });
+  };
+
+  window.lkClearWeeklyPlanForm = function lkClearWeeklyPlanForm() {
+    const confirmed = window.confirm(
+      "Soll dieser Wochenplan wirklich geleert werden?\n\n" +
+      "Alle eingetragenen Aufgaben und individuellen Abweichungen werden aus dem Plan entfernt. " +
+      "Kalenderwoche und Zeitraum bleiben erhalten."
+    );
+
+    if (!confirmed) return;
+
+    weeklyPlanDraft = clearedWeeklyPlanDraft();
+    weeklyPlanEditorId = weeklyPlanDraft.id || weeklyPlanEditorId || "";
+    weeklyPickRequest = null;
+    weeklyOverrideAnimalId = "";
+    weeklyPlanFocusAnimalId = "";
+    weeklyPlanSection = "create";
+
+    render();
+  };
+
+  renderWeeklyPlans = function renderWeeklyPlansCalendar() {
+    const plans = weeklyPlansForActiveClass()
+      .sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
+    const editorPlan = weeklyPlanEditorId ? plans.find((plan) => plan.id === weeklyPlanEditorId) : null;
+    let section = weeklyPlanSection || "current";
+
+    if (section === "templates") {
+      section = "current";
+      weeklyPlanSection = "current";
+    }
+
+    if (!["current", "create", "catalog"].includes(section)) {
+      section = "current";
+      weeklyPlanSection = "current";
+    }
+
+    ensureSelectedWeek();
+
+    return `
+      ${renderTopTabs(section)}
+      ${section === "current" ? renderOverview() : ""}
+      ${section === "create" ? renderCalendarWeeklyEditor(editorPlan) : ""}
+      ${section === "catalog" ? renderWorkbookCatalogManager() : ""}
+      ${typeof renderWeeklyCatalogPicker === "function" ? renderWeeklyCatalogPicker() : ""}
+      ${typeof renderWeeklyPrintDialog === "function" ? renderWeeklyPrintDialog() : ""}
+    `;
+  };
+
+  window.lkSetCalendarSection = function lkSetCalendarSection(section) {
+    lkCalendarWeekDialogOpen = false;
+    if (weeklyPlanSection === "create") {
+      try { weeklyPlanDraft = collectWeeklyPlanDraftFromDom(); } catch {}
+    }
+    weeklyPlanSection = section === "catalog" ? "catalog" : "current";
+    render();
+  };
+
+  window.lkSetCalendarMonth = function lkSetCalendarMonth(key) {
+    const value = String(key || "");
+    const groups = monthGroups(schoolYearWeeks(calendarStartYear()));
+    if (!groups.some((group) => group.key === value)) return;
+    lkCalendarSelectedMonthKey = value;
+    lkCalendarShowWholeYear = false;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
+  window.lkToggleCalendarYearOverview = function lkToggleCalendarYearOverview() {
+    lkCalendarShowWholeYear = !lkCalendarShowWholeYear;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
+  window.lkToggleCalendarYearPicker = function lkToggleCalendarYearPicker() {
+    lkCalendarYearPickerOpen = !lkCalendarYearPickerOpen;
+    lkCalendarWeekDialogOpen = false;
+    render();
+  };
+
+  window.lkSetCalendarSchoolYear = function lkSetCalendarSchoolYear(startYear) {
+    lkCalendarWeekDialogOpen = false;
+    const year = Number(startYear);
+    if (!Number.isFinite(year) || year < 2000 || year > 2200) return;
+
+    lkCalendarAutoYear = year === automaticSchoolYearStart(new Date());
+    lkCalendarStartYear = year;
+    lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
+  };
+
+  window.lkShiftCalendarSchoolYear = function lkShiftCalendarSchoolYear(direction) {
+    lkCalendarWeekDialogOpen = false;
+    const delta = Number(direction) < 0 ? -1 : 1;
+    const nextYear = calendarStartYear() + delta;
+    lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
+    lkCalendarStartYear = nextYear;
+    lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
+  };
+
+  window.lkUseAutomaticSchoolYear = function lkUseAutomaticSchoolYear() {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAutoYear = true;
+    lkCalendarStartYear = automaticSchoolYearStart(new Date());
+    lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
+  };
+
+  window.lkSelectCalendarWeek = function lkSelectCalendarWeek(key) {
+    lkCalendarSelectedMonday = key;
+    const week = weekByKey(key);
+    if (week) lkCalendarSelectedMonthKey = `${week.monthYear}-${pad2(week.month + 1)}`;
+    lkCalendarWeekDialogOpen = true;
+    lkCalendarAudienceChoiceOpen = !!week && plansForWeek(week).length === 0;
+    weeklyPlanSection = "current";
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    render();
+    requestAnimationFrame(() => {
+      document.querySelector(".lk-cal-dialog-close")?.focus();
+    });
+  };
+
+  window.lkCloseCalendarWeekDialog = function lkCloseCalendarWeekDialog() {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    render();
+  };
+
+  window.lkOpenCalendarPrint = function lkOpenCalendarPrint(planId) {
+    // Es darf immer nur ein Dialog sichtbar sein.
+    // Zuerst das Kalender-Wochenfenster schließen, dann den Druckdialog öffnen.
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    if (typeof openWeeklyPrintDialog === "function") {
+      openWeeklyPrintDialog(planId);
+    }
+  };
+
+  function openCalendarPlanEditorForAudience(key, { mode = "all", animalIds = [], group = null } = {}) {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    const week = weekByKey(key);
+    if (!week) return;
+
+    lkCalendarSelectedMonday = key;
+    lkCalendarCreatingWeek = {
+      key,
+      validFrom: week.key,
+      validTo: localDateKey(week.friday)
+    };
+
+    weeklyPlanEditorId = "";
+    const uniqueAnimalIds = mode === "all" ? [] : [...new Set(animalIds || [])];
+    weeklyPlanDraft = {
+      ...makeDraftForWeek(week),
+      title: suggestedCalendarPlanTitle({ mode, animalIds: uniqueAnimalIds, group }),
+      planningMode: preferredPlanningModeForAudience(mode, uniqueAnimalIds),
+      assignmentMode: mode === "all" ? "all" : "selected",
+      animalIds: uniqueAnimalIds
+    };
+    weeklyPickRequest = null;
+    weeklyPlanSection = "create";
+    render();
+  }
+
+  window.lkStartCalendarAudienceChoice = function lkStartCalendarAudienceChoice(key) {
+    const week = weekByKey(key);
+    if (!week) return;
+    lkCalendarSelectedMonday = key;
+    lkCalendarWeekDialogOpen = true;
+    lkCalendarAudienceChoiceOpen = true;
+    render();
+  };
+
+  window.lkCancelCalendarAudienceChoice = function lkCancelCalendarAudienceChoice() {
+    lkCalendarAudienceChoiceOpen = false;
+    render();
+  };
+
+  window.lkCreateCalendarPlanForAll = function lkCreateCalendarPlanForAll(key) {
+    openCalendarPlanEditorForAudience(key, { mode: "all" });
+  };
+
+  window.lkCreateCalendarPlanForGroup = function lkCreateCalendarPlanForGroup(key, groupId) {
+    const group = (state.animalGroups || []).find((item) => item.id === groupId && item.classId === state.activeClassId);
+    if (!group) return;
+    openCalendarPlanEditorForAudience(key, {
+      mode: "selected",
+      animalIds: group.animalIds || [],
+      group
+    });
+  };
+
+  window.lkCreateCalendarPlanForSelected = function lkCreateCalendarPlanForSelected(key) {
+    const animalIds = [...document.querySelectorAll(".lkCalendarAudienceAnimal:checked")].map((input) => input.value);
+    if (!animalIds.length) {
+      const error = document.querySelector("#lkCalendarAudienceError");
+      if (error) error.textContent = "Bitte wähle mindestens ein Kind aus.";
+      return;
+    }
+    openCalendarPlanEditorForAudience(key, { mode: "selected", animalIds });
+  };
+
+  // Kompatibel mit älteren Buttons/Links: Neue Pläne beginnen ebenfalls mit der Zielgruppenwahl.
+  window.lkCreateCalendarWeek = function lkCreateCalendarWeek(key) {
+    lkStartCalendarAudienceChoice(key);
+  };
+
+  window.lkReturnToWeeklyEditorFromCatalog = function lkReturnToWeeklyEditorFromCatalog() {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+
+    // Wenn bereits ein Plan im Editor aktiv war, direkt dorthin zurückkehren.
+    // So funktioniert "Plan bearbeiten" auch zuverlässig aus der Hefte-Ansicht.
+    if (weeklyPlanEditorId) {
+      weeklyPickRequest = null;
+      weeklyPlanSection = "create";
+      render();
+      return;
+    }
+
+    // Ohne aktiven Editor wird der Plan der ausgewählten Woche geöffnet bzw.
+    // bei mehreren Plänen wieder die Auswahl angezeigt.
+    lkOpenSelectedWeekEditor();
+  };
+
+  window.lkOpenSelectedWeekEditor = function lkOpenSelectedWeekEditor() {
+    const week = selectedWeek();
+    if (!week) return;
+    const plans = plansForWeek(week);
+
+    if (plans.length === 1) {
+      weeklyPlanDraft = null;
+      lkEditCalendarPlan(plans[0].id);
+      return;
+    }
+    if (plans.length > 1) {
+      lkCalendarWeekDialogOpen = true;
+      lkCalendarAudienceChoiceOpen = false;
+      weeklyPlanSection = "current";
+      render();
+      return;
+    }
+    lkStartCalendarAudienceChoice(week.key);
+  };
+
+  window.lkEditCalendarPlan = function lkEditCalendarPlan(planId) {
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+    const planDate = fromDateKey(plan?.validFrom || plan?.validTo || "");
+    const planYear = schoolYearForDate(planDate);
+    if (Number.isFinite(planYear)) {
+      lkCalendarAutoYear = planYear === automaticSchoolYearStart(new Date());
+      lkCalendarStartYear = planYear;
+    }
+    weeklyPlanDraft = null;
+    editWeeklyPlan(planId);
+  };
+
+  window.lkCopyCalendarPlan = function lkCopyCalendarPlan(planId) {
+    if (baseCopyWeeklyPlan) {
+      baseCopyWeeklyPlan(planId);
+      return;
+    }
+    if (typeof copyWeeklyPlan === "function") copyWeeklyPlan(planId);
+  };
+
+  window.lkTogglePlanningReady = async function lkTogglePlanningReady(planId) {
+    const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
+    if (!plan) return;
+
+    const current = planPlanningState(plan);
+    const nextMap = {
+      ...planningStateMap(),
+      [planId]: current === "ready" ? "draft" : "ready"
+    };
+    await persistAndRender({ ...state, weeklyPlanningStatus: nextMap });
+  };
+
+  window.lkChangeCalendarSchoolYear = function lkChangeCalendarSchoolYear(delta) {
+    const nextYear = calendarStartYear() + Number(delta || 0);
+    lkCalendarAutoYear = nextYear === automaticSchoolYearStart(new Date());
+    lkCalendarStartYear = nextYear;
+    lkCalendarSelectedMonday = "";
+    lkCalendarSelectedMonthKey = "";
+    weeklyPlanSection = "current";
+    render();
+  };
+
+  // Neue Pläne, die direkt aus einer offenen Kalenderwoche erzeugt werden,
+  // bleiben nach dem ersten Speichern zunächst "begonnen".
+  if (baseSaveWeeklyPlan) {
+    saveWeeklyPlan = async function saveWeeklyPlanCalendar(event) {
+      const pending = lkCalendarCreatingWeek ? { ...lkCalendarCreatingWeek } : null;
+      await baseSaveWeeklyPlan(event);
+
+      if (!pending) return;
+
+      const candidates = (state.weeklyPlans || [])
+        .filter((plan) => plan.validFrom === pending.validFrom && plan.validTo === pending.validTo)
+        .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+      const created = candidates[0];
+
+      lkCalendarCreatingWeek = null;
+      if (!created) return;
+
+      const nextMap = {
+        ...planningStateMap(),
+        [created.id]: planningStateMap()[created.id] || "draft"
+      };
+      await persist({ ...state, weeklyPlanningStatus: nextMap });
+      render();
+    };
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !lkCalendarWeekDialogOpen) return;
+    lkCalendarWeekDialogOpen = false;
+    lkCalendarAudienceChoiceOpen = false;
+    render();
+  });
+
+  const style = document.createElement("style");
+  style.id = "lk-weekly-calendar-style";
+  style.textContent = `
+    .lk-cal-nav { padding-block:10px; }
+    .lk-cal-tabs { margin:0; }
+    .lk-cal-tabs .small-button { font-size:.9rem; }
+
+    .lk-cal-hero {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:14px 18px;
+      align-items:flex-start;
+      border:2px solid rgba(47,111,145,.10);
+      background:linear-gradient(135deg,rgba(223,243,255,.78),rgba(255,250,231,.75));
+    }
+    .lk-cal-hero-main { min-width:0; flex:1; }
+    .lk-cal-title-line {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+    }
+    .lk-cal-title-line > div:first-child { min-width:0; }
+    .lk-cal-hero h2 { margin:.15rem 0 .35rem; }
+    .lk-cal-year-picker {
+      display:grid;
+      grid-template-columns:auto minmax(110px,auto) auto auto;
+      align-items:center;
+      gap:4px;
+      flex:none;
+    }
+    .lk-cal-year-picker label { display:block; }
+    .lk-cal-year-picker .select-input {
+      min-width:112px;
+      padding:5px 7px;
+      font-size:.76rem;
+      font-weight:700;
+      background:rgba(255,255,255,.72);
+      border-color:rgba(47,111,145,.12);
+    }
+    .lk-cal-year-arrow { min-width:24px; padding:3px 5px; font-size:.9rem; opacity:.65; }
+    .lk-cal-year-range { margin:4px 0 0; font-size:.7rem; opacity:.42; font-weight:600; }
+    .lk-cal-kicker {
+      margin:0 0 2px;
+      font-size:.73rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      font-weight:800;
+      opacity:.55;
+    }
+    .lk-cal-summary {
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .lk-cal-month-selector {
+      grid-column:1 / -1;
+      display:block;
+      padding-top:2px;
+    }
+    .lk-cal-month-selector-top {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .lk-cal-month-chips {
+      display:flex;
+      flex-wrap:wrap;
+      gap:7px;
+    }
+    .lk-cal-month-chip {
+      border-radius:999px;
+      padding:8px 13px;
+      background:rgba(255,255,255,.9);
+      cursor:pointer;
+    }
+    .lk-cal-month-chip.active {
+      background:#ccecf2;
+      border-color:rgba(34,147,160,.45);
+      color:#174e5b;
+      box-shadow:0 2px 8px rgba(34,147,160,.12);
+    }
+    .lk-cal-summary span,
+    .lk-cal-plan-status,
+    .lk-cal-week-status {
+      padding:5px 8px;
+      border-radius:999px;
+      font-size:.78rem;
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .lk-cal-summary .ready,
+    .lk-cal-plan-status.ready,
+    .lk-cal-week-status.ready { background:rgba(72,154,92,.13); color:#356e43; }
+    .lk-cal-summary .draft,
+    .lk-cal-plan-status.draft,
+    .lk-cal-week-status.draft { background:#fff1c7; color:#835916; }
+    .lk-cal-summary .open,
+    .lk-cal-week-status.open { background:rgba(0,0,0,.05); color:#555; }
+
+    .lk-cal-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+      margin:12px 0;
+    }
+    .lk-cal-grid.single-view { grid-template-columns:1fr; }
+    .lk-cal-month {
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:16px;
+      padding:11px;
+      background:rgba(255,255,255,.78);
+      min-width:0;
+    }
+    .lk-cal-month.single-view { padding:14px; }
+    .lk-cal-month h3 {
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:8px;
+      margin:0 0 8px;
+      font-size:.96rem;
+    }
+    .lk-cal-month h3 small { font-size:.7rem; opacity:.5; font-weight:600; }
+    .lk-cal-month-weeks {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:6px;
+    }
+    .lk-cal-month-weeks.single-view { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+    .lk-cal-week {
+      position:relative;
+      min-height:58px;
+      display:grid;
+      grid-template-columns:1fr auto;
+      grid-template-rows:auto auto;
+      gap:1px 6px;
+      align-items:center;
+      padding:7px 8px;
+      border:1.5px solid rgba(0,0,0,.10);
+      border-radius:12px;
+      background:#fff;
+      color:inherit;
+      text-align:left;
+      cursor:pointer;
+      font:inherit;
+    }
+    .lk-cal-week.ready { background:rgba(225,245,230,.72); border-color:rgba(72,154,92,.22); }
+    .lk-cal-week.draft { background:#fff8df; border-color:rgba(200,151,40,.26); }
+    .lk-cal-week.open { background:#fff; }
+    .lk-cal-week.selected {
+      outline:3px solid rgba(47,111,145,.23);
+      border-color:rgba(47,111,145,.58);
+    }
+    .lk-cal-week.current::before {
+      content:"heute";
+      position:absolute;
+      top:-6px;
+      right:7px;
+      padding:1px 5px;
+      border-radius:999px;
+      background:#2f6f91;
+      color:#fff;
+      font-size:.57rem;
+      font-weight:800;
+    }
+    .lk-cal-week-number { font-size:.82rem; font-weight:800; }
+    .lk-cal-week-dates { grid-column:1; font-size:.66rem; opacity:.62; }
+    .lk-cal-week-state {
+      grid-column:2;
+      grid-row:1 / 3;
+      font-size:1rem;
+      font-weight:900;
+    }
+
+    .lk-cal-dialog-backdrop {
+      position:fixed;
+      inset:0;
+      z-index:3000;
+      display:grid;
+      place-items:center;
+      padding:24px;
+      overflow:auto;
+      background:rgba(27,47,60,.34);
+      backdrop-filter:blur(2px);
+      -webkit-backdrop-filter:blur(2px);
+    }
+    .lk-cal-dialog-backdrop .lk-cal-selected {
+      position:relative;
+      width:min(1040px,100%);
+      max-height:calc(100vh - 48px);
+      overflow:auto;
+      margin:0;
+      box-shadow:0 24px 70px rgba(26,54,72,.24);
+      background:#f9fcfe;
+      overscroll-behavior:contain;
+    }
+    .lk-cal-dialog-close {
+      position:absolute;
+      top:14px;
+      right:14px;
+      width:38px;
+      height:38px;
+      display:grid;
+      place-items:center;
+      border:1px solid rgba(47,111,145,.18);
+      border-radius:50%;
+      background:#fff;
+      color:#24485e;
+      font:700 1.45rem/1 sans-serif;
+      cursor:pointer;
+      z-index:2;
+    }
+    .lk-cal-dialog-close:hover { background:#eef7fb; }
+    .lk-cal-dialog-backdrop .lk-cal-selected-head { padding-right:46px; }
+
+    .lk-cal-selected { border:2px solid rgba(47,111,145,.13); }
+    .lk-cal-selected-head {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:14px;
+      margin-bottom:12px;
+    }
+    .lk-cal-selected-head h2 { margin:5px 0 0; }
+    .lk-cal-plan-list { display:grid; gap:10px; }
+    .lk-cal-plan-card {
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:16px;
+      padding:13px;
+      background:rgba(255,255,255,.82);
+    }
+    .lk-cal-plan-main {
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:14px;
+      align-items:start;
+    }
+    .lk-cal-plan-title h3 { margin:6px 0 3px; }
+    .lk-cal-plan-title p { margin:0; opacity:.65; font-size:.82rem; }
+    .lk-cal-plan-badges { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .lk-cal-audience-badge {
+      display:inline-flex;
+      align-items:center;
+      min-height:25px;
+      padding:3px 8px;
+      border-radius:999px;
+      background:rgba(47,111,145,.08);
+      border:1px solid rgba(47,111,145,.12);
+      font-size:.72rem;
+      font-weight:700;
+      color:#315a70;
+    }
+    .lk-cal-audience-badge.group { background:rgba(255,239,171,.42); color:#6b5a20; }
+    .lk-cal-audience-badge.single,
+    .lk-cal-audience-badge.selected { background:rgba(221,242,230,.56); color:#315f47; }
+
+    .lk-cal-audience-picker {
+      margin:4px 0 16px;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid rgba(47,111,145,.13);
+      background:linear-gradient(135deg,rgba(236,248,255,.92),rgba(255,252,239,.92));
+    }
+    .lk-cal-audience-heading {
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      margin-bottom:12px;
+    }
+    .lk-cal-audience-heading h3 { margin:3px 0 4px; }
+    .lk-cal-audience-heading p { margin:0; opacity:.7; font-size:.85rem; }
+    .lk-cal-audience-kicker {
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      opacity:.65;
+    }
+    .lk-cal-audience-quick {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:9px;
+    }
+    .lk-cal-audience-option {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      column-gap:9px;
+      row-gap:2px;
+      align-items:center;
+      text-align:left;
+      padding:11px;
+      border:1px solid rgba(47,111,145,.14);
+      border-radius:13px;
+      background:#fff;
+      color:inherit;
+      cursor:pointer;
+    }
+    .lk-cal-audience-option:hover { border-color:rgba(47,111,145,.36); background:#f8fcfe; }
+    .lk-cal-audience-option > span {
+      grid-row:1 / span 2;
+      font-size:1.25rem;
+    }
+    .lk-cal-audience-option strong { font-size:.88rem; }
+    .lk-cal-audience-option small { opacity:.62; font-size:.72rem; }
+    .lk-cal-individual-choice {
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:13px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(0,0,0,.06);
+    }
+    .lk-cal-individual-choice summary {
+      cursor:pointer;
+      font-weight:700;
+      font-size:.86rem;
+    }
+    .lk-cal-audience-animal-grid {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:7px;
+      margin:10px 0;
+    }
+    .lk-cal-audience-animal-grid label {
+      display:grid;
+      grid-template-columns:auto auto 1fr;
+      gap:5px;
+      align-items:center;
+      padding:7px 8px;
+      border-radius:10px;
+      background:#fff;
+      border:1px solid rgba(0,0,0,.06);
+      font-size:.78rem;
+    }
+    .lk-cal-audience-animal-grid label small {
+      grid-column:3;
+      opacity:.58;
+      font-size:.68rem;
+    }
+    .lk-cal-audience-error { margin:7px 0 0; min-height:0; }
+    .lk-cal-plan-actions {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .lk-cal-print { white-space:nowrap; }
+    .lk-cal-day-summary {
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .lk-cal-day-summary span {
+      min-width:42px;
+      padding:4px 7px;
+      border-radius:999px;
+      background:rgba(0,0,0,.04);
+      font-size:.72rem;
+      text-align:center;
+    }
+    .lk-cal-day-summary span.has-tasks { background:rgba(47,111,145,.08); }
+    .lk-cal-plan-footer {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:center;
+      margin-top:10px;
+      padding-top:9px;
+      border-top:1px solid rgba(0,0,0,.06);
+    }
+    .danger-text { color:#a34c4c; }
+    .lk-cal-empty {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      gap:11px;
+      align-items:center;
+      padding:15px;
+      border-radius:14px;
+      background:rgba(0,0,0,.025);
+    }
+    .lk-cal-empty > span {
+      width:38px;
+      height:38px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:#fff;
+      font-size:1.25rem;
+    }
+    .lk-cal-empty > div { display:grid; gap:3px; }
+    .lk-cal-empty small { opacity:.65; }
+
+    @media (max-width:980px) {
+      .lk-cal-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-month-weeks.single-view { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-audience-quick { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-audience-animal-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .lk-cal-plan-main { grid-template-columns:1fr; }
+      .lk-cal-plan-actions { justify-content:flex-start; }
+    }
+    @media (max-width:640px) {
+      .lk-cal-dialog-backdrop { padding:10px; align-items:start; }
+      .lk-cal-dialog-backdrop .lk-cal-selected {
+        width:100%;
+        max-height:calc(100vh - 20px);
+        border-radius:18px;
+      }
+      .lk-cal-hero,
+      .lk-cal-selected-head,
+      .lk-cal-audience-heading { display:block; }
+      .lk-cal-audience-quick { grid-template-columns:1fr; }
+      .lk-cal-audience-animal-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .lk-cal-title-line { display:block; }
+      .lk-cal-year-picker {
+        margin-top:10px;
+        grid-template-columns:auto minmax(0,1fr) auto;
+      }
+      .lk-cal-year-picker .select-input { width:100%; }
+      .lk-cal-summary { justify-content:flex-start; margin-top:10px; }
+      .lk-cal-month-selector { display:block; }
+      .lk-cal-month-selector-top { display:block; }
+      .lk-cal-month-actions { justify-content:flex-start; margin-top:8px; }
+      .lk-cal-year-picker-row { justify-content:flex-start; }
+      .lk-cal-grid { grid-template-columns:1fr; }
+      .lk-cal-month-weeks.single-view { grid-template-columns:1fr; }
+      .lk-cal-selected-head > button { margin-top:10px; }
+      .lk-cal-plan-footer { align-items:flex-start; flex-direction:column; }
+    }
+  `;
+  if (!document.getElementById(style.id)) document.head.appendChild(style);
+
+  window.LKWeeklyCalendar = {
+    schoolYearWeeks,
+    isoWeekInfo,
+    schoolYearForDate,
+    schoolYearOptionYears,
+    planMatchesWeek,
+    weekPlanningState,
+    makeDraftForWeek
+  };
+})();

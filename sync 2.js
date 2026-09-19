@@ -236,12 +236,6 @@ async function initCloudSync() {
     scheduleMicrosoftAutoBackup();
   });
   setTimeout(() => syncPendingLearningGameSessions().catch(() => {}), 1200);
-  // Auf einem bereits angemeldeten Lehrkraftgerät beim Start automatisch den
-  // gemeinsamen OneDrive-Stand holen. Der Uploadweg ist merge-first und kann
-  // daher keine neueren Daten eines anderen Geräts blind überschreiben.
-  if (syncRuntime.msAccount && navigator.onLine) {
-    setTimeout(() => uploadOneDriveBackupNow(true).catch(() => {}), 1800);
-  }
 }
 
 async function startMicrosoftLoginRedirect(action = "connect") {
@@ -302,7 +296,7 @@ function renderCloudSyncPanel() {
       </div>
       <div class="backup-actions">
         <button class="primary" type="button" ${msConnected ? "" : "disabled"} onclick="syncWithOneDriveNow()">Jetzt abgleichen</button>
-        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="uploadOneDriveBackupNow()">Zusammenführen & sichern</button>
+        <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="uploadOneDriveBackupNow()">Nur sichern</button>
         <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="mergeOneDriveBackupNow()">Nur Cloud-Daten holen</button>
       </div>
       <p class="privacy-text">„Jetzt abgleichen“ holt zuerst das vorhandene OneDrive-Backup, führt neue Einträge zusammen und speichert anschließend den gemeinsamen Stand wieder in OneDrive.</p>
@@ -604,9 +598,6 @@ async function syncWithOneDriveNow() {
           + Number(merged.report?.addedTrainingCompletions || 0)
           + Number(merged.report?.addedAssessmentResults || 0)
           + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
           + gameMerge.added;
       }
     }
@@ -637,58 +628,23 @@ async function syncWithOneDriveNow() {
 }
 
 async function uploadOneDriveBackupNow(silent = false) {
-  // Wichtig für mehrere Lehrkraftgeräte:
-  // Niemals einen rein lokalen Stand blind nach OneDrive schreiben. Vor jedem
-  // Upload wird der vorhandene Cloud-Stand eingelesen und nach Zeitstempeln
-  // zusammengeführt. So kann ein älteres iPad/MacBook neuere Daten des
-  // jeweils anderen Geräts nicht mehr überschreiben.
-  if (syncRuntime.msStatus === "working") return false;
-  syncRuntime.msStatus = "working";
   if (!silent) {
-    syncRuntime.msMessage = "Cloud und Gerät werden sicher zusammengeführt …";
+    syncRuntime.msStatus = "working";
+    syncRuntime.msMessage = "Sicherung wird in OneDrive gespeichert …";
     render();
   }
   try {
     const remote = await getOneDriveBackup();
-    let nextState = state;
-    let changed = 0;
-
-    if (remote) {
-      const cloudFirst = shouldPreferCloudOnThisDevice(nextState, remote);
-      if (cloudFirst) {
-        nextState = stateFromBackup(remote);
-        changed = oneDriveMeaningfulDataCount(remote);
-      } else {
-        const merged = mergeBackupData(nextState, remote);
-        nextState = merged.state;
-        const gameMerge = mergeLearningGameSessions(nextState, remote);
-        nextState = gameMerge.state;
-        changed += Number(merged.report?.addedEntries || 0)
-          + Number(merged.report?.updatedRecords || 0)
-          + Number(merged.report?.addedTrainingCompletions || 0)
-          + Number(merged.report?.addedAssessmentResults || 0)
-          + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
-          + gameMerge.added;
-      }
+    if (remote && shouldPreferCloudOnThisDevice(state, remote)) {
+      syncRuntime.msStatus = "success";
+      syncRuntime.msMessage = "In OneDrive liegt bereits ein vollständiger Stand. Auf diesem Gerät bitte zuerst Cloud-Daten holen.";
+      if (!silent) render();
+      return false;
     }
-
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-
     await putOneDriveBackup(makeFullBackup(state));
-    const status = changed
-      ? `${changed} Cloud-/Geräteänderungen zusammengeführt und gesichert.`
-      : "Cloud und Gerät sind sicher zusammengeführt und gesichert.";
-    await updateMicrosoftSyncMetadata(nowIso(), status);
+    await updateMicrosoftSyncMetadata(nowIso(), "OneDrive-Sicherung aktuell.");
     syncRuntime.msStatus = "success";
-    syncRuntime.msMessage = status;
+    syncRuntime.msMessage = "OneDrive-Sicherung gespeichert.";
     if (!silent) render();
     return true;
   } catch (error) {
@@ -729,9 +685,6 @@ async function mergeOneDriveBackupNow() {
         + Number(merged.report?.addedTrainingCompletions || 0)
         + Number(merged.report?.addedAssessmentResults || 0)
         + Number(merged.report?.addedWeeklyPlans || 0)
-        + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-        + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-        + Number(merged.report?.addedChildWorkbookReports || 0)
         + gameMerge.added;
     }
 
@@ -779,7 +732,7 @@ function scheduleMicrosoftAutoBackup() {
   if (!syncRuntime.msAccount) return;
   clearTimeout(syncRuntime.autoTimer);
   syncRuntime.autoTimer = setTimeout(async () => {
-    const fingerprint = `${state.lastSavedAt || ""}|${(state.entries || []).length}|${(state.weeklyPlanStatuses || []).length}|${(state.workbookAssignmentStatuses || []).length}|${(state.childWorkbookReports || []).length}|${(state.learningGameSessions || []).length}|${(state.trainingCompletions || []).length}|${(state.assessmentResults || []).length}`;
+    const fingerprint = `${state.lastSavedAt || ""}|${(state.entries || []).length}|${(state.learningGameSessions || []).length}|${(state.trainingCompletions || []).length}|${(state.assessmentResults || []).length}`;
     if (fingerprint === syncRuntime.lastAutoFingerprint) return;
     syncRuntime.lastAutoFingerprint = fingerprint;
     await uploadOneDriveBackupNow(true);
