@@ -2610,19 +2610,48 @@ function renderAnimalWeeklyProgressEditor(classId, animal) {
   `;
 }
 
+function directProgressWeeklySuggestions(animal, subject) {
+  const classId = animal.classId || state.activeClassId;
+  const rows = buildWeeklyProgressRows(classId)
+    .filter((row) => row.animal.id === animal.id && row.subject === subject && row.item?.catalogItem);
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = `${row.item.workbookCatalogId || row.item.catalogItem?.id || ""}|${row.pagesLabel || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderDirectWorkbookProgressForm(animal, subject) {
   const items = workbookCatalogForActiveClass()
     .filter((item) => item.subject === subject && item.active !== false)
     .sort((a, b) => a.workbook.localeCompare(b.workbook, "de", { numeric: true }) || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true }) || Number(a.page) - Number(b.page));
   const formId = subject === "Deutsch" ? "directDeutschProgress" : "directMatheProgress";
   const subjectLabel = subject === "Deutsch" ? "Deutsch-Material" : "Mathe-Material";
-  const defaultItemId = defaultWorkbookCatalogIdForSubject(subject, { animalId: animal.id, classId: animal.classId || state.activeClassId });
-  const defaultItem = items.find((item) => item.id === defaultItemId) || items[0] || null;
+  const weeklySuggestions = directProgressWeeklySuggestions(animal, subject);
+  const weeklyDefault = weeklySuggestions[0]?.item?.catalogItem || null;
+  const defaultItemId = weeklyDefault?.id || defaultWorkbookCatalogIdForSubject(subject, { animalId: animal.id, classId: animal.classId || state.activeClassId });
+  const defaultItem = items.find((item) => item.id === defaultItemId) || weeklyDefault || items[0] || null;
   const activeSetting = activeWorkbookSetting(animal.classId || state.activeClassId, subject, { animalId: animal.id });
   return `
     <section class="panel">
       <h2>${escapeHtml(subject)} direkt erfassen</h2>
-      <p class="message">${escapeHtml(subjectLabel)} unabhängig vom Wochenplan auswählen und mit offen, teilweise oder fertig speichern. Voreinstellung: ${escapeHtml(activeWorkbookSettingLabel(activeSetting))}.</p>
+      <p class="message">Zuerst werden die Materialien und Seiten aus dem aktuellen Wochenplan dieses Kindes angeboten. Nur wenn etwas zusätzlich bearbeitet wurde, kannst du darunter ein anderes Material wählen.</p>
+      ${weeklySuggestions.length ? `
+        <div class="weekly-direct-suggestions">
+          <strong>Aus aktuellem Wochenplan</strong>
+          <div class="weekly-direct-suggestion-list">
+            ${weeklySuggestions.map((row) => `
+              <button class="secondary weekly-direct-suggestion" type="button" onclick="selectWeeklyMaterialForDirectProgress('${formId}', '${escapeAttribute(row.item.catalogItem.id)}', '${escapeAttribute(row.pagesLabel || "")}', '${escapeAttribute(row.status || "offen")}')">
+                <span>${escapeHtml(row.workbookLabel || row.item.catalogItem.workbook || subjectLabel)}</span>
+                <strong>${escapeHtml(row.pagesLabel || pageRangeLabel(row.item.catalogItem))}</strong>
+                ${row.topic ? `<small>${escapeHtml(row.topic)}</small>` : ""}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      ` : `<div class="message">Für ${escapeHtml(subject)} ist in diesem Wochenplan keine Materialaufgabe eingetragen. Du kannst unten frei auswählen.</div>`}
       <form class="inline-form direct-progress-form" id="${formId}" onsubmit="saveDirectWorkbookProgress(event, '${subject}', '${escapeAttribute(animal.id)}')">
         ${renderTeacherMaterialPickerControl({
           targetId: `${formId}Catalog`,
@@ -2650,6 +2679,21 @@ function renderDirectWorkbookProgressForm(animal, subject) {
       <button class="secondary" type="button" onclick="openWorkbookCatalogManager()">+ Material hinzufügen</button>
     </section>
   `;
+}
+
+
+function selectWeeklyMaterialForDirectProgress(formId, catalogId, pagesLabel, currentStatus) {
+  const catalogInput = document.getElementById(`${formId}Catalog`);
+  const display = document.getElementById(`${formId}CatalogDisplay`);
+  const pagesInput = document.getElementById(`${formId}Pages`);
+  const statusInput = document.getElementById(`${formId}Status`);
+  const catalog = workbookCatalogForActiveClass().find((item) => item.id === catalogId);
+  if (catalogInput) catalogInput.value = catalogId || "";
+  if (display && catalog) display.textContent = workbookCatalogFullLabel(catalog);
+  if (pagesInput) pagesInput.value = pagesLabel || pageRangeLabel(catalog) || "";
+  if (statusInput && WEEKLY_PLAN_STATUSES.includes(normalizeSimpleWorkStatus(currentStatus))) {
+    statusInput.value = normalizeSimpleWorkStatus(currentStatus);
+  }
 }
 
 function renderWorkbookCatalogSelectOptions(items) {

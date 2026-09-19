@@ -4517,3 +4517,9 @@ body {
 .weekly-worked-page b { font-size: .72rem; }
 .weekly-worked-page.teilweise { background: #fff9eb; border-color: #ecd9a9; }
 .weekly-worked-page.fertig { background: #f0f8f2; border-color: #c7dfcc; }
+
+/* V8: Direkte Seitenerfassung orientiert sich zuerst am aktuellen Wochenplan */
+.weekly-direct-suggestions{margin:14px 0 18px;display:grid;gap:10px}
+.weekly-direct-suggestion-list{display:flex;flex-wrap:wrap;gap:10px}
+.weekly-direct-suggestion{display:grid;gap:2px;text-align:left;min-width:180px;max-width:320px}
+.weekly-direct-suggestion small{opacity:.72;font-weight:400}

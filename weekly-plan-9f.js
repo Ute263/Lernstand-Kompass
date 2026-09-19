@@ -720,14 +720,12 @@
   function printPageWeekLayout(className, plan, animal, options) {
     const code = codeForAnimal(animal, options);
     const items = allPrintableItems(plan, animal, options);
-    const deutschRequired = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection && !item.isExtraTask);
-    const deutschStar = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection && item.isExtraTask);
-    const lesezeitRequired = items.filter((item) => item.weeklySection === "Lesezeit" && !item.isExtraTask);
-    const lesezeitStar = items.filter((item) => item.weeklySection === "Lesezeit" && item.isExtraTask);
-    const lernwoerterRequired = items.filter((item) => item.weeklySection === "Lernwörter" && !item.isExtraTask);
-    const lernwoerterStar = items.filter((item) => item.weeklySection === "Lernwörter" && item.isExtraTask);
-    const matheRequired = items.filter((item) => printSubject(item) === "Mathe" && !item.isExtraTask);
-    const matheStar = items.filter((item) => printSubject(item) === "Mathe" && item.isExtraTask);
+    // Reihenfolge aus dem Wochenplan beibehalten. Pflicht- und Zusatzaufgaben
+    // werden nicht mehr künstlich in zwei Blöcke getrennt; Zusatz bleibt am ★ erkennbar.
+    const deutschItems = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection);
+    const lesezeitItems = items.filter((item) => item.weeklySection === "Lesezeit");
+    const lernwoerterItems = items.filter((item) => item.weeklySection === "Lernwörter");
+    const matheItems = items.filter((item) => printSubject(item) === "Mathe");
     const extra = items.filter((item) => !["Deutsch", "Mathe"].includes(printSubject(item)));
 
     const densityClass = printDensityClass(items.length);
@@ -759,10 +757,9 @@
             ${renderWeekSubjectHeader("Deutsch", "Arbeitsaufträge · Lesezeit · Lernwörter")}
             <div class="lk-wp-week-subsections">
               ${printDeutschSectionOrder(plan).map((section) => {
-                const required = section === "Deutsch" ? deutschRequired : section === "Lesezeit" ? lesezeitRequired : lernwoerterRequired;
-                const starred = section === "Deutsch" ? deutschStar : section === "Lesezeit" ? lesezeitStar : lernwoerterStar;
+                const sectionItems = section === "Deutsch" ? deutschItems : section === "Lesezeit" ? lesezeitItems : lernwoerterItems;
                 const cssClass = section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
-                return `${required.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · Pflichtaufgaben`, required, cssClass) : ""}${starred.length ? renderWeekLayoutSection(`${printSectionTitle(section)} · ⭐ Sternchenaufgaben`, starred, `${cssClass} star`) : ""}`;
+                return sectionItems.length ? renderWeekLayoutSection(printSectionTitle(section), sectionItems, cssClass) : "";
               }).join("")}
             </div>
           </section>
@@ -770,8 +767,7 @@
           <section class="lk-wp-week-subject-block mathe-group">
             ${renderWeekSubjectHeader("Mathe")}
             <div class="lk-wp-week-subsections">
-              ${renderWeekLayoutSection("Pflichtaufgaben", matheRequired, "mathe")}
-              ${matheStar.length ? renderWeekLayoutSection("⭐ Sternchenaufgaben", matheStar, "mathe star") : ""}
+              ${renderWeekLayoutSection("Aufgaben", matheItems, "mathe")}
             </div>
           </section>
 

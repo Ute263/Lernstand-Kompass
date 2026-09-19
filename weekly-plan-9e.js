@@ -465,18 +465,11 @@
   function moveTargetIndex(stars, itemIndex, direction, weekMode = false) {
     if (itemIndex < 0 || itemIndex >= stars.length) return -1;
     const step = direction < 0 ? -1 : 1;
-    let target = itemIndex + step;
+    const target = itemIndex + step;
 
-    if (!weekMode) return target >= 0 && target < stars.length ? target : -1;
-
-    // Im Wochenmodus bleibt die feste Struktur Pflicht → Sternchen erhalten.
-    // Deshalb wird nur innerhalb derselben Gruppe verschoben.
-    const starred = Boolean(stars[itemIndex]);
-    while (target >= 0 && target < stars.length) {
-      if (Boolean(stars[target]) === starred) return target;
-      target += step;
-    }
-    return -1;
+    // Die sichtbare Reihenfolge ist frei wählbar. Pflicht- und Zusatzaufgaben
+    // dürfen bewusst gemischt werden; der Sternstatus bleibt an der Aufgabe.
+    return target >= 0 && target < stars.length ? target : -1;
   }
 
   function renderTaskOrderButtons(scope, animalId, day, subject, itemIndex, stars) {
@@ -1272,7 +1265,7 @@
           const sectionFor = (entry) => entry.weeklySection || (entry.subject === "Deutsch" ? "Deutsch" : entry.subject);
           const ra = rankMap[sectionFor(a.item)] || (a.item.subject === "Mathe" ? 10 : 20);
           const rb = rankMap[sectionFor(b.item)] || (b.item.subject === "Mathe" ? 10 : 20);
-          return ra - rb || Number(a.item.isExtraTask) - Number(b.item.isExtraTask) || a.index - b.index;
+          return ra - rb || a.index - b.index;
         }).map(({ item }) => item);
 
       const subjectFor = (item) => {
