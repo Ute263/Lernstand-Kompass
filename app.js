@@ -2050,7 +2050,9 @@ function compactWeeklyTaskStatus(row) {
 
 function compactWeeklyTaskList(rows) {
   if (!rows.length) return `<span class="weekly-compact-empty">–</span>`;
-  return `<div class="weekly-compact-task-list">${rows.map((row) => {
+  const pendingRows = rows.filter((row) => normalizeSimpleWorkStatus(row?.status || "offen") !== "fertig");
+  if (!pendingRows.length) return `<span class="weekly-compact-empty weekly-all-done">✓ alles bearbeitet</span>`;
+  return `<div class="weekly-compact-task-list">${pendingRows.map((row) => {
     const current = normalizeSimpleWorkStatus(row?.status || "offen");
     const controls = [
       ["offen", "○", "offen"],
@@ -2150,9 +2152,10 @@ function workedPagesForAnimal(animalId, subject) {
   return [...rows.values()].sort((a, b) => a.page - b.page);
 }
 
-function currentWeeklyPageNumbers(rows) {
+function currentWeeklyPageNumbers(rows, includeFinished = true) {
   const pages = new Set();
   (rows || []).forEach((row) => {
+    if (!includeFinished && normalizeSimpleWorkStatus(row?.status || "offen") === "fertig") return;
     const catalog = row?.item?.catalogItem;
     if (catalog) {
       weeklyCatalogPages(catalog).map(Number).filter((page) => Number.isFinite(page) && page > 0).forEach((page) => pages.add(page));
@@ -2165,8 +2168,11 @@ function currentWeeklyPageNumbers(rows) {
 }
 
 function renderWorkedPages(animalId, subject, currentRows = []) {
-  const currentPages = currentWeeklyPageNumbers(currentRows);
-  const pages = workedPagesForAnimal(animalId, subject).filter((item) => !currentPages.has(Number(item.page)));
+  // Seiten, die im aktuellen Wochenplan noch offen oder begonnen sind, bleiben oben.
+  // Sobald eine Wochenplan-Aufgabe fertig markiert wird, darf ihre Seite unten in
+  // "Bearbeitet" erscheinen – so wandert sie sichtbar von der To-do-Liste ins Archiv.
+  const unfinishedCurrentPages = currentWeeklyPageNumbers(currentRows, false);
+  const pages = workedPagesForAnimal(animalId, subject).filter((item) => !unfinishedCurrentPages.has(Number(item.page)));
   if (!pages.length) return "";
   return `<div class="weekly-worked-pages"><span class="weekly-worked-pages-label">Bearbeitet:</span>${pages.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>`;
 }
@@ -4373,7 +4379,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
         </details>
 
         <div class="backup-actions weekly-clean-actions">
-          <button class="primary" type="submit">Speichern</button>
+          <span id="weeklyAutosaveStatus" class="weekly-autosave-status" data-mode="saved">✓ automatisch gespeichert</span>
           <button class="secondary" type="button" onclick="openWeeklyPrintDialogFromEditor()">Drucken</button>
           <button class="secondary" type="button" onclick="newWeeklyPlan()">Neuer Plan</button>
         </div>

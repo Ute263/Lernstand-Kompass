@@ -4532,3 +4532,13 @@ body {
 .direct-extra-entry{margin-top:18px;border-top:1px solid #e4ebf1;padding-top:14px}.direct-extra-entry summary{cursor:pointer;font-weight:800;color:#245c79;list-style:none}.direct-extra-entry summary::-webkit-details-marker{display:none}
 .direct-extra-entry[open] summary{margin-bottom:10px}.optional-hint{font-weight:400;opacity:.6}
 @media(max-width:760px){.weekly-direct-task-row{align-items:flex-start;flex-direction:column}.weekly-direct-status-actions{justify-content:flex-start;width:100%}}
+
+
+/* V12: aktuelle Wochenplanseiten als To-do-Liste; fertige Seiten wandern zu Bearbeitet */
+.weekly-all-done{color:#2d6f49;font-weight:700;}
+.weekly-worked-pages{margin-top:7px;}
+
+/* V13 – sichtbarer Status der Wochenplan-Autospeicherung */
+.weekly-autosave-status{display:inline-flex;align-items:center;min-height:38px;padding:0 11px;border-radius:11px;background:#eef8f2;color:#35654b;font-size:.88rem;font-weight:700;border:1px solid rgba(53,101,75,.14)}
+.weekly-autosave-status[data-mode="saving"]{background:#fff8e7;color:#765d24}
+.weekly-autosave-status[data-mode="error"]{background:#fff0f0;color:#8b3434}

@@ -125,3 +125,11 @@ Der Lernstand-Kompass umfasst unter anderem:
 ## Lizenz
 
 Für den Lernstand-Kompass gilt die Datei [`LICENSE`](LICENSE). Für eingebundene Fremdbibliotheken gelten zusätzlich deren jeweilige Lizenzbedingungen, insbesondere die mitgelieferten Lizenzdateien.
+
+## V13 – Wochenplan automatisch speichern
+- Jede Änderung im Wochenplan wird lokal automatisch gespeichert.
+- Texteingaben werden nach einer sehr kurzen Eingabepause gespeichert.
+- Aufgabe hinzufügen/entfernen, Reihenfolge, Sternchen, Sozialform, Materialauswahl und Einzelkind-Abweichungen werden sofort gespeichert.
+- Vor dem Wechsel zu einem anderen Kind oder Wochenplan wird der aktuelle Stand zuerst gespeichert.
+- Ein sichtbarer Status zeigt „Speichert …“ bzw. „✓ automatisch gespeichert“.
+- Der bisherige notwendige Speichern-Button im Wochenplan entfällt.
