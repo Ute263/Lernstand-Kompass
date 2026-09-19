@@ -22,6 +22,8 @@
   const lkBaseWeeklyOverview = renderOverview;
 
   let lkSelectedLearningAnimalId = "";
+  let lkDirectEntryOpen = false;
+  let lkDirectEntrySubject = "Deutsch";
 
   function animals() {
     try {
@@ -266,7 +268,10 @@
 
     return `
       <section class="panel lk-simple-child-hero">
-        <button class="secondary small-button" type="button" onclick="lkBackToClassOverview()">← Klassenübersicht</button>
+        <div class="lk-simple-child-hero-actions">
+          <button class="secondary small-button" type="button" onclick="lkBackToClassOverview()">← Klassenübersicht</button>
+          <button class="primary small-button" type="button" onclick="lkOpenDirectPageEntry('${escapeAttribute(selected.id)}')">✎ Seiten eintragen</button>
+        </div>
         <div class="lk-simple-child-identity">
           <span>${escapeHtml(selected.tierEmoji || "🐾")}</span>
           <div>
@@ -299,7 +304,42 @@
         </div>
         ${renderRecent(selected.id)}
       </section>
+
+      ${lkDirectEntryOpen ? `
+        <div class="lk-direct-entry-overlay" role="dialog" aria-modal="true" aria-label="Seiten eintragen">
+          <button class="lk-direct-entry-backdrop" type="button" aria-label="Schließen" onclick="lkCloseDirectPageEntry()"></button>
+          <section class="lk-direct-entry-dialog">
+            <div class="lk-direct-entry-head">
+              <div><span class="lk-simple-kicker">Lehrkraft</span><h2>Seiten eintragen · ${escapeHtml(animalName(selected))}</h2></div>
+              <button class="secondary small-button" type="button" onclick="lkCloseDirectPageEntry()">Schließen</button>
+            </div>
+            <div class="section-tabs">
+              <button class="small-button ${lkDirectEntrySubject === "Deutsch" ? "active" : ""}" type="button" onclick="lkSetDirectEntrySubject('Deutsch')">📘 Deutsch</button>
+              <button class="small-button ${lkDirectEntrySubject === "Mathe" ? "active" : ""}" type="button" onclick="lkSetDirectEntrySubject('Mathe')">🔢 Mathe</button>
+            </div>
+            <p class="message">Material auswählen, bearbeitete Seiten eintragen und Status speichern. Der Eintrag erscheint anschließend direkt beim Kind.</p>
+            ${renderDirectWorkbookProgressForm(selected, lkDirectEntrySubject)}
+          </section>
+        </div>
+      ` : ""}
     `;
+  };
+
+  window.lkOpenDirectPageEntry = function lkOpenDirectPageEntry(animalId) {
+    lkSelectedLearningAnimalId = animalId || lkSelectedLearningAnimalId;
+    lkDirectEntryOpen = true;
+    lkDirectEntrySubject = "Deutsch";
+    render();
+  };
+
+  window.lkCloseDirectPageEntry = function lkCloseDirectPageEntry() {
+    lkDirectEntryOpen = false;
+    render();
+  };
+
+  window.lkSetDirectEntrySubject = function lkSetDirectEntrySubject(subject) {
+    lkDirectEntrySubject = subject === "Mathe" ? "Mathe" : "Deutsch";
+    render();
   };
 
   window.lkOpenChildOverview = function lkOpenChildOverview(animalId) {
@@ -335,6 +375,12 @@
   style.id = "lk-simple-learning-style";
   style.textContent = `
     .lk-simple-learning-head,.lk-simple-child-hero{display:flex;justify-content:space-between;align-items:center;gap:18px}
+    .lk-simple-child-hero-actions{display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+    .lk-direct-entry-overlay{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:24px}
+    .lk-direct-entry-backdrop{position:absolute;inset:0;border:0;background:rgba(22,48,64,.35);cursor:pointer}
+    .lk-direct-entry-dialog{position:relative;z-index:1;width:min(820px,calc(100vw - 32px));max-height:88vh;overflow:auto;background:#fff;border-radius:22px;padding:20px;box-shadow:0 24px 70px rgba(20,50,70,.24)}
+    .lk-direct-entry-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}.lk-direct-entry-head h2{margin:.1rem 0}
+    .lk-direct-entry-dialog>.panel{box-shadow:none;border:0;padding:12px 0 0;margin:0}.lk-direct-entry-dialog>.panel>h2,.lk-direct-entry-dialog>.panel>p.message{display:none}
     .lk-simple-kicker{margin:0 0 3px;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.55}
     .lk-simple-learning-head h2,.lk-simple-child-hero h2{margin:.1rem 0}
     .lk-simple-class-stats{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}

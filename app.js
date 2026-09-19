@@ -4151,6 +4151,14 @@ function closeWeeklyChildPreview() {
   document.getElementById("weeklyChildPreview")?.remove();
 }
 
+function weeklyIndividualDaysForEditor(plan, animalId) {
+  const days = {};
+  WEEK_DAYS.forEach((day) => {
+    days[day] = effectiveWeeklyDayData(plan || {}, day, animalId);
+  });
+  return days;
+}
+
 function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const draft = weeklyPlanDraft || plan || {};
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
@@ -4236,9 +4244,9 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
         ${focusAnimal ? `
           <div class="weekly-focus-note compact">
             <strong>Individuelle Abweichungen für ${escapeHtml(focusAnimal.tierEmoji)} ${escapeHtml(focusAnimal.tierName)}</strong>
-            <small>Leere Felder übernehmen automatisch den Klassenwochenplan.</small>
+            <small>Du siehst hier den Plan, der für dieses Kind tatsächlich gilt. Änderungen werden nur für dieses Kind gespeichert.</small>
           </div>
-          ${renderWeeklyPlannerTable(draft.overrides?.[focusAnimal.id]?.days || {}, "override", focusAnimal.id, planningMode, deutschSectionOrder)}
+          ${renderWeeklyPlannerTable(weeklyIndividualDaysForEditor(draft, focusAnimal.id), "override", focusAnimal.id, planningMode, deutschSectionOrder)}
           <button class="secondary weekly-inline-action" type="button" onclick="clearWeeklyOverride('${escapeAttribute(focusAnimal.id)}')">Abweichungen leeren</button>
         ` : `
           <div class="weekly-clean-section-title">
@@ -4731,7 +4739,7 @@ function collectWeeklyPlanDraftFromDom() {
   if (weeklyOverrideAnimalId && overrideVisible) {
     const overrideDays = readWeeklyDaysFromDom("override", weeklyOverrideAnimalId);
     if (weeklyDaysHaveContent(overrideDays)) {
-      draft.overrides[weeklyOverrideAnimalId] = { days: overrideDays };
+      draft.overrides[weeklyOverrideAnimalId] = { days: overrideDays, fullOverride: true };
     }
   }
   return draft;
@@ -9102,17 +9110,19 @@ function weeklyPlanPeriodLabel(plan) {
 
 function effectiveWeeklyDayData(plan, day, animalId = "") {
   const base = plan.days?.[day] || {};
-  const override = animalId ? plan.overrides?.[animalId]?.days?.[day] || {} : {};
+  const animalOverride = animalId ? plan.overrides?.[animalId] || null : null;
+  const override = animalOverride?.days?.[day] || {};
+  const fullOverride = animalOverride?.fullOverride === true;
   const baseDeutschIds = normalizeIdArray(base.deutschIds || base.deutschId);
   const baseMatheIds = normalizeIdArray(base.matheIds || base.matheId);
   const overrideDeutschIds = normalizeIdArray(override.deutschIds || override.deutschId);
   const overrideMatheIds = normalizeIdArray(override.matheIds || override.matheId);
   return {
-    deutschIds: overrideDeutschIds.length ? overrideDeutschIds : baseDeutschIds,
-    matheIds: overrideMatheIds.length ? overrideMatheIds : baseMatheIds,
-    deutschTaskNumber: normalizeTaskNumberText(override.deutschTaskNumber || base.deutschTaskNumber || ""),
-    matheTaskNumber: normalizeTaskNumberText(override.matheTaskNumber || base.matheTaskNumber || ""),
-    freeText: override.freeText || base.freeText || ""
+    deutschIds: fullOverride ? overrideDeutschIds : (overrideDeutschIds.length ? overrideDeutschIds : baseDeutschIds),
+    matheIds: fullOverride ? overrideMatheIds : (overrideMatheIds.length ? overrideMatheIds : baseMatheIds),
+    deutschTaskNumber: normalizeTaskNumberText(fullOverride ? (override.deutschTaskNumber || "") : (override.deutschTaskNumber || base.deutschTaskNumber || "")),
+    matheTaskNumber: normalizeTaskNumberText(fullOverride ? (override.matheTaskNumber || "") : (override.matheTaskNumber || base.matheTaskNumber || "")),
+    freeText: fullOverride ? (override.freeText || "") : (override.freeText || base.freeText || "")
   };
 }
 
