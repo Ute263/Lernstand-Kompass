@@ -645,46 +645,28 @@
         const key = workbook;
         const last = groups[groups.length - 1];
         if (last && last.key === key) last.items.push(item);
-        else groups.push({ key, workbook, catalogItem: item.catalogItem || null, showWorksheetCover: false, showMicrophone: false, showBlankCoverCell: false, items: [item] });
-      } else {
-        const worksheet = item.isWorksheetTask === true;
-        const microphone = item.isMicrophoneTask === true;
-        const key = worksheet ? "__worksheet__" : microphone ? "__microphone__" : `__free__${groups.length}`;
-        const last = groups[groups.length - 1];
-        // Mehrere direkt aufeinanderfolgende Arbeitsblätter werden wie ein Heft
-        // als gemeinsame Gruppe dargestellt. Dadurch erscheint das AB-Symbol
-        // nur einmal neben der gesamten Aufgabenliste.
-        if ((worksheet || microphone) && last && last.key === key && (last.showWorksheetCover || last.showMicrophone)) {
-          last.items.push(item);
-        } else {
-          groups.push({
-            key,
-            workbook: "",
-            catalogItem: null,
-            showWorksheetCover: worksheet,
-            showMicrophone: microphone,
-            showBlankCoverCell: !worksheet && !microphone,
-            items: [item]
-          });
-        }
+        else groups.push({ key, workbook, catalogItem: item.catalogItem || null, items: [item] });
+        return;
       }
+
+      // Freie Aufgaben werden nicht mehr mit einer künstlichen leeren Cover-Spalte
+      // dargestellt. Arbeitsblatt/Mikrofon erscheinen direkt in der jeweiligen Zeile.
+      // Dadurch hängt ein großes AB-Symbol nicht mehr über mehreren Aufgaben und die
+      // Zeilen bleiben gleichmäßig verteilt.
+      groups.push({ key: `__free__${groups.length}`, workbook: "", catalogItem: null, items: [item] });
     });
 
     return groups.map((group) => `
-      <div class="lk-wp-workbook-group ${(group.catalogItem || group.showWorksheetCover || group.showMicrophone || group.showBlankCoverCell) ? "has-cover" : "no-cover"}">
+      <div class="lk-wp-workbook-group ${group.catalogItem ? "has-cover" : "no-cover"}" style="--group-weight:${Math.max(1, group.items.length)}">
         ${group.catalogItem
           ? `<div class="lk-wp-workbook-cover-cell">${renderWorkbookCoverImage(group.catalogItem, "lk-wp-book-cover grouped")}</div>`
-          : group.showWorksheetCover
-            ? `<div class="lk-wp-workbook-cover-cell">${renderWorksheetCoverImage("grouped")}</div>`
-            : group.showMicrophone
-              ? `<div class="lk-wp-workbook-cover-cell">${renderMicrophoneImage("grouped")}</div>`
-              : group.showBlankCoverCell
-                ? `<div class="lk-wp-workbook-cover-cell blank" aria-hidden="true"></div>`
-                : ""}
+          : ""}
         <div class="lk-wp-workbook-tasks">
           ${group.items.map((item) => `
             <div class="lk-wp-week-row">
               <div class="lk-wp-week-row-main">
+                ${item.isWorksheetTask ? renderWorksheetCoverImage("lk-wp-inline-task-icon") : ""}
+                ${item.isMicrophoneTask ? renderMicrophoneImage("lk-wp-inline-task-icon") : ""}
                 ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
                 ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
                 <div class="lk-wp-task-copy">
@@ -701,7 +683,7 @@
 
   function renderWeekLayoutSection(title, items, className = "") {
     return `
-      <section class="lk-wp-week-section ${escapeAttribute(className)}">
+      <section class="lk-wp-week-section ${escapeAttribute(className)}" style="--section-weight:${Math.max(1, items.length)}">
         <h2>${escapeHtml(title)}</h2>
         <div class="lk-wp-week-list">${renderWeekLayoutRows(items)}</div>
       </section>
@@ -828,14 +810,14 @@
     if (!pages.length) return;
 
     const probe = document.createElement("div");
-    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:1mm;height:287mm;left:-9999px;top:-9999px;";
+    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:1mm;height:296mm;left:-9999px;top:-9999px;";
     document.body.appendChild(probe);
     const targetHeight = probe.getBoundingClientRect().height;
     probe.remove();
 
     pages.forEach((page) => {
-      // Zuerst neutral messen. 287 mm statt 297 mm lassen einen kleinen
-      // Sicherheitsrand für Browser-/Druckertreiber.
+      // Zuerst neutral messen. 296 mm nutzt die A4-Seite fast vollständig;
+      // nur bei echtem Überlauf wird moderat verkleinert.
       page.style.zoom = "1";
       page.style.width = "210mm";
       page.style.minHeight = "0";
@@ -1248,13 +1230,26 @@
           background: #fff;
         }
 
+        .lk-wp-week-layout {
+          display:flex;
+          flex-direction:column;
+          height:297mm;
+          min-height:297mm;
+        }
+        .lk-wp-week-layout .lk-wp-header { flex:0 0 auto; }
         .lk-wp-week-groups {
-          display:grid;
-          gap:2mm;
-          margin-top:1.2mm;
+          display:flex;
+          flex-direction:column;
+          flex:1 1 auto;
+          min-height:0;
+          gap:3mm;
+          margin-top:1.8mm;
         }
         .lk-wp-week-subject-block {
-          display:grid;
+          display:flex;
+          flex-direction:column;
+          flex:1 1 0;
+          min-height:0;
           gap:1mm;
           break-inside:auto;
           padding:0 1.5mm 1.5mm;
@@ -1300,10 +1295,17 @@
           font-size:10.6pt;
         }
         .lk-wp-week-subsections {
-          display:grid;
+          display:flex;
+          flex-direction:column;
+          flex:1 1 auto;
+          min-height:0;
           gap:1mm;
         }
         .lk-wp-week-section {
+          display:flex;
+          flex-direction:column;
+          flex:var(--section-weight,1) 1 0;
+          min-height:0;
           border:.35mm solid #6b6b6b;
           border-radius:3.5mm;
           overflow:hidden;
@@ -1322,10 +1324,17 @@
         .lk-wp-week-section.mathe h2 { background:#dff4ff; }
         .lk-wp-week-section.star h2 { background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,244,190,.55)); }
         .lk-wp-week-section.extra h2 { background:#f4f4f4; }
-        .lk-wp-week-list { display:grid; }
+        .lk-wp-week-list {
+          display:flex;
+          flex-direction:column;
+          flex:1 1 auto;
+          min-height:0;
+        }
         .lk-wp-workbook-group {
           display:grid;
           grid-template-columns:22mm minmax(0,1fr);
+          flex:var(--group-weight,1) 1 0;
+          min-height:0;
           border-bottom:.32mm solid #aeb8be;
         }
         .lk-wp-workbook-group:last-child { border-bottom:0; }
@@ -1345,9 +1354,15 @@
           height:24mm;
           object-fit:contain;
         }
-        .lk-wp-workbook-tasks { min-width:0; }
+        .lk-wp-workbook-tasks {
+          min-width:0;
+          min-height:0;
+          display:flex;
+          flex-direction:column;
+        }
         .lk-wp-week-row {
-          min-height:7mm;
+          min-height:9mm;
+          flex:1 1 0;
           display:grid;
           grid-template-columns:1fr 12mm;
           align-items:center;
@@ -1368,6 +1383,13 @@
           gap:1.6mm;
         }
         .lk-wp-week-row-main .lk-wp-task-copy { min-height:0; }
+        .lk-wp-inline-task-icon {
+          width:10mm !important;
+          height:12mm !important;
+          object-fit:contain;
+          flex:0 0 auto;
+          margin-right:1mm;
+        }
         .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:16pt; line-height:1.03; }
         .lk-wp-week-row .lk-wp-circle {
           position:static;
