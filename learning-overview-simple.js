@@ -70,8 +70,57 @@
       .sort((a, b) => timestamp(b) - timestamp(a));
   }
 
+  function weeklyActivityFor(animalId) {
+    return (state.weeklyPlanStatuses || [])
+      .filter((status) => (
+        status.classId === state.activeClassId
+        && status.animalId === animalId
+        && status.markedByChild === true
+        && normalizeSimpleWorkStatus(status.status) !== "offen"
+        // Wenn bereits ein echter Lernstandseintrag verknüpft ist, zeigt
+        // entriesFor() ihn an. Hier nur die bisher unsichtbaren Fälle ergänzen.
+        && status.progressLinked !== true
+      ))
+      .map((status) => {
+        const plan = (state.weeklyPlans || []).find((item) => item.id === status.planId);
+        const animal = (state.animals || []).find((item) => item.id === animalId);
+        let task = null;
+        try {
+          task = plan && animal
+            ? weeklyPlanItemsForDay(plan, status.day, animal.id).find((item) => item.field === status.field)
+            : null;
+        } catch {}
+
+        const field = String(status.field || task?.field || "");
+        const subject = String(task?.subject || (field.startsWith("Mathe") ? "Mathe" : "Deutsch"));
+        const catalog = task?.catalogItem || null;
+        const pages = catalog ? weeklyCatalogPages(catalog).map(String) : [];
+        const title = [
+          catalog?.materialName || catalog?.material || task?.materialName || "",
+          pages.length ? `S. ${pages.join(", ")}` : "",
+          task?.text || task?.detail || task?.label || status.freeText || field || "Wochenplanaufgabe"
+        ].filter(Boolean).join(" · ");
+
+        return {
+          ...status,
+          __weeklyActivity: true,
+          fach: subject,
+          subject,
+          displayTitle: title,
+          materialName: "",
+          source: "Wochenplan"
+        };
+      })
+      .sort((a, b) => timestamp(b) - timestamp(a));
+  }
+
+  function activityFor(animalId) {
+    return [...entriesFor(animalId), ...weeklyActivityFor(animalId)]
+      .sort((a, b) => timestamp(b) - timestamp(a));
+  }
+
   function latestFor(animalId, subject) {
-    return entriesFor(animalId).find((entry) => String(entry.fach || entry.subject || "") === subject) || null;
+    return activityFor(animalId).find((entry) => String(entry.fach || entry.subject || "") === subject) || null;
   }
 
   function pageLabel(entry) {
@@ -182,7 +231,7 @@
   }
 
   function renderRecent(animalId) {
-    const recent = entriesFor(animalId).slice(0, 8);
+    const recent = activityFor(animalId).slice(0, 8);
     if (!recent.length) return `<div class="empty">Noch keine Einträge vorhanden.</div>`;
 
     return `

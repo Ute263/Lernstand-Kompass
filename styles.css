@@ -4395,3 +4395,63 @@ body {
 
 /* v204: durchgängiges Logo + kompakter Arbeitsstand der Kinder */
 .child-brand,.teacher-brand{flex-direction:row;align-items:center;gap:12px}.child-topbar-logo,.teacher-topbar-logo{width:54px;height:54px;object-fit:contain;flex:0 0 auto;border-radius:16px}.weekly-editor-workspace.with-basis{display:block}.weekly-editor-basis-aside{display:none!important}.weekly-work-status-button{white-space:nowrap}.weekly-work-status-overlay[hidden]{display:none!important}.weekly-work-status-overlay{position:fixed;inset:0;z-index:9999;display:flex;justify-content:flex-end}.weekly-work-status-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;background:rgba(25,47,67,.26);cursor:default}.weekly-work-status-panel{position:relative;z-index:1;width:min(620px,92vw);height:100%;padding:22px;overflow:auto;background:#f8fcff;box-shadow:-18px 0 44px rgba(30,58,82,.18)}.weekly-work-status-open{overflow:hidden}.weekly-work-status-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid #dce8f1}.weekly-work-status-head h3{margin:2px 0 4px;font-size:1.35rem}.weekly-work-status-head p{margin:0;max-width:460px;color:#64788b;font-size:.94rem;line-height:1.4}.weekly-work-status-kicker{color:#39718d;font-size:.77rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em}.weekly-work-status-close{flex:0 0 auto}.weekly-work-status-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:16px 0;padding:5px;border-radius:15px;background:#eaf3f8}.weekly-work-status-tab{min-height:42px;padding:8px 10px;border-radius:11px;background:transparent;color:#5a7082;font-weight:800}.weekly-work-status-tab.active{background:#fff;color:#244b63;box-shadow:0 5px 14px rgba(34,72,98,.10)}.weekly-work-status-period-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.weekly-work-status-period-head strong,.weekly-work-status-period-head span{display:block}.weekly-work-status-period-head>div>span{margin-top:2px;color:#748697;font-size:.88rem}.weekly-work-status-teacher-only{padding:5px 9px;border-radius:999px;background:#fff4d8;color:#806000;font-size:.78rem;font-weight:850;white-space:nowrap}.weekly-work-status-children{display:grid;gap:9px}.weekly-work-status-child{overflow:hidden;border:1px solid #dce8f1;border-radius:15px;background:#fff}.weekly-work-status-child.no-data{padding:11px 13px}.weekly-work-status-child.no-data strong,.weekly-work-status-child.no-data small{display:block}.weekly-work-status-child.no-data small{margin-top:2px;color:#758697}.weekly-work-status-child>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;cursor:pointer;list-style:none}.weekly-work-status-child>summary::-webkit-details-marker{display:none}.weekly-work-status-child>summary::after{content:"⌄";color:#71869a;font-size:.95rem}.weekly-work-status-child[open]>summary::after{transform:rotate(180deg)}.weekly-work-status-child-name strong,.weekly-work-status-child-name small{display:block}.weekly-work-status-child-name small{margin-top:2px;color:#728497;font-size:.82rem}.weekly-work-status-counts{display:flex;gap:5px;margin-left:auto}.weekly-work-status-counts span{min-width:38px;padding:4px 7px;border-radius:999px;text-align:center;font-size:.79rem;font-weight:850}.weekly-work-status-counts .done{background:#e6f6ec;color:#24683e}.weekly-work-status-counts .partial{background:#fff1cc;color:#866100}.weekly-work-status-counts .open{background:#edf3f7;color:#526678}.weekly-work-status-counts.future span{min-width:auto;background:#edf4ff;color:#425f91}.weekly-work-status-tasks{border-top:1px solid #e8eff4}.weekly-work-status-task{display:grid;grid-template-columns:28px minmax(0,1fr);gap:9px;padding:9px 13px;border-bottom:1px solid #edf2f6}.weekly-work-status-task:last-child{border-bottom:0}.weekly-work-status-task strong,.weekly-work-status-task small{display:block}.weekly-work-status-task strong{font-size:.92rem}.weekly-work-status-task small{margin-top:2px;color:#748497;font-size:.82rem}.weekly-work-status-state{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;font-weight:900}.weekly-work-status-state.done{background:#e6f6ec;color:#24683e}.weekly-work-status-state.partial{background:#fff1cc;color:#866100}.weekly-work-status-state.open{background:#edf3f7;color:#526678}.weekly-work-status-state.planned{background:#edf4ff;color:#425f91}.weekly-work-status-empty{padding:28px 20px;border:1px dashed #cadbe7;border-radius:16px;background:#fff;text-align:center}.weekly-work-status-empty strong,.weekly-work-status-empty span{display:block}.weekly-work-status-empty span{margin-top:3px;color:#748697}.weekly-work-status-empty p{margin:12px 0 0;color:#687b8d}@media(max-width:720px){.child-topbar-logo,.teacher-topbar-logo{width:46px;height:46px}.weekly-work-status-panel{width:100%;padding:18px}.weekly-work-status-tabs{grid-template-columns:1fr}.weekly-work-status-child>summary{flex-wrap:wrap;align-items:flex-start}.weekly-work-status-counts{width:100%;margin-left:0}}
+
+/* Lehrerübersicht: Wochenplan-Status direkt pro Aufgabe ändern */
+.weekly-compact-task-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.weekly-compact-task-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px 3px 7px;
+  border: 1px solid #e1e6e9;
+  border-radius: 9px;
+  background: #fafbfb;
+  white-space: nowrap;
+}
+.weekly-compact-task-label {
+  font-weight: 600;
+}
+.weekly-compact-status-controls {
+  display: inline-flex;
+  gap: 2px;
+}
+.weekly-compact-status-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #92999e;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.weekly-compact-status-button:hover {
+  background: #eef2f4;
+  color: #4f5c64;
+}
+.weekly-compact-status-button.active.offen {
+  background: #eef0f2;
+  border-color: #cbd1d5;
+  color: #606970;
+}
+.weekly-compact-status-button.active.teilweise {
+  background: #fff3d8;
+  border-color: #e4c980;
+  color: #8a5e0a;
+}
+.weekly-compact-status-button.active.fertig {
+  background: #e7f5e9;
+  border-color: #a8d4af;
+  color: #27743a;
+}
+@media (max-width: 720px) {
+  .weekly-compact-task-editable { white-space: normal; }
+}

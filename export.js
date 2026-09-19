@@ -1213,10 +1213,29 @@ function mergeBackupData(currentState, importedBackup) {
   imported.entries.forEach((item) => {
     const id = item.id || item.entryId;
     const fingerprint = entryFingerprint(item);
-    if ((id && entryIds.has(id)) || existingEntryFingerprints.has(fingerprint)) {
+
+    // Gleiche ID bedeutet denselben Lernstandseintrag. Bislang wurde die
+    // Cloud-Version dann immer als Duplikat verworfen – auch wenn sie neuer
+    // war. Dadurch konnten Mac und iPad dauerhaft unterschiedliche Stände
+    // anzeigen. Wie bei Wochenplan-Statusdaten gilt jetzt: neuer gewinnt.
+    if (id && entryIds.has(id)) {
+      const normalizedItem = { ...item, id };
+      if (replaceWithNewerImported(next.entries, normalizedItem)) {
+        report.updatedRecords += 1;
+        existingEntryFingerprints.add(fingerprint);
+      } else {
+        report.skippedDuplicateEntries += 1;
+      }
+      return;
+    }
+
+    // Inhaltlich identische Alt-/Importeinträge ohne gemeinsame ID bleiben
+    // weiterhin geschützt vor Doppelungen.
+    if (existingEntryFingerprints.has(fingerprint)) {
       report.skippedDuplicateEntries += 1;
       return;
     }
+
     const entry = { ...item, id: id || makeId() };
     next.entries.push(entry);
     entryIds.add(entry.id);

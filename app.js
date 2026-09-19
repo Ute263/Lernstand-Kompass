@@ -2046,10 +2046,26 @@ function compactWeeklyTaskStatus(row) {
 
 function compactWeeklyTaskList(rows) {
   if (!rows.length) return `<span class="weekly-compact-empty">–</span>`;
-  return rows.map((row) => {
-    const status = compactWeeklyTaskStatus(row);
-    return `<span class="weekly-compact-task ${status.css}" title="${escapeAttribute(status.label)}">${compactWeeklyTaskLabel(row)} <strong>${status.symbol}</strong></span>`;
-  }).join(`<span class="weekly-compact-separator"> · </span>`);
+  return `<div class="weekly-compact-task-list">${rows.map((row) => {
+    const current = normalizeSimpleWorkStatus(row?.status || "offen");
+    const controls = [
+      ["offen", "○", "offen"],
+      ["teilweise", "◐", "begonnen"],
+      ["fertig", "✓", "fertig"]
+    ].map(([value, symbol, label]) => `
+      <button
+        class="weekly-compact-status-button ${current === value ? "active " + value : ""}"
+        type="button"
+        title="${escapeAttribute(label)}"
+        aria-label="${escapeAttribute(`${compactWeeklyTaskLabel(row).replace(/<[^>]*>/g, "")} – ${label}`)}"
+        onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${value}')"
+      >${symbol}</button>
+    `).join("");
+    return `<span class="weekly-compact-task weekly-compact-task-editable">
+      <span class="weekly-compact-task-label">${compactWeeklyTaskLabel(row)}</span>
+      <span class="weekly-compact-status-controls" role="group" aria-label="Status ändern">${controls}</span>
+    </span>`;
+  }).join("")}</div>`;
 }
 
 function weeklyAnimalOverviewState(rows) {
