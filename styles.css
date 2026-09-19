@@ -4542,3 +4542,40 @@ body {
 .weekly-autosave-status{display:inline-flex;align-items:center;min-height:38px;padding:0 11px;border-radius:11px;background:#eef8f2;color:#35654b;font-size:.88rem;font-weight:700;border:1px solid rgba(53,101,75,.14)}
 .weekly-autosave-status[data-mode="saving"]{background:#fff8e7;color:#765d24}
 .weekly-autosave-status[data-mode="error"]{background:#fff0f0;color:#8b3434}
+
+/* V16: Seiten nach Lernheft/Material trennen */
+.weekly-compact-material-groups,
+.weekly-worked-material-groups {
+  display: grid;
+  gap: 7px;
+  margin-top: 4px;
+}
+.weekly-compact-material-group,
+.weekly-worked-material-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.weekly-compact-material-label,
+.weekly-worked-material-label {
+  min-width: 150px;
+  max-width: 260px;
+  font-size: .75rem;
+  line-height: 1.2;
+  font-weight: 750;
+  color: #526d7a;
+}
+.weekly-worked-material-groups > .weekly-worked-pages-label {
+  margin-bottom: 1px;
+  font-weight: 650;
+}
+.weekly-worked-material-group .weekly-worked-pages {
+  margin-top: 0;
+}
+@media (max-width: 720px) {
+  .weekly-compact-material-group,
+  .weekly-worked-material-group { align-items: flex-start; }
+  .weekly-compact-material-label,
+  .weekly-worked-material-label { min-width: 100%; max-width: none; }
+}

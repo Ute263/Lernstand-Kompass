@@ -2077,6 +2077,12 @@ function weeklyRowPageStatus(row, page) {
   return "offen";
 }
 
+function weeklyRowMaterialLabel(row) {
+  const catalog = row?.item?.catalogItem;
+  const workbook = String(row?.workbookLabel || catalog?.workbook || "Material").trim();
+  return workbook || "Material";
+}
+
 function compactWeeklyTaskList(rows) {
   if (!rows.length) return `<span class="weekly-compact-empty">–</span>`;
 
@@ -2084,37 +2090,49 @@ function compactWeeklyTaskList(rows) {
   rows.forEach((row) => {
     const pages = weeklyRowPages(row);
     if (pages.length) {
-      pages.forEach((page) => pageRows.push({ row, page, status: weeklyRowPageStatus(row, page) }));
+      pages.forEach((page) => pageRows.push({ row, page, status: weeklyRowPageStatus(row, page), material: weeklyRowMaterialLabel(row) }));
     } else {
-      pageRows.push({ row, page: null, status: normalizeSimpleWorkStatus(row?.status || "offen") });
+      pageRows.push({ row, page: null, status: normalizeSimpleWorkStatus(row?.status || "offen"), material: weeklyRowMaterialLabel(row) });
     }
   });
 
   const pendingRows = pageRows.filter((entry) => entry.status !== "fertig");
   if (!pendingRows.length) return `<span class="weekly-compact-empty weekly-all-done">✓ alles bearbeitet</span>`;
 
-  return `<div class="weekly-compact-task-list">${pendingRows.map(({ row, page, status: current }) => {
-    const label = page ? `S. ${page}` : compactWeeklyTaskLabel(row);
-    const controls = [
-      ["offen", "○", "offen"],
-      ["teilweise", "◐", "begonnen"],
-      ["fertig", "✓", "fertig"]
-    ].map(([value, symbol, labelText]) => `
-      <button
-        class="weekly-compact-status-button ${current === value ? "active " + value : ""}"
-        type="button"
-        title="${escapeAttribute(labelText)}"
-        aria-label="${escapeAttribute(`${String(label).replace(/<[^>]*>/g, "")} – ${labelText}`)}"
-        onclick="${page
-          ? `setWeeklyPlanPageStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${page}','${value}')`
-          : `setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${value}')`}"
-      >${symbol}</button>
-    `).join("");
-    return `<span class="weekly-compact-task weekly-compact-task-editable">
-      <span class="weekly-compact-task-label">${page ? escapeHtml(label) : label}</span>
-      <span class="weekly-compact-status-controls" role="group" aria-label="Status ändern">${controls}</span>
-    </span>`;
-  }).join("")}</div>`;
+  const groups = new Map();
+  pendingRows.forEach((entry) => {
+    const key = entry.material || "Material";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+
+  return `<div class="weekly-compact-material-groups">${[...groups.entries()].map(([material, entries]) => `
+    <div class="weekly-compact-material-group">
+      <span class="weekly-compact-material-label">${escapeHtml(material)}</span>
+      <div class="weekly-compact-task-list">${entries.map(({ row, page, status: current }) => {
+        const label = page ? `S. ${page}` : compactWeeklyTaskLabel(row);
+        const controls = [
+          ["offen", "○", "offen"],
+          ["teilweise", "◐", "begonnen"],
+          ["fertig", "✓", "fertig"]
+        ].map(([value, symbol, labelText]) => `
+          <button
+            class="weekly-compact-status-button ${current === value ? "active " + value : ""}"
+            type="button"
+            title="${escapeAttribute(labelText)}"
+            aria-label="${escapeAttribute(`${String(label).replace(/<[^>]*>/g, "")} – ${labelText}`)}"
+            onclick="${page
+              ? `setWeeklyPlanPageStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${page}','${value}')`
+              : `setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','${value}')`}"
+          >${symbol}</button>
+        `).join("");
+        return `<span class="weekly-compact-task weekly-compact-task-editable">
+          <span class="weekly-compact-task-label">${page ? escapeHtml(label) : label}</span>
+          <span class="weekly-compact-status-controls" role="group" aria-label="Status ändern">${controls}</span>
+        </span>`;
+      }).join("")}</div>
+    </div>
+  `).join("")}</div>`;
 }
 
 function weeklyAnimalOverviewState(rows) {
@@ -2159,17 +2177,30 @@ function workedPageNumbersFromEntry(entry) {
   return [...new Set(values.filter((page) => Number.isFinite(page) && page > 0))];
 }
 
+function workedEntryMaterialLabel(entry) {
+  const direct = String(entry?.materialName || entry?.workbook || "").trim();
+  if (direct) return direct;
+  const catalogId = entry?.workbookCatalogId || entry?.catalogItemId || "";
+  const catalog = (state.workbookCatalog || []).find((item) => item.id === catalogId);
+  return String(catalog?.workbook || "Material").trim() || "Material";
+}
+
+function materialPageKey(material, page) {
+  return `${String(material || "Material").trim().toLowerCase()}|${Number(page)}`;
+}
+
 function workedPagesForAnimal(animalId, subject) {
   const rows = new Map();
   const rank = { offen: 0, teilweise: 1, fertig: 2 };
-  const addPage = (page, status, updatedAt) => {
+  const addPage = (material, page, status, updatedAt) => {
     const normalized = normalizeSimpleWorkStatus(status || "teilweise");
     if (normalized === "offen") return;
-    const key = String(page);
+    const materialLabel = String(material || "Material").trim() || "Material";
+    const key = materialPageKey(materialLabel, page);
     const stamp = Date.parse(updatedAt || "") || 0;
     const previous = rows.get(key);
     if (!previous || rank[normalized] > rank[previous.status] || (rank[normalized] === rank[previous.status] && stamp > previous.stamp)) {
-      rows.set(key, { page: Number(page), status: normalized, stamp });
+      rows.set(key, { page: Number(page), status: normalized, stamp, material: materialLabel, key });
     }
   };
 
@@ -2178,7 +2209,8 @@ function workedPagesForAnimal(animalId, subject) {
     .filter((entry) => String(entry.fach || entry.subject || "") === subject)
     .forEach((entry) => {
       const status = entry.workStatus || entry.status || (entry.completedPages?.length ? "fertig" : "teilweise");
-      workedPageNumbersFromEntry(entry).forEach((page) => addPage(page, status, entry.updatedAt || entry.datumUhrzeit || entry.createdAt));
+      const material = workedEntryMaterialLabel(entry);
+      workedPageNumbersFromEntry(entry).forEach((page) => addPage(material, page, status, entry.updatedAt || entry.datumUhrzeit || entry.createdAt));
     });
 
   (state.weeklyPlanStatuses || [])
@@ -2193,6 +2225,7 @@ function workedPagesForAnimal(animalId, subject) {
       if (!task) return;
       const taskSubject = String(task.subject || (String(status.field || "").startsWith("Mathe") ? "Mathe" : "Deutsch"));
       if (taskSubject !== subject) return;
+      const material = String(task.catalogItem?.workbook || task.workbookLabel || "Material").trim() || "Material";
       const pages = task.catalogItem ? weeklyCatalogPages(task.catalogItem).map(Number) : [];
       const completed = new Set((status.completedPages || []).map(String));
       const overall = normalizeSimpleWorkStatus(status.status || "offen");
@@ -2207,33 +2240,44 @@ function workedPagesForAnimal(animalId, subject) {
               : overall === "teilweise" && pages.length === 1
                 ? "teilweise"
                 : "offen";
-        if (pageStatus !== "offen") addPage(page, pageStatus, status.updatedAt || status.completedAt || status.createdAt);
+        if (pageStatus !== "offen") addPage(material, page, pageStatus, status.updatedAt || status.completedAt || status.createdAt);
       });
     });
 
-  return [...rows.values()].sort((a, b) => a.page - b.page);
+  return [...rows.values()].sort((a, b) => a.material.localeCompare(b.material, "de", { numeric: true }) || a.page - b.page);
 }
 
-function currentWeeklyPageNumbers(rows, includeFinished = true) {
-  const pages = new Set();
+function currentWeeklyPageKeys(rows, includeFinished = true) {
+  const keys = new Set();
   (rows || []).forEach((row) => {
+    const material = weeklyRowMaterialLabel(row);
     weeklyRowPages(row).forEach((page) => {
       const status = weeklyRowPageStatus(row, page);
       if (!includeFinished && status === "fertig") return;
-      pages.add(page);
+      keys.add(materialPageKey(material, page));
     });
   });
-  return pages;
+  return keys;
 }
 
 function renderWorkedPages(animalId, subject, currentRows = []) {
-  // Seiten, die im aktuellen Wochenplan noch offen oder begonnen sind, bleiben oben.
-  // Sobald eine Wochenplan-Aufgabe fertig markiert wird, darf ihre Seite unten in
-  // "Bearbeitet" erscheinen – so wandert sie sichtbar von der To-do-Liste ins Archiv.
-  const unfinishedCurrentPages = currentWeeklyPageNumbers(currentRows, false);
-  const pages = workedPagesForAnimal(animalId, subject).filter((item) => !unfinishedCurrentPages.has(Number(item.page)));
+  const unfinishedCurrentKeys = currentWeeklyPageKeys(currentRows, false);
+  const pages = workedPagesForAnimal(animalId, subject).filter((item) => !unfinishedCurrentKeys.has(item.key));
   if (!pages.length) return "";
-  return `<div class="weekly-worked-pages"><span class="weekly-worked-pages-label">Bearbeitet:</span>${pages.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>`;
+
+  const groups = new Map();
+  pages.forEach((item) => {
+    const material = item.material || "Material";
+    if (!groups.has(material)) groups.set(material, []);
+    groups.get(material).push(item);
+  });
+
+  return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Bearbeitet:</span>${[...groups.entries()].map(([material, items]) => `
+    <div class="weekly-worked-material-group">
+      <span class="weekly-worked-material-label">${escapeHtml(material)}</span>
+      <div class="weekly-worked-pages">${items.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>
+    </div>
+  `).join("")}</div>`;
 }
 
 function renderOverview() {
