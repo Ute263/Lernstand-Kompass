@@ -4523,3 +4523,12 @@ body {
 .weekly-direct-suggestion-list{display:flex;flex-wrap:wrap;gap:10px}
 .weekly-direct-suggestion{display:grid;gap:2px;text-align:left;min-width:180px;max-width:320px}
 .weekly-direct-suggestion small{opacity:.72;font-weight:400}
+
+/* V11: vereinfachte direkte Fortschrittserfassung */
+.weekly-direct-task-list{display:grid;gap:10px}
+.weekly-direct-task-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid #dfe8f0;border-radius:14px;background:#fff}
+.weekly-direct-task-main{display:grid;gap:2px;min-width:0}.weekly-direct-task-main span{font-weight:700}.weekly-direct-task-main small{opacity:.65}
+.weekly-direct-status-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.weekly-direct-status-actions .active{box-shadow:inset 0 0 0 2px currentColor}
+.direct-extra-entry{margin-top:18px;border-top:1px solid #e4ebf1;padding-top:14px}.direct-extra-entry summary{cursor:pointer;font-weight:800;color:#245c79;list-style:none}.direct-extra-entry summary::-webkit-details-marker{display:none}
+.direct-extra-entry[open] summary{margin-bottom:10px}.optional-hint{font-weight:400;opacity:.6}
+@media(max-width:760px){.weekly-direct-task-row{align-items:flex-start;flex-direction:column}.weekly-direct-status-actions{justify-content:flex-start;width:100%}}

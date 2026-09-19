@@ -2150,8 +2150,23 @@ function workedPagesForAnimal(animalId, subject) {
   return [...rows.values()].sort((a, b) => a.page - b.page);
 }
 
-function renderWorkedPages(animalId, subject) {
-  const pages = workedPagesForAnimal(animalId, subject);
+function currentWeeklyPageNumbers(rows) {
+  const pages = new Set();
+  (rows || []).forEach((row) => {
+    const catalog = row?.item?.catalogItem;
+    if (catalog) {
+      weeklyCatalogPages(catalog).map(Number).filter((page) => Number.isFinite(page) && page > 0).forEach((page) => pages.add(page));
+      return;
+    }
+    const label = String(row?.pagesLabel || row?.item?.text || "");
+    (label.match(/\d+/g) || []).map(Number).filter((page) => Number.isFinite(page) && page > 0).forEach((page) => pages.add(page));
+  });
+  return pages;
+}
+
+function renderWorkedPages(animalId, subject, currentRows = []) {
+  const currentPages = currentWeeklyPageNumbers(currentRows);
+  const pages = workedPagesForAnimal(animalId, subject).filter((item) => !currentPages.has(Number(item.page)));
   if (!pages.length) return "";
   return `<div class="weekly-worked-pages"><span class="weekly-worked-pages-label">Bearbeitet:</span>${pages.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>`;
 }
@@ -2207,8 +2222,8 @@ function renderOverview() {
               <strong>${teacherAnimalLabel(animal)}</strong>
               <span class="weekly-class-progress ${stateInfo.key}">${stateInfo.total ? `${stateInfo.done}/${stateInfo.total} Pflicht · ` : ""}${escapeHtml(stateInfo.label)}</span>
             </div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}${renderWorkedPages(animal.id, "Deutsch")}</div></div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}${renderWorkedPages(animal.id, "Mathe")}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}${renderWorkedPages(animal.id, "Deutsch", deutsch)}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}${renderWorkedPages(animal.id, "Mathe", mathe)}</div></div>
             ${stars.length ? `<div class="weekly-class-subject star"><span class="weekly-class-subject-label">⭐ Sternchen</span><div>${compactWeeklyTaskList(stars)}</div></div>` : ""}
           </article>
         `).join("") || `<div class="empty">Für diesen Filter gibt es keine Kinder.</div>`}
@@ -2633,54 +2648,67 @@ function renderDirectWorkbookProgressForm(animal, subject) {
   const weeklyDefault = weeklySuggestions[0]?.item?.catalogItem || null;
   const defaultItemId = weeklyDefault?.id || defaultWorkbookCatalogIdForSubject(subject, { animalId: animal.id, classId: animal.classId || state.activeClassId });
   const defaultItem = items.find((item) => item.id === defaultItemId) || weeklyDefault || items[0] || null;
-  const activeSetting = activeWorkbookSetting(animal.classId || state.activeClassId, subject, { animalId: animal.id });
   return `
-    <section class="panel">
-      <h2>${escapeHtml(subject)} direkt erfassen</h2>
-      <p class="message">Zuerst werden die Materialien und Seiten aus dem aktuellen Wochenplan dieses Kindes angeboten. Nur wenn etwas zusätzlich bearbeitet wurde, kannst du darunter ein anderes Material wählen.</p>
+    <section class="panel direct-progress-simple-panel">
+      <h2>${escapeHtml(subject)} erfassen</h2>
+      <p class="message">Bei einer Wochenplan-Aufgabe genügt ein Klick auf den passenden Status. Die Änderung wird sofort gespeichert.</p>
       ${weeklySuggestions.length ? `
-        <div class="weekly-direct-suggestions">
-          <strong>Aus aktuellem Wochenplan</strong>
-          <div class="weekly-direct-suggestion-list">
-            ${weeklySuggestions.map((row) => `
-              <button class="secondary weekly-direct-suggestion" type="button" onclick="selectWeeklyMaterialForDirectProgress('${formId}', '${escapeAttribute(row.item.catalogItem.id)}', '${escapeAttribute(row.pagesLabel || "")}', '${escapeAttribute(row.status || "offen")}')">
-                <span>${escapeHtml(row.workbookLabel || row.item.catalogItem.workbook || subjectLabel)}</span>
-                <strong>${escapeHtml(row.pagesLabel || pageRangeLabel(row.item.catalogItem))}</strong>
-                ${row.topic ? `<small>${escapeHtml(row.topic)}</small>` : ""}
-              </button>
-            `).join("")}
+        <div class="weekly-direct-suggestions weekly-direct-simple">
+          <strong>Aufgaben aus dem aktuellen Wochenplan</strong>
+          <div class="weekly-direct-task-list">
+            ${weeklySuggestions.map((row) => {
+              const current = normalizeSimpleWorkStatus(row.status || "offen");
+              return `
+                <div class="weekly-direct-task-row">
+                  <div class="weekly-direct-task-main">
+                    <strong>${escapeHtml(row.workbookLabel || row.item.catalogItem.workbook || subjectLabel)}</strong>
+                    <span>${escapeHtml(row.pagesLabel || pageRangeLabel(row.item.catalogItem))}</span>
+                    ${row.topic ? `<small>${escapeHtml(row.topic)}</small>` : ""}
+                  </div>
+                  <div class="weekly-direct-status-actions" aria-label="Status wählen">
+                    <button class="small-button ${current === "offen" ? "active" : ""}" type="button" onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','offen')">○ offen</button>
+                    <button class="small-button ${current === "teilweise" ? "active" : ""}" type="button" onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','teilweise')">◐ begonnen</button>
+                    <button class="small-button ${current === "fertig" ? "active" : ""}" type="button" onclick="setWeeklyPlanSimpleStatus('${escapeAttribute(row.plan.id)}','${escapeAttribute(row.animal.id)}','${escapeAttribute(row.day)}','${escapeAttribute(row.item.field)}','fertig')">✓ fertig</button>
+                  </div>
+                </div>
+              `;
+            }).join("")}
           </div>
         </div>
-      ` : `<div class="message">Für ${escapeHtml(subject)} ist in diesem Wochenplan keine Materialaufgabe eingetragen. Du kannst unten frei auswählen.</div>`}
-      <form class="inline-form direct-progress-form" id="${formId}" onsubmit="saveDirectWorkbookProgress(event, '${subject}', '${escapeAttribute(animal.id)}')">
-        ${renderTeacherMaterialPickerControl({
-          targetId: `${formId}Catalog`,
-          subject,
-          selectedId: defaultItem?.id || "",
-          label: `${subjectLabel} auswählen`,
-          animalId: animal.id,
-          classId: animal.classId || state.activeClassId
-        })}
-        <label class="field">Status
-          <select class="select-input" id="${formId}Status">
-            <option value="offen">offen</option>
-            <option value="teilweise">teilweise</option>
-            <option value="fertig">fertig</option>
-          </select>
-        </label>
-        <label class="field">Bearbeitete Seiten optional
-          <input class="text-input" id="${formId}Pages" placeholder="z. B. 19, 20">
-        </label>
-        <label class="field">Bemerkung optional
-          <input class="text-input" id="${formId}Note" placeholder="kurz und sachlich">
-        </label>
-        <button class="primary" type="submit">Fortschritt speichern</button>
-      </form>
-      <button class="secondary" type="button" onclick="openWorkbookCatalogManager()">+ Material hinzufügen</button>
+      ` : `<div class="message">Für ${escapeHtml(subject)} ist im aktuellen Wochenplan keine Materialaufgabe eingetragen.</div>`}
+
+      <details class="direct-extra-entry">
+        <summary>+ Andere Seite eintragen</summary>
+        <p class="message">Nur für zusätzlich bearbeitete Seiten, die nicht im aktuellen Wochenplan stehen.</p>
+        <form class="inline-form direct-progress-form" id="${formId}" onsubmit="saveDirectWorkbookProgress(event, '${subject}', '${escapeAttribute(animal.id)}')">
+          ${renderTeacherMaterialPickerControl({
+            targetId: `${formId}Catalog`,
+            subject,
+            selectedId: defaultItem?.id || "",
+            label: `${subjectLabel} auswählen`,
+            animalId: animal.id,
+            classId: animal.classId || state.activeClassId
+          })}
+          <label class="field">Seite(n)
+            <input class="text-input" id="${formId}Pages" placeholder="z. B. 19 oder 19, 20">
+          </label>
+          <label class="field">Status
+            <select class="select-input" id="${formId}Status">
+              <option value="fertig">✓ fertig</option>
+              <option value="teilweise">◐ begonnen</option>
+              <option value="offen">○ offen</option>
+            </select>
+          </label>
+          <label class="field">Bemerkung <span class="optional-hint">optional</span>
+            <input class="text-input" id="${formId}Note" placeholder="optional">
+          </label>
+          <button class="primary" type="submit">Eintrag speichern</button>
+        </form>
+        <button class="secondary" type="button" onclick="openWorkbookCatalogManager()">+ Material hinzufügen</button>
+      </details>
     </section>
   `;
 }
-
 
 function selectWeeklyMaterialForDirectProgress(formId, catalogId, pagesLabel, currentStatus) {
   const catalogInput = document.getElementById(`${formId}Catalog`);

@@ -317,7 +317,7 @@
               <button class="small-button ${lkDirectEntrySubject === "Deutsch" ? "active" : ""}" type="button" onclick="lkSetDirectEntrySubject('Deutsch')">📘 Deutsch</button>
               <button class="small-button ${lkDirectEntrySubject === "Mathe" ? "active" : ""}" type="button" onclick="lkSetDirectEntrySubject('Mathe')">🔢 Mathe</button>
             </div>
-            <p class="message">Material auswählen, bearbeitete Seiten eintragen und Status speichern. Der Eintrag erscheint anschließend direkt beim Kind.</p>
+            <p class="message">Wochenplan-Aufgabe auswählen und Status direkt anklicken. Die Änderung wird sofort gespeichert. Zusätzliche Seiten kannst du darunter separat eintragen.</p>
             ${renderDirectWorkbookProgressForm(selected, lkDirectEntrySubject)}
           </section>
         </div>
