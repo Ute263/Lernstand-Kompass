@@ -580,7 +580,10 @@
 
   function renderPrintDay9f(plan, day, animal, options) {
     const items = printableItems(plan, day, animal, options);
-    const minimumRows = 5;
+    // Im Druck nur noch eine Reservezeile pro Tag. Die bisher fest
+    // aufgefüllten fünf Zeilen machten einen normalen Wochenplan
+    // unnötig mehrseitig. Vorhandene Aufgaben werden natürlich alle gezeigt.
+    const minimumRows = 2;
     const rows = [];
     let previousSubject = "";
     let previousWorkbook = "";
@@ -819,6 +822,43 @@
       </section>
     `;
   }
+
+  window.lkFitWeeklyPrintPages = function lkFitWeeklyPrintPages() {
+    const pages = Array.from(document.querySelectorAll(".lk-wp-page"));
+    if (!pages.length) return;
+
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:1mm;height:287mm;left:-9999px;top:-9999px;";
+    document.body.appendChild(probe);
+    const targetHeight = probe.getBoundingClientRect().height;
+    probe.remove();
+
+    pages.forEach((page) => {
+      // Zuerst neutral messen. 287 mm statt 297 mm lassen einen kleinen
+      // Sicherheitsrand für Browser-/Druckertreiber.
+      page.style.zoom = "1";
+      page.style.width = "210mm";
+      page.style.minHeight = "0";
+      page.style.height = "auto";
+
+      const measured = Math.max(page.scrollHeight, page.getBoundingClientRect().height);
+      let scale = measured > targetHeight ? targetHeight / measured : 1;
+      scale = Math.max(0.62, Math.min(1, scale));
+
+      if (scale < 0.999) {
+        // CSS zoom wird von Chromium und Safari auch beim Drucken in die
+        // Seitengestaltung einbezogen. Die Breite wird gegengerechnet,
+        // damit die sichtbare Seite weiterhin 210 mm breit bleibt.
+        page.style.zoom = String(scale);
+        page.style.width = `${(210 / scale).toFixed(2)}mm`;
+      }
+    });
+  };
+
+  window.lkPrintFittedWeeklyPlan = function lkPrintFittedWeeklyPlan() {
+    try { window.lkFitWeeklyPrintPages?.(); } catch (error) { console.warn("Druckanpassung fehlgeschlagen", error); }
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  };
 
   renderPrintWeeklyPlan = function renderPrintWeeklyPlan9f(className) {
     const plan = currentWeeklyPrintPlan;
@@ -1399,6 +1439,12 @@
           .lk-wp-page {
             margin: 0 !important;
             box-shadow: none !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .page-break {
+            break-before: page !important;
+            page-break-before: always !important;
           }
         }
       </style>

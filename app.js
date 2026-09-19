@@ -7159,7 +7159,7 @@ function renderPrintScreen() {
     <style>${printViewCss(type !== "weeklyPlan")}</style>
     <div class="print-toolbar" aria-label="Druckwerkzeuge">
       <strong>${escapeHtml(assessment ? assessment.titel : titles[type] || "Druckansicht")}</strong>
-      <button type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
+      <button type="button" onclick="${type === "weeklyPlan" ? "(window.lkPrintFittedWeeklyPlan ? lkPrintFittedWeeklyPlan() : window.print())" : "window.print()"}">Drucken / Als PDF speichern</button>
       <button type="button" onclick="closePrintView()">Zurück</button>
       <button type="button" onclick="closePrintView()">Fenster schließen</button>
     </div>
