@@ -4399,6 +4399,33 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
       <form class="weekly-plan-form weekly-clean-form" onsubmit="saveWeeklyPlan(event)">
         <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
 
+        <div class="weekly-audience-editor">
+          <div class="weekly-clean-section-title">
+            <h3>Plan gilt für</h3>
+            <span class="weekly-clean-audience">Zuordnung jederzeit änderbar</span>
+          </div>
+          <div class="weekly-audience-mode">
+            <label class="weekly-audience-radio">
+              <input type="radio" name="weeklyAssignmentMode" value="all" ${assignmentMode === "all" ? "checked" : ""} onchange="lkWeeklyAudienceModeChanged('all')">
+              <strong>Ganze Klasse</strong>
+            </label>
+            <label class="weekly-audience-radio">
+              <input type="radio" name="weeklyAssignmentMode" value="selected" ${assignmentMode !== "all" ? "checked" : ""} onchange="lkWeeklyAudienceModeChanged('selected')">
+              <strong>Ausgewählte Kinder</strong>
+            </label>
+          </div>
+          <div id="weeklyAudienceChildren" class="weekly-audience-child-grid ${assignmentMode === "all" ? "is-disabled" : ""}">
+            ${animals.map((animal) => `
+              <label class="weekly-audience-child">
+                <input class="weeklyAnimalCheckbox" type="checkbox" value="${escapeAttribute(animal.id)}" ${selectedAnimals.has(animal.id) ? "checked" : ""} ${assignmentMode === "all" ? "disabled" : ""}>
+                <span>${escapeHtml(animal.tierEmoji || "🐾")}</span>
+                <strong>${escapeHtml(animal.tierName || "Kind")}</strong>
+              </label>
+            `).join("")}
+          </div>
+          <p class="message">Du kannst Kinder jederzeit hinzufügen oder entfernen. Die Aufgaben des Plans bleiben dabei erhalten.</p>
+        </div>
+
         <div class="weekly-clean-settings">
           <div class="weekly-clean-period">
             <label class="field">Zeitraum
@@ -4883,6 +4910,26 @@ function clearWeeklyOverride(animalId) {
   if (weeklyPlanDraft.overrides) delete weeklyPlanDraft.overrides[animalId];
   render();
 }
+
+function lkWeeklyAudienceModeChanged(mode) {
+  const selected = mode === "selected";
+  const boxes = [...document.querySelectorAll(".weeklyAnimalCheckbox")];
+  boxes.forEach((input) => { input.disabled = !selected; });
+  document.getElementById("weeklyAudienceChildren")?.classList.toggle("is-disabled", !selected);
+
+  // Beim Wechsel von "Ganze Klasse" zu "Ausgewählte Kinder" nie einen
+  // versehentlich leeren Zielkreis speichern. Wenn noch niemand markiert ist,
+  // wird das aktuell fokussierte Kind bzw. das erste aktive Kind vorausgewählt.
+  if (selected && !boxes.some((input) => input.checked)) {
+    const preferred = boxes.find((input) => input.value === weeklyPlanFocusAnimalId) || boxes[0];
+    if (preferred) preferred.checked = true;
+  }
+
+  if (typeof window.lkAutoSaveWeeklyPlan === "function") {
+    window.lkAutoSaveWeeklyPlan({ reason: "Zielgruppe", immediate: true });
+  }
+}
+window.lkWeeklyAudienceModeChanged = lkWeeklyAudienceModeChanged;
 
 function collectWeeklyPlanDraftFromDom() {
   const existing = (state.weeklyPlans || []).find((plan) => plan.id === (document.querySelector("#weeklyPlanId")?.value || "")) || {};
@@ -9295,7 +9342,8 @@ function sortChildWeeklyPlans(a, b) {
 }
 
 function weeklyPlanAppliesToAnimal(plan, animalId) {
-  return plan.assignmentMode === "all" || !plan.animalIds?.length || plan.animalIds.includes(animalId);
+  if (plan.assignmentMode === "all") return true;
+  return Array.isArray(plan.animalIds) && plan.animalIds.includes(animalId);
 }
 
 function weeklyPlanIsCurrent(plan) {

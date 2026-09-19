@@ -299,8 +299,11 @@
   }
 
   function calendarPlanAudience(plan) {
-    if (!plan || plan.assignmentMode === "all" || !Array.isArray(plan.animalIds) || !plan.animalIds.length) {
+    if (!plan || plan.assignmentMode === "all") {
       return { label: "Ganze Klasse", kind: "all", count: activeCalendarAnimals().length };
+    }
+    if (!Array.isArray(plan.animalIds) || !plan.animalIds.length) {
+      return { label: "Noch keinem Kind zugeordnet", kind: "selected", count: 0 };
     }
 
     const ids = [...new Set(plan.animalIds || [])];
@@ -943,7 +946,7 @@
     }
   };
 
-  function openCalendarPlanEditorForAudience(key, { mode = "all", animalIds = [], group = null } = {}) {
+  async function openCalendarPlanEditorForAudience(key, { mode = "all", animalIds = [], group = null } = {}) {
     lkCalendarWeekDialogOpen = false;
     lkCalendarAudienceChoiceOpen = false;
     const week = weekByKey(key);
@@ -956,15 +959,29 @@
       validTo: localDateKey(week.friday)
     };
 
-    weeklyPlanEditorId = "";
     const uniqueAnimalIds = mode === "all" ? [] : [...new Set(animalIds || [])];
-    weeklyPlanDraft = {
+    const timestamp = typeof nowIso === "function" ? nowIso() : new Date().toISOString();
+    const id = typeof makeId === "function" ? makeId() : `weekly-${Date.now()}`;
+    const draft = {
       ...makeDraftForWeek(week),
+      id,
+      classId: state.activeClassId,
       title: suggestedCalendarPlanTitle({ mode, animalIds: uniqueAnimalIds, group }),
       planningMode: preferredPlanningModeForAudience(mode, uniqueAnimalIds),
       assignmentMode: mode === "all" ? "all" : "selected",
-      animalIds: uniqueAnimalIds
+      animalIds: uniqueAnimalIds,
+      active: true,
+      createdAt: timestamp,
+      updatedAt: timestamp
     };
+
+    // Wichtig: Ein neuer Einzel-/Gruppenplan existiert sofort dauerhaft.
+    // Er darf nicht erst von einer spaeteren Editor-Aenderung abhaengen.
+    const weeklyPlans = [...(state.weeklyPlans || []), draft];
+    await persist({ ...state, weeklyPlans });
+
+    weeklyPlanEditorId = id;
+    weeklyPlanDraft = { ...draft };
     weeklyPickRequest = null;
     weeklyPlanSection = "create";
     render();

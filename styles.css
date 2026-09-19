@@ -4579,3 +4579,11 @@ body {
   .weekly-compact-material-label,
   .weekly-worked-material-label { min-width: 100%; max-width: none; }
 }
+
+/* V18: Zielgruppe eines Wochenplans jederzeit aenderbar */
+.weekly-audience-editor{margin:12px 0 16px;padding:14px;border:1px solid rgba(47,111,145,.18);border-radius:16px;background:rgba(244,250,253,.72)}
+.weekly-audience-mode{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px}
+.weekly-audience-radio{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(47,111,145,.18);border-radius:12px;background:#fff;cursor:pointer}
+.weekly-audience-child-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.weekly-audience-child{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid rgba(47,111,145,.15);border-radius:11px;background:#fff}
+.weekly-audience-child-grid.is-disabled{opacity:.52}
