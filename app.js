@@ -481,6 +481,7 @@ function renderStart() {
         <div class="modern-start-bottom">
           <div>
             <div class="modern-start-class">${activeClass()?.name ? `Aktive Klasse: <strong>${escapeHtml(activeClass().name)}</strong>` : "Noch keine aktive Klasse"}</div>
+            <div class="lk-start-build-info">App-Version: ${escapeHtml(buildLabel)}</div>
           </div>
           <button class="modern-teacher-entry" type="button" onclick="openLogin()"><span>🔒</span> Für Lehrkräfte</button>
         </div>
@@ -2086,6 +2087,75 @@ function setClassOverviewFilter(value) {
   render();
 }
 
+function workedPageNumbersFromEntry(entry) {
+  const values = [];
+  const add = (value) => {
+    String(value ?? "")
+      .split(/[,;\s]+/)
+      .map((item) => item.replace(/^S\.?/i, "").trim())
+      .filter((item) => /^\d+$/.test(item))
+      .forEach((item) => values.push(Number(item)));
+  };
+  (entry?.completedPages || []).forEach(add);
+  add(entry?.catalogPages);
+  add(entry?.pages);
+  add(entry?.pageText);
+  const from = Number(entry?.seiteVon || entry?.seite || 0);
+  const to = Number(entry?.seiteBis || entry?.seite || from || 0);
+  if (from > 0 && to >= from && to - from <= 30) {
+    for (let page = from; page <= to; page += 1) values.push(page);
+  }
+  return [...new Set(values.filter((page) => Number.isFinite(page) && page > 0))];
+}
+
+function workedPagesForAnimal(animalId, subject) {
+  const rows = new Map();
+  const rank = { offen: 0, teilweise: 1, fertig: 2 };
+  const addPage = (page, status, updatedAt) => {
+    const normalized = normalizeSimpleWorkStatus(status || "teilweise");
+    if (normalized === "offen") return;
+    const key = String(page);
+    const stamp = Date.parse(updatedAt || "") || 0;
+    const previous = rows.get(key);
+    if (!previous || rank[normalized] > rank[previous.status] || (rank[normalized] === rank[previous.status] && stamp > previous.stamp)) {
+      rows.set(key, { page: Number(page), status: normalized, stamp });
+    }
+  };
+
+  (state.entries || [])
+    .filter((entry) => entry.classId === state.activeClassId && (entry.tierID || entry.animalId || entry.tierId) === animalId)
+    .filter((entry) => String(entry.fach || entry.subject || "") === subject)
+    .forEach((entry) => {
+      const status = entry.workStatus || entry.status || (entry.completedPages?.length ? "fertig" : "teilweise");
+      workedPageNumbersFromEntry(entry).forEach((page) => addPage(page, status, entry.updatedAt || entry.datumUhrzeit || entry.createdAt));
+    });
+
+  (state.weeklyPlanStatuses || [])
+    .filter((status) => status.classId === state.activeClassId && status.animalId === animalId)
+    .filter((status) => normalizeSimpleWorkStatus(status.status) !== "offen")
+    .forEach((status) => {
+      const plan = (state.weeklyPlans || []).find((item) => item.id === status.planId);
+      if (!plan) return;
+      let task = null;
+      try {
+        task = weeklyPlanItemsForDay(plan, status.day, animalId).find((item) => item.field === status.field);
+      } catch {}
+      if (!task) return;
+      const taskSubject = String(task.subject || (String(status.field || "").startsWith("Mathe") ? "Mathe" : "Deutsch"));
+      if (taskSubject !== subject) return;
+      const pages = task.catalogItem ? weeklyCatalogPages(task.catalogItem).map(Number) : [];
+      pages.filter((page) => Number.isFinite(page) && page > 0).forEach((page) => addPage(page, status.status, status.updatedAt || status.completedAt || status.createdAt));
+    });
+
+  return [...rows.values()].sort((a, b) => a.page - b.page);
+}
+
+function renderWorkedPages(animalId, subject) {
+  const pages = workedPagesForAnimal(animalId, subject);
+  if (!pages.length) return "";
+  return `<div class="weekly-worked-pages"><span class="weekly-worked-pages-label">Bearbeitet:</span>${pages.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>`;
+}
+
 function renderOverview() {
   const classId = state.activeClassId;
   const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
@@ -2137,8 +2207,8 @@ function renderOverview() {
               <strong>${teacherAnimalLabel(animal)}</strong>
               <span class="weekly-class-progress ${stateInfo.key}">${stateInfo.total ? `${stateInfo.done}/${stateInfo.total} Pflicht · ` : ""}${escapeHtml(stateInfo.label)}</span>
             </div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}</div></div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}${renderWorkedPages(animal.id, "Deutsch")}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}${renderWorkedPages(animal.id, "Mathe")}</div></div>
             ${stars.length ? `<div class="weekly-class-subject star"><span class="weekly-class-subject-label">⭐ Sternchen</span><div>${compactWeeklyTaskList(stars)}</div></div>` : ""}
           </article>
         `).join("") || `<div class="empty">Für diesen Filter gibt es keine Kinder.</div>`}
