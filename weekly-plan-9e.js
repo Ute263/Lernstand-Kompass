@@ -1059,63 +1059,50 @@
     // Das alte einzelne Extra-Feld wird ab jetzt über extraFreeTasks ausgegeben.
     items = items.filter((item) => item.field !== "Freie Aufgabe");
 
-    const subjectIndexes = { Deutsch: 0, Mathe: 0 };
-    items = items.map((item) => {
-      // Je nach Ursprung des Wochenplans steht das Fach in `subject`
-      // oder nur in `label`. Beides muss für die Sternzuordnung gelten.
+    // Arbeitsheft-Aufgaben für Deutsch und Mathe werden bewusst direkt aus
+    // dem fachbezogenen Tagesdatensatz aufgebaut. Das ist wichtig für
+    // Einzelkind-Anpassungen: Eine Änderung nur in Deutsch darf Mathe nicht
+    // aus Kinderansicht oder Tagesdruck verdrängen (und umgekehrt).
+    const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
+    items = items.filter((item) => {
       const rawSubject = stripStar(item?.subject || item?.label || "").trim();
-      const subject = /deutsch/i.test(rawSubject)
-        ? "Deutsch"
-        : /mathe/i.test(rawSubject)
-          ? "Mathe"
-          : "";
-
-      if (!subject) return item;
-
-      const index = subjectIndexes[subject]++;
-      const source = effectiveSubjectDay(plan, day, animalId, subject);
-      const keys = taskKeys(subject);
-      const ids = normalizeIdArray(source[keys.ids] || source[keys.legacyId]);
-
-      // Gespeicherte Sternwerte haben Vorrang.
-      // Bei älteren Plänen ohne Stern-Array gilt weiterhin:
-      // zweite Auswahl derselben Seite = ⭐ Zusatzaufgabe.
-      const stars = boolList(
-        source[keys.stars],
-        ids.length,
-        duplicateDefaults(ids)
-      );
-      const numbers = numberList(
-        source[keys.numbers],
-        source[keys.legacyNumber] || "",
-        ids.length
-      );
-      const socialForms = socialFormList(source[keys.socialForms], ids.length);
-      const starred = Boolean(stars[index]);
-      const taskNumber = numbers[index] || "";
-      const catalogId = String(item?.workbookCatalogId || item?.catalogItem?.id || "");
-      const duplicateCount = catalogId ? ids.filter((id) => String(id) === catalogId).length : 0;
-      // Wird dieselbe Seite mehrfach gewählt (z. B. Pflicht Nr. 1 und ⭐ Nr. 2),
-      // braucht jede Auswahl einen eigenen Status-Schlüssel. Sonst markiert ein Haken
-      // beide Aufgaben gleichzeitig als erledigt. Einzelne Aufgaben behalten ihren
-      // bisherigen Schlüssel, damit vorhandene Kinder-Haken erhalten bleiben.
-      const uniqueField = duplicateCount > 1
-        ? `Aufgabe:${subject}:${catalogId}:${starred ? "stern" : "pflicht"}:${String(taskNumber || "ohne-nr").trim()}:${index}`
-        : item.field;
-
-      return {
-        ...item,
-        field: uniqueField,
-        subject,
-        taskNumber,
-        text: `${starred ? "⭐ " : ""}${stripStar(item.text)}`,
-        label: `${starred ? "⭐ " : ""}${stripStar(item.label || subject)}`,
-        isExtraTask: starred,
-        socialForm: socialForms[index] || ""
-      };
+      const isWorkbookMainSubject = !item?.weeklySection && item?.catalogItem
+        && (/deutsch/i.test(rawSubject) || /mathe/i.test(rawSubject));
+      return !isWorkbookMainSubject;
     });
 
-    const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
+    ["Deutsch", "Mathe"].forEach((subject) => {
+      const source = effectiveSubjectDay(plan, day, animalId, subject);
+      const keys = taskKeys(subject);
+      const ids = normalizeIdArray(source?.[keys.ids] || source?.[keys.legacyId]);
+      const numbers = numberList(source?.[keys.numbers], source?.[keys.legacyNumber] || "", ids.length);
+      const stars = boolList(source?.[keys.stars], ids.length, duplicateDefaults(ids));
+      const socialForms = socialFormList(source?.[keys.socialForms], ids.length);
+
+      ids.forEach((id, index) => {
+        const catalogItem = catalog.find((entry) => String(entry.id) === String(id));
+        if (!catalogItem) return;
+        const starred = Boolean(stars[index]);
+        const taskNumber = numbers[index] || "";
+        const duplicateCount = ids.filter((entryId) => String(entryId) === String(id)).length;
+        const uniqueField = duplicateCount > 1
+          ? `Aufgabe:${subject}:${id}:${starred ? "stern" : "pflicht"}:${String(taskNumber || "ohne-nr").trim()}:${index}`
+          : `${subject}:${id}`;
+        items.push({
+          field: uniqueField,
+          subject,
+          label: `${starred ? "⭐ " : ""}${subject}`,
+          workbookCatalogId: id,
+          catalogItem,
+          taskNumber,
+          text: `${starred ? "⭐ " : ""}${weeklyWorkbookPlanLabel(catalogItem, taskNumber)}`,
+          detail: workbookCatalogFullLabel(catalogItem),
+          isExtraTask: starred,
+          socialForm: socialForms[index] || ""
+        });
+      });
+    });
+
     ["Lesezeit"].forEach((section) => {
       const source = effectiveSubjectDay(plan, day, animalId, section);
       const keys = taskKeys(section);
