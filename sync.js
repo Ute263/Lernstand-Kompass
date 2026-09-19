@@ -44,7 +44,8 @@ function defaultMicrosoftSyncSettings() {
     clientId: "",
     authority: "consumers",
     redirectUri: "",
-    autoBackup: false,
+    autoBackup: true,
+    autoBackupPolicyVersion: 2,
     connectedAccount: "",
     connectedName: "",
     lastSyncAt: "",
@@ -185,6 +186,8 @@ async function initCloudSync() {
             ...state,
             microsoftSync: {
               ...currentMicrosoftSettings(),
+              autoBackup: state?.microsoftSync?.autoBackupPolicyVersion === 2 ? currentMicrosoftSettings().autoBackup !== false : true,
+              autoBackupPolicyVersion: 2,
               connectedAccount: account.username || "",
               connectedName: account.name || "",
               lastSyncStatus: redirectResult
@@ -207,6 +210,8 @@ async function initCloudSync() {
                 ...state,
                 microsoftSync: {
                   ...currentMicrosoftSettings(),
+                  autoBackup: currentMicrosoftSettings().autoBackup !== false,
+                  autoBackupPolicyVersion: 2,
                   connectedAccount: account.username || "",
                   connectedName: account.name || "",
                   lastSyncStatus: "Microsoft und OneDrive verbunden"
@@ -235,9 +240,12 @@ async function initCloudSync() {
     syncPendingLearningGameSessions().catch(() => {});
   });
   setTimeout(() => syncPendingLearningGameSessions().catch(() => {}), 1200);
-  // OneDrive-Lehrkraftdaten werden bewusst NICHT beim Start synchronisiert.
-  // Ein Geräteabgleich wird nur durch die Lehrkraft ausgelöst. Das verhindert,
-  // dass ein älterer Gerätebestand beim Öffnen unbemerkt einen neueren Stand ersetzt.
+  // Kein blindes Überschreiben beim Start. Wenn die Automatik aktiv ist,
+  // wird nach kurzer Ruhe derselbe sichere Ablauf verwendet wie bei jeder Änderung:
+  // Kinderstände holen -> Cloud lesen -> zusammenführen -> Cloud schreiben.
+  if (syncRuntime.msAccount && currentMicrosoftSettings().autoBackup !== false) {
+    setTimeout(() => scheduleMicrosoftAutoBackup(), 5000);
+  }
 }
 
 async function startMicrosoftLoginRedirect(action = "connect") {
@@ -284,7 +292,7 @@ function renderCloudSyncPanel() {
         </label>
       </div>
       <p class="message"><strong>Diese Redirect-URL muss in der Microsoft-Appregistrierung als „Single-page application (SPA)“ eingetragen sein.</strong><br>${detectedRedirect ? `Aktuell erkannt: <code>${escapeHtml(detectedRedirect)}</code>` : "Lokaler Datei-Modus erkannt – bitte die Web-Version öffnen."}</p>
-      <label class="toggle-label cloud-auto-toggle"><input id="microsoftAutoBackup" type="checkbox" disabled> automatische OneDrive-Synchronisation ist aus Sicherheitsgründen deaktiviert</label>
+      <label class="toggle-label cloud-auto-toggle"><input id="microsoftAutoBackup" type="checkbox" ${ms.autoBackup !== false ? "checked" : ""}> automatisch sicher abgleichen (ca. 4 Sekunden nach der letzten Änderung)</label>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="saveMicrosoftSyncSettings()">Microsoft-Einstellungen speichern</button>
         ${msConnected
@@ -301,7 +309,7 @@ function renderCloudSyncPanel() {
         <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="replaceLocalWithOneDriveNow()">Cloud vollständig auf dieses Gerät übernehmen</button>
         <button class="secondary" type="button" ${msConnected ? "" : "disabled"} onclick="replaceOneDriveWithLocalNow()">Cloud mit diesem Gerät ersetzen</button>
       </div>
-      <p class="privacy-text"><strong>Kein automatischer Abgleich:</strong> Änderungen bleiben zuerst lokal. „Sicher abgleichen“ führt identische Kinder-/Aufgabenstände über ihren Aufgaben-Schlüssel zusammen. Die beiden vollständigen Übernahmefunktionen sind für Wiederherstellung und Gerätewechsel gedacht.</p>
+      <p class="privacy-text"><strong>Automatischer sicherer Abgleich:</strong> Änderungen werden sofort lokal gespeichert. Nach etwa 4 Sekunden Ruhe werden zuerst neue Kinder-Eingaben abgerufen, danach OneDrive gelesen, zusammengeführt und erst dann zurückgeschrieben. Die vollständigen Übernahmefunktionen bleiben nur für Wiederherstellung und Gerätewechsel gedacht.</p>
     </section>
 
     <section class="panel cloud-sync-card">
@@ -348,7 +356,7 @@ function renderCloudSyncPanel() {
 async function saveMicrosoftSyncSettings() {
   const clientId = String(document.querySelector("#microsoftClientId")?.value || "").trim();
   const redirectUri = String(document.querySelector("#microsoftRedirectUri")?.value || "").trim();
-  const autoBackup = false;
+  const autoBackup = document.querySelector("#microsoftAutoBackup")?.checked !== false;
   if (clientId && !isValidClientId(clientId)) {
     syncRuntime.msStatus = "error";
     syncRuntime.msMessage = "Die Client-ID sieht nicht vollständig aus.";
@@ -372,7 +380,8 @@ async function saveMicrosoftSyncSettings() {
         ...currentMicrosoftSettings(),
         clientId,
         redirectUri,
-        autoBackup
+        autoBackup,
+        autoBackupPolicyVersion: 2
       }
     });
   } finally {
@@ -651,6 +660,9 @@ async function syncWithOneDriveNow() {
   syncRuntime.msMessage = "OneDrive wird abgeglichen …";
   render();
   try {
+    if (typeof window.lkPullAllChildChangesForCloud === "function") {
+      await window.lkPullAllChildChangesForCloud();
+    }
     let nextState = state;
     let changed = 0;
     const remote = await getOneDriveBackup();
@@ -715,6 +727,9 @@ async function uploadOneDriveBackupNow(silent = false) {
     render();
   }
   try {
+    if (typeof window.lkPullAllChildChangesForCloud === "function") {
+      await window.lkPullAllChildChangesForCloud();
+    }
     const remote = await getOneDriveBackup();
     let nextState = state;
     let changed = 0;
@@ -839,8 +854,22 @@ async function updateMicrosoftSyncMetadata(at, status) {
 }
 
 function scheduleMicrosoftAutoBackup() {
-  // Bewusst deaktiviert: Lehrkraft-OneDrive wird ausschließlich manuell abgeglichen.
-  return;
+  if (syncRuntime.suppressAuto) return;
+  const ms = currentMicrosoftSettings();
+  if (ms.autoBackup === false) return;
+  if (!syncRuntime.msAccount || !navigator.onLine) return;
+  clearTimeout(syncRuntime.autoTimer);
+  syncRuntime.autoTimer = setTimeout(async () => {
+    if (syncRuntime.suppressAuto || syncRuntime.msStatus === "working") {
+      scheduleMicrosoftAutoBackup();
+      return;
+    }
+    try {
+      await uploadOneDriveBackupNow(true);
+    } catch (error) {
+      console.warn("Automatischer OneDrive-Abgleich konnte noch nicht abgeschlossen werden.", error);
+    }
+  }, 4000);
 }
 
 function friendlySyncError(error) {

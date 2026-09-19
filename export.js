@@ -1085,10 +1085,57 @@ function weeklyPlanStatusNaturalKey(item) {
   ].join("|");
 }
 
+function mergeWeeklyPlanStatusRecord(previous, incoming) {
+  if (!previous) return incoming;
+  if (!incoming) return previous;
+  const previousTime = recordSyncTimestamp(previous);
+  const incomingTime = recordSyncTimestamp(incoming);
+  const newer = incomingTime > previousTime ? incoming : previous;
+  const older = newer === incoming ? previous : incoming;
+  const merged = { ...older, ...newer, id: previous.id || incoming.id || makeId() };
+
+  const previousPages = previous.pageStatuses && typeof previous.pageStatuses === "object" ? previous.pageStatuses : {};
+  const incomingPages = incoming.pageStatuses && typeof incoming.pageStatuses === "object" ? incoming.pageStatuses : {};
+  const previousPageTimes = previous.pageUpdatedAt && typeof previous.pageUpdatedAt === "object" ? previous.pageUpdatedAt : {};
+  const incomingPageTimes = incoming.pageUpdatedAt && typeof incoming.pageUpdatedAt === "object" ? incoming.pageUpdatedAt : {};
+  const pageKeys = new Set([...Object.keys(previousPages), ...Object.keys(incomingPages)]);
+
+  if (pageKeys.size) {
+    const pageStatuses = {};
+    const pageUpdatedAt = {};
+    pageKeys.forEach((page) => {
+      const pValue = previousPages[page];
+      const iValue = incomingPages[page];
+      const pTime = Date.parse(previousPageTimes[page] || previous.updatedAt || previous.completedAt || previous.createdAt || "") || 0;
+      const iTime = Date.parse(incomingPageTimes[page] || incoming.updatedAt || incoming.completedAt || incoming.createdAt || "") || 0;
+      if (iValue !== undefined && (pValue === undefined || iTime > pTime)) {
+        pageStatuses[page] = iValue;
+        pageUpdatedAt[page] = incomingPageTimes[page] || incoming.updatedAt || incoming.completedAt || incoming.createdAt || "";
+      } else {
+        pageStatuses[page] = pValue;
+        pageUpdatedAt[page] = previousPageTimes[page] || previous.updatedAt || previous.completedAt || previous.createdAt || "";
+      }
+    });
+    const values = Object.values(pageStatuses).map((value) => String(value || "offen"));
+    const completedPages = Object.keys(pageStatuses).filter((page) => String(pageStatuses[page]) === "fertig");
+    const openPages = Object.keys(pageStatuses).filter((page) => String(pageStatuses[page]) !== "fertig");
+    merged.pageStatuses = pageStatuses;
+    merged.pageUpdatedAt = pageUpdatedAt;
+    merged.completedPages = completedPages;
+    merged.openPages = openPages;
+    merged.status = values.length && values.every((value) => value === "fertig")
+      ? "fertig"
+      : values.some((value) => value !== "offen") ? "teilweise" : "offen";
+  }
+  merged.updatedAt = new Date(Math.max(previousTime, incomingTime, Date.now() ? 0 : 0)).toISOString();
+  if (newer.updatedAt) merged.updatedAt = newer.updatedAt;
+  return merged;
+}
+
 function mergeWeeklyPlanStatusesPreferNewest(currentList, incomingList) {
   const byKey = new Map();
   const order = [];
-  const add = (item, source) => {
+  const add = (item) => {
     if (!item || typeof item !== "object") return;
     const key = weeklyPlanStatusNaturalKey(item) || `id:${item.id || makeId()}`;
     if (!byKey.has(key)) {
@@ -1096,13 +1143,10 @@ function mergeWeeklyPlanStatusesPreferNewest(currentList, incomingList) {
       order.push(key);
       return;
     }
-    const previous = byKey.get(key);
-    const previousTime = recordSyncTimestamp(previous);
-    const nextTime = recordSyncTimestamp(item);
-    if (nextTime > previousTime) byKey.set(key, { ...previous, ...item, id: previous.id || item.id || makeId() });
+    byKey.set(key, mergeWeeklyPlanStatusRecord(byKey.get(key), item));
   };
-  (currentList || []).forEach((item) => add(item, "local"));
-  (incomingList || []).forEach((item) => add(item, "remote"));
+  (currentList || []).forEach(add);
+  (incomingList || []).forEach(add);
   return order.map((key) => byKey.get(key));
 }
 
@@ -1385,7 +1429,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.childWorkbookReports || []).forEach((item) => {
     if (childWorkbookReportIds.has(item.id)) {
-      report.skippedDuplicateChildWorkbookReports += 1;
+      if (replaceWithNewerImported(next.childWorkbookReports, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateChildWorkbookReports += 1;
       return;
     }
     next.childWorkbookReports.push(item);

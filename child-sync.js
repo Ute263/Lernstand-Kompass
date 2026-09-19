@@ -387,6 +387,44 @@
     return item?.id ? `id:${item.id}` : "";
   }
 
+  function mergeWeeklyStatusPages(previous, incoming) {
+    const previousTime = recordTimestamp(previous);
+    const incomingTime = recordTimestamp(incoming);
+    const newer = incomingTime > previousTime ? incoming : previous;
+    const older = newer === incoming ? previous : incoming;
+    const merged = { ...older, ...newer, id: previous.id || incoming.id };
+    const previousPages = previous?.pageStatuses && typeof previous.pageStatuses === "object" ? previous.pageStatuses : {};
+    const incomingPages = incoming?.pageStatuses && typeof incoming.pageStatuses === "object" ? incoming.pageStatuses : {};
+    const previousTimes = previous?.pageUpdatedAt && typeof previous.pageUpdatedAt === "object" ? previous.pageUpdatedAt : {};
+    const incomingTimes = incoming?.pageUpdatedAt && typeof incoming.pageUpdatedAt === "object" ? incoming.pageUpdatedAt : {};
+    const pages = new Set([...Object.keys(previousPages), ...Object.keys(incomingPages)]);
+    if (!pages.size) return merged;
+    const pageStatuses = {};
+    const pageUpdatedAt = {};
+    pages.forEach((page) => {
+      const pValue = previousPages[page];
+      const iValue = incomingPages[page];
+      const pTime = Date.parse(previousTimes[page] || previous?.updatedAt || previous?.completedAt || previous?.createdAt || "") || 0;
+      const iTime = Date.parse(incomingTimes[page] || incoming?.updatedAt || incoming?.completedAt || incoming?.createdAt || "") || 0;
+      if (iValue !== undefined && (pValue === undefined || iTime > pTime)) {
+        pageStatuses[page] = iValue;
+        pageUpdatedAt[page] = incomingTimes[page] || incoming?.updatedAt || incoming?.completedAt || incoming?.createdAt || "";
+      } else {
+        pageStatuses[page] = pValue;
+        pageUpdatedAt[page] = previousTimes[page] || previous?.updatedAt || previous?.completedAt || previous?.createdAt || "";
+      }
+    });
+    const values = Object.values(pageStatuses).map((value) => String(value || "offen"));
+    merged.pageStatuses = pageStatuses;
+    merged.pageUpdatedAt = pageUpdatedAt;
+    merged.completedPages = Object.keys(pageStatuses).filter((page) => String(pageStatuses[page]) === "fertig");
+    merged.openPages = Object.keys(pageStatuses).filter((page) => String(pageStatuses[page]) !== "fertig");
+    merged.status = values.length && values.every((value) => value === "fertig")
+      ? "fertig"
+      : values.some((value) => value !== "offen") ? "teilweise" : "offen";
+    return merged;
+  }
+
   function mergeByIdPreferNewest(current, incoming, field = "") {
     const list = [];
     const map = new Map();
@@ -400,6 +438,14 @@
         list.push(copy);
         map.set(key, copy);
         if (incomingItem) changed += 1;
+        return;
+      }
+      if (field === "weeklyPlanStatuses") {
+        const merged = mergeWeeklyStatusPages(previous, item);
+        const index = list.indexOf(previous);
+        list[index] = merged;
+        map.set(key, merged);
+        if (incomingItem && JSON.stringify(merged) !== JSON.stringify(previous)) changed += 1;
         return;
       }
       if (recordTimestamp(item) > recordTimestamp(previous)) {
@@ -756,6 +802,15 @@
       scheduleTeacherPullLoop();
     }
   }
+
+
+  // OneDrive darf erst sichern, nachdem alle aktuell erreichbaren Kinderstände
+  // in den Lehrkraft-Zustand übernommen wurden. Diese Funktion wird vom
+  // Microsoft-Sync vor jedem Cloud-Abgleich aufgerufen.
+  window.lkPullAllChildChangesForCloud = async function lkPullAllChildChangesForCloud() {
+    if (!teacherClassSyncReady() || !navigator.onLine) return 0;
+    return await pullTeacherChildStates({ renderIfSafe: false });
+  };
 
   // Jede normale Speicherung bleibt zuerst lokal. Danach wird je nach Rolle automatisch synchronisiert.
   persist = async function automaticPersist(nextState = state) {

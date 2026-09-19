@@ -10215,6 +10215,7 @@ async function setWeeklyPlanPageStatus(planId, animalId, day, field, page, statu
   const timestamp = nowIso();
   const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
   const pageStatuses = { ...(existing?.pageStatuses || {}) };
+  const pageUpdatedAt = { ...(existing?.pageUpdatedAt || {}) };
 
   // Alte Datensätze ohne Seitenstatus in die neue Seitenlogik übernehmen.
   if (!Object.keys(pageStatuses).length) {
@@ -10229,6 +10230,7 @@ async function setWeeklyPlanPageStatus(planId, animalId, day, field, page, statu
   }
 
   pageStatuses[pageKey] = normalized;
+  pageUpdatedAt[pageKey] = timestamp;
   const values = pages.map((p) => normalizeSimpleWorkStatus(pageStatuses[p] || "offen"));
   const overallStatus = values.every((value) => value === "fertig")
     ? "fertig"
@@ -10250,6 +10252,7 @@ async function setWeeklyPlanPageStatus(planId, animalId, day, field, page, statu
     freeText: item.freeText || "",
     status: overallStatus,
     pageStatuses,
+    pageUpdatedAt,
     completedPages,
     openPages,
     completedAt: overallStatus === "fertig" ? timestamp : (existing?.completedAt || ""),
@@ -10311,6 +10314,8 @@ async function setWeeklyPlanSimpleStatus(planId, animalId, day, field, status) {
         : [];
   const openPages = pages.map(String).filter((page) => !completedPages.includes(page));
   const existing = weeklyPlanStatusRecord(planId, animalId, day, field);
+  const pageStatuses = Object.fromEntries(pages.map((page) => [String(page), normalized === "fertig" ? "fertig" : (normalized === "teilweise" && completedPages.includes(String(page)) ? "fertig" : normalized)]));
+  const pageUpdatedAt = Object.fromEntries(pages.map((page) => [String(page), timestamp]));
   const nextStatus = {
     ...(existing || {}),
     id: existing?.id || weeklyPlanStatusStableId(planId, animalId, day, field),
@@ -10322,6 +10327,8 @@ async function setWeeklyPlanSimpleStatus(planId, animalId, day, field, status) {
     workbookCatalogId: item.workbookCatalogId || "",
     freeText: item.freeText || "",
     status: normalized,
+    pageStatuses,
+    pageUpdatedAt,
     completedPages,
     openPages,
     completedAt: normalized === "fertig" ? timestamp : existing?.completedAt || "",
