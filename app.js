@@ -3850,15 +3850,21 @@ function openWeeklyPlanFromDropdown(planId) {
   editWeeklyPlan(planId);
 }
 
-function setWeeklyPlanFocus(animalId) {
-  if (weeklyPlanSection === "create") weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+async function setWeeklyPlanFocus(animalId) {
+  if (weeklyPlanSection === "create") {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    if (!(await lkSaveWeeklyEditorBeforeSwitch("vor Kindwechsel"))) return;
+  }
   weeklyPlanFocusAnimalId = animalId || "";
   weeklyOverrideAnimalId = animalId || weeklyOverrideAnimalId;
   render();
 }
 
-function setWeeklyPlanSection(section) {
-  if (weeklyPlanSection === "create") weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+async function setWeeklyPlanSection(section) {
+  if (weeklyPlanSection === "create") {
+    weeklyPlanDraft = collectWeeklyPlanDraftFromDom();
+    if (!(await lkSaveWeeklyEditorBeforeSwitch("vor Ansichtswechsel"))) return;
+  }
   weeklyPlanSection = section;
   if (section === "create" && !weeklyPlanEditorId) weeklyPlanEditorId = "";
   render();
@@ -5186,7 +5192,28 @@ async function deleteWorkbookCatalogItem(itemId) {
   await persistAndRender({ ...state, workbookCatalog: (state.workbookCatalog || []).filter((item) => item.id !== itemId) });
 }
 
-function newWeeklyPlan() {
+async function lkSaveWeeklyEditorBeforeSwitch(reason = "Wechsel") {
+  if (!document.querySelector(".weekly-plan-form")) return true;
+  try {
+    if (typeof window.lkFlushWeeklyPlanAutosave === "function") {
+      await window.lkFlushWeeklyPlanAutosave();
+    } else if (typeof collectWeeklyPlanDraftFromDom === "function") {
+      const draft = collectWeeklyPlanDraftFromDom();
+      if (draft && typeof window.lkAutoSaveWeeklyPlan === "function") {
+        await window.lkAutoSaveWeeklyPlan({ snapshot: draft, reason, immediate: true });
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error("Wochenplan konnte vor dem Wechsel nicht gespeichert werden.", error);
+    globalMessage = "Der Wochenplan konnte nicht gespeichert werden. Der Wechsel wurde abgebrochen.";
+    render();
+    return false;
+  }
+}
+
+async function newWeeklyPlan() {
+  if (!(await lkSaveWeeklyEditorBeforeSwitch("vor neuem Wochenplan"))) return;
   weeklyPlanEditorId = "";
   weeklyPlanDraft = null;
   weeklyPickRequest = null;
@@ -5194,7 +5221,8 @@ function newWeeklyPlan() {
   render();
 }
 
-function editWeeklyPlan(planId) {
+async function editWeeklyPlan(planId) {
+  if (!(await lkSaveWeeklyEditorBeforeSwitch("vor Planwechsel"))) return;
   weeklyPlanEditorId = planId;
   weeklyPlanDraft = null;
   weeklyPickRequest = null;
@@ -5202,12 +5230,12 @@ function editWeeklyPlan(planId) {
   render();
 }
 
-function setWeeklyPlanEditorSelection(planId) {
+async function setWeeklyPlanEditorSelection(planId) {
   if (planId) {
-    editWeeklyPlan(planId);
+    await editWeeklyPlan(planId);
     return;
   }
-  newWeeklyPlan();
+  await newWeeklyPlan();
 }
 
 function weeklyPlanSelectLabel(plan) {

@@ -83,7 +83,18 @@
     const weeklyPlans = existing
       ? (state.weeklyPlans || []).map((plan) => plan.id === existing.id ? nextPlan : plan)
       : [...(state.weeklyPlans || []), nextPlan];
-    await persist({ ...state, weeklyPlans });
+
+    // Den neuen Stand sofort auch im Arbeitsspeicher setzen. So kann ein
+    // unmittelbar anschließender Plan-/Kindwechsel niemals noch den alten
+    // state.weeklyPlans-Stand rendern, während IndexedDB noch schreibt.
+    const nextState = { ...state, weeklyPlans };
+    state = nextState;
+    await persist(nextState);
+
+    const stored = (state.weeklyPlans || []).find((plan) => plan.id === nextPlan.id);
+    if (!stored || fingerprintPlan(stored) !== fp) {
+      throw new Error('Wochenplan wurde nach dem Speichern nicht identisch zurückgelesen.');
+    }
     lastSavedFingerprint = fp;
     if (seq === saveSeq) setIndicator('✓ automatisch gespeichert', 'saved');
   }
@@ -166,27 +177,9 @@
     };
   }
 
-  // Vor Kind-/Planwechsel wirklich zuerst speichern und erst danach wechseln.
-  ['setWeeklyOverrideAnimal', 'newWeeklyPlan', 'editWeeklyPlan', 'setWeeklyPlanEditorSelection'].forEach((name) => {
-    const original = window[name];
-    if (typeof original !== 'function' || original.__lkAutosaveBeforeWrapped) return;
-    const wrapped = function(...args) {
-      const ctx = this;
-      const snapshot = snapshotFromDom();
-      if (!snapshot) return original.apply(ctx, args);
-      if (timer) { clearTimeout(timer); timer = null; }
-      chain = chain
-        .then(() => persistSnapshot(snapshot, `vor ${name}`))
-        .catch((error) => {
-          console.error('Wochenplan konnte vor dem Wechsel nicht gespeichert werden.', error);
-          setIndicator('Speichern fehlgeschlagen', 'error');
-        })
-        .then(() => original.apply(ctx, args));
-      return chain;
-    };
-    wrapped.__lkAutosaveBeforeWrapped = true;
-    window[name] = wrapped;
-  });
+  // Plan-/Kindwechsel speichern jetzt direkt in app.js und warten dort
+  // auf den erfolgreichen Schreibvorgang. Keine nachträglichen Wrapper mehr:
+  // dadurch gibt es keine Rennen zwischen Rendern und IndexedDB-Speicherung.
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && currentForm()) window.lkFlushWeeklyPlanAutosave();
