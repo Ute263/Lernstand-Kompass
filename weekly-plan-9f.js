@@ -682,9 +682,16 @@
       const last = groups[groups.length - 1];
       if (last && last.key === meta.key) {
         last.items.push(item);
-      } else {
-        groups.push({ ...meta, items: [item] });
+        return;
       }
+      // Aufgaben ohne eigenes Materialsymbol werden direkt an einen laufenden
+      // Arbeitsblatt-/Mikrofon-Block angehängt. So steht das Symbol einmal
+      // mittig vor dem gesamten Aufgabenblock statt nur vor der ersten Zeile.
+      if (last && meta.type === "plain" && (last.type === "worksheet" || last.type === "microphone")) {
+        last.items.push(item);
+        return;
+      }
+      groups.push({ ...meta, items: [item] });
     });
 
     return groups.map((group) => `
