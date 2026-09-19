@@ -635,38 +635,67 @@
     return `<footer class="lk-wp-footer footer-count-${boxes.length}">${boxes.join("")}</footer>`;
   }
 
+  function weekLayoutGroupMeta(item = null, fallbackIndex = 0) {
+    const workbook = String(item?.catalogItem?.workbook || "").trim();
+    if (workbook) {
+      return {
+        key: `workbook:${workbook}`,
+        type: "workbook",
+        catalogItem: item.catalogItem || null,
+        symbolHtml: renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    if (item?.isWorksheetTask) {
+      return {
+        key: "worksheet",
+        type: "worksheet",
+        catalogItem: null,
+        symbolHtml: renderWorksheetCoverImage("lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    if (item?.isMicrophoneTask) {
+      return {
+        key: "microphone",
+        type: "microphone",
+        catalogItem: null,
+        symbolHtml: renderMicrophoneImage("lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    return {
+      key: `plain:${fallbackIndex}`,
+      type: "plain",
+      catalogItem: null,
+      symbolHtml: "",
+      hasSymbol: false
+    };
+  }
+
   function renderWeekLayoutRows(items) {
     if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
 
     const groups = [];
-    items.forEach((item) => {
-      const workbook = String(item?.catalogItem?.workbook || "");
-      if (workbook) {
-        const key = workbook;
-        const last = groups[groups.length - 1];
-        if (last && last.key === key) last.items.push(item);
-        else groups.push({ key, workbook, catalogItem: item.catalogItem || null, items: [item] });
-        return;
+    items.forEach((item, index) => {
+      const meta = weekLayoutGroupMeta(item, index);
+      const last = groups[groups.length - 1];
+      if (last && last.key === meta.key) {
+        last.items.push(item);
+      } else {
+        groups.push({ ...meta, items: [item] });
       }
-
-      // Freie Aufgaben werden nicht mehr mit einer künstlichen leeren Cover-Spalte
-      // dargestellt. Arbeitsblatt/Mikrofon erscheinen direkt in der jeweiligen Zeile.
-      // Dadurch hängt ein großes AB-Symbol nicht mehr über mehreren Aufgaben und die
-      // Zeilen bleiben gleichmäßig verteilt.
-      groups.push({ key: `__free__${groups.length}`, workbook: "", catalogItem: null, items: [item] });
     });
 
     return groups.map((group) => `
-      <div class="lk-wp-workbook-group ${group.catalogItem ? "has-cover" : "no-cover"}" style="--group-weight:${Math.max(1, group.items.length)}">
-        ${group.catalogItem
-          ? `<div class="lk-wp-workbook-cover-cell">${renderWorkbookCoverImage(group.catalogItem, "lk-wp-book-cover grouped")}</div>`
+      <div class="lk-wp-workbook-group ${group.hasSymbol ? "has-symbol" : "no-symbol"} ${group.type === "workbook" ? "has-cover" : ""}" style="--group-weight:${Math.max(1, group.items.length)}">
+        ${group.hasSymbol
+          ? `<div class="lk-wp-workbook-cover-cell ${group.type !== "workbook" ? "icon-only" : ""}">${group.symbolHtml}</div>`
           : ""}
         <div class="lk-wp-workbook-tasks">
           ${group.items.map((item) => `
             <div class="lk-wp-week-row">
               <div class="lk-wp-week-row-main">
-                ${item.isWorksheetTask ? renderWorksheetCoverImage("lk-wp-inline-task-icon") : ""}
-                ${item.isMicrophoneTask ? renderMicrophoneImage("lk-wp-inline-task-icon") : ""}
                 ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
                 ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
                 <div class="lk-wp-task-copy">
@@ -1332,26 +1361,28 @@
         }
         .lk-wp-workbook-group {
           display:grid;
-          grid-template-columns:22mm minmax(0,1fr);
+          grid-template-columns:20mm minmax(0,1fr);
           flex:0 0 auto;
           min-height:0;
           border-bottom:.32mm solid #aeb8be;
         }
         .lk-wp-workbook-group:last-child { border-bottom:0; }
-        .lk-wp-workbook-group.no-cover { grid-template-columns:1fr; }
+        .lk-wp-workbook-group.no-symbol { grid-template-columns:1fr; }
         .lk-wp-workbook-cover-cell {
           display:flex;
           align-items:center;
           justify-content:center;
           align-self:stretch;
-          padding:1mm;
+          padding:1mm 1.2mm;
           border-right:.2mm solid #d1d1d1;
           background:rgba(255,255,255,.56);
         }
-        .lk-wp-workbook-cover-cell.blank { background:#fff; }
-        .lk-wp-book-cover.grouped {
-          width:14mm;
-          height:17mm;
+        .lk-wp-workbook-cover-cell.icon-only {
+          background:rgba(255,255,255,.42);
+        }
+                .lk-wp-book-cover.grouped {
+          width:13mm;
+          height:16mm;
           object-fit:contain;
         }
         .lk-wp-workbook-tasks {
@@ -1374,7 +1405,7 @@
           display:flex;
           align-items:center;
           gap:1.5mm;
-          padding:.65mm 2.5mm;
+          padding:.65mm 2.2mm;
           font-size:15.5pt;
         }
         .lk-wp-week-row-main {
@@ -1384,14 +1415,7 @@
           gap:1.6mm;
         }
         .lk-wp-week-row-main .lk-wp-task-copy { min-height:0; }
-        .lk-wp-inline-task-icon {
-          width:10mm !important;
-          height:12mm !important;
-          object-fit:contain;
-          flex:0 0 auto;
-          margin-right:1mm;
-        }
-        .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:16pt; line-height:1.03; }
+                .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:16pt; line-height:1.03; }
         .lk-wp-week-row .lk-wp-circle {
           position:static;
           grid-column:2;
