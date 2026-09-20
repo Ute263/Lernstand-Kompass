@@ -1073,6 +1073,32 @@ function replaceWithNewerImported(list, importedItem, idField = "id") {
   return false;
 }
 
+function weeklyPlanDeletionTimestamp(item) {
+  if (!item || typeof item !== "object") return 0;
+  const raw = item.deletedAt || (item.active === false ? item.updatedAt : "") || "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mergeWeeklyPlanRecord(previous, incoming) {
+  if (!previous) return incoming;
+  if (!incoming) return previous;
+  const previousTime = recordSyncTimestamp(previous);
+  const incomingTime = recordSyncTimestamp(incoming);
+  const previousDelete = weeklyPlanDeletionTimestamp(previous);
+  const incomingDelete = weeklyPlanDeletionTimestamp(incoming);
+
+  // Ein gelöschter Plan bleibt gelöscht, solange auf der anderen Seite nicht
+  // nach diesem Löschzeitpunkt bewusst eine neuere Änderung erfolgt ist.
+  if (previousDelete && previousDelete >= incomingTime && previousDelete >= incomingDelete) {
+    return { ...incoming, ...previous, active: false, deletedAt: previous.deletedAt || previous.updatedAt || "" };
+  }
+  if (incomingDelete && incomingDelete >= previousTime && incomingDelete >= previousDelete) {
+    return { ...previous, ...incoming, active: false, deletedAt: incoming.deletedAt || incoming.updatedAt || "" };
+  }
+  return incomingTime > previousTime ? incoming : previous;
+}
+
 
 function weeklyPlanStatusNaturalKey(item) {
   if (!item || typeof item !== "object") return "";
@@ -1252,8 +1278,17 @@ function mergeBackupData(currentState, importedBackup) {
   imported.animals.forEach((item) => {
     if (animalIds.has(item.id)) {
       const index = next.animals.findIndex((animal) => animal.id === item.id);
-      if (index >= 0 && !next.animals[index].firstName && item.firstName) {
-        next.animals[index] = { ...next.animals[index], firstName: item.firstName };
+      if (index >= 0) {
+        const currentAnimal = next.animals[index];
+        if (recordSyncTimestamp(item) > recordSyncTimestamp(currentAnimal)) {
+          // Technischen QR-Code nicht versehentlich verlieren, wenn eine ältere
+          // Datenstruktur ihn im importierten Datensatz nicht enthält.
+          next.animals[index] = { ...currentAnimal, ...item, qrToken: item.qrToken || currentAnimal.qrToken || "" };
+          report.updatedRecords += 1;
+        } else if (!currentAnimal.firstName && item.firstName) {
+          next.animals[index] = { ...currentAnimal, firstName: item.firstName };
+          report.updatedRecords += 1;
+        }
       }
       return;
     }
@@ -1272,7 +1307,10 @@ function mergeBackupData(currentState, importedBackup) {
   });
 
   (imported.animalGroups || []).forEach((item) => {
-    if (animalGroupIds.has(item.id)) return;
+    if (animalGroupIds.has(item.id)) {
+      if (replaceWithNewerImported(next.animalGroups, item)) report.updatedRecords += 1;
+      return;
+    }
     next.animalGroups.push(item);
     animalGroupIds.add(item.id);
   });
@@ -1332,7 +1370,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.assessments || []).forEach((item) => {
     if (assessmentIds.has(item.id)) {
-      report.skippedDuplicateAssessments += 1;
+      if (replaceWithNewerImported(next.assessments, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateAssessments += 1;
       return;
     }
     next.assessments.push(item);
@@ -1342,7 +1381,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.assessmentTasks || []).forEach((item) => {
     if (assessmentTaskIds.has(item.id)) {
-      report.skippedDuplicateAssessmentTasks += 1;
+      if (replaceWithNewerImported(next.assessmentTasks, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateAssessmentTasks += 1;
       return;
     }
     next.assessmentTasks.push(item);
@@ -1352,7 +1392,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.assessmentResults || []).forEach((item) => {
     if (assessmentResultIds.has(item.id)) {
-      report.skippedDuplicateAssessmentResults += 1;
+      if (replaceWithNewerImported(next.assessmentResults, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateAssessmentResults += 1;
       return;
     }
     next.assessmentResults.push(item);
@@ -1397,7 +1438,8 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.workbookCatalog || []).forEach((item) => {
     if (workbookCatalogIds.has(item.id)) {
-      report.skippedDuplicateWorkbookCatalog += 1;
+      if (replaceWithNewerImported(next.workbookCatalog, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateWorkbookCatalog += 1;
       return;
     }
     next.workbookCatalog.push(item);
@@ -1451,8 +1493,15 @@ function mergeBackupData(currentState, importedBackup) {
 
   (imported.weeklyPlans || []).forEach((item) => {
     if (weeklyPlanIds.has(item.id)) {
-      if (replaceWithNewerImported(next.weeklyPlans, item)) report.updatedRecords += 1;
-      else report.skippedDuplicateWeeklyPlans += 1;
+      const index = next.weeklyPlans.findIndex((plan) => plan.id === item.id);
+      const previous = index >= 0 ? next.weeklyPlans[index] : null;
+      const mergedPlan = mergeWeeklyPlanRecord(previous, item);
+      if (index >= 0 && JSON.stringify(mergedPlan) !== JSON.stringify(previous)) {
+        next.weeklyPlans[index] = mergedPlan;
+        report.updatedRecords += 1;
+      } else {
+        report.skippedDuplicateWeeklyPlans += 1;
+      }
       return;
     }
     next.weeklyPlans.push(item);
@@ -1474,8 +1523,13 @@ function mergeBackupData(currentState, importedBackup) {
     next.weeklyPlanStatuses = mergedStatuses;
   }
   (imported.learningGameSessions || []).forEach((item) => {
-    if (!item?.id || learningGameSessionIds.has(item.id)) {
+    if (!item?.id) {
       report.skippedDuplicateLearningGameSessions += 1;
+      return;
+    }
+    if (learningGameSessionIds.has(item.id)) {
+      if (replaceWithNewerImported(next.learningGameSessions, item)) report.updatedRecords += 1;
+      else report.skippedDuplicateLearningGameSessions += 1;
       return;
     }
     next.learningGameSessions.push(item);

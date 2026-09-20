@@ -23,7 +23,9 @@ const orderedScripts = [
   "weekly-minimax-pages.js",
   "weekly-calendar-overview.js",
   "weekly-editor-compact.js",
-  "weekly-fix-172.js"
+  "weekly-fix-172.js",
+  "progress-children-overview.js",
+  "weekly-autosave.js"
 ];
 
 let lastIndex = -1;
@@ -57,9 +59,11 @@ orderedScripts.forEach((file) => {
 });
 
 [
-  "item.isMicrophoneTask",
+  "isMicrophoneTask",
   "weeklySocialFormIconHtml",
-  "./materials/icon-microphone.png"
+  "./materials/icon-microphone.png",
+  "lk-wp-workbook-cover-cell",
+  "groupPrintItems"
 ].forEach((requiredPart) => {
   assert(print.includes(requiredPart), `Druckunterstützung fehlt: ${requiredPart}`);
 });

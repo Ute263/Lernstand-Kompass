@@ -1,12 +1,21 @@
 {
   "name": "lernstand-kompass",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "description": "Statische PWA für Lernstandsplanung, Dokumentation und lokale Datenspeicherung.",
   "scripts": {
     "check": "node scripts/check-syntax.js",
     "check:weekly": "node scripts/check-weekly-structure.js",
     "build": "node scripts/build.js",
-    "verify": "npm run check && npm run check:weekly && npm run build"
+    "verify": "npm run check && npm run check:weekly && npm run check:weekly-selection && npm run check:roundtrip && npm run check:autosave && npm run check:backup && npm run check:child-sync && npm run check:sync && npm run check:onedrive && npm run check:print && npm run build && npm run check:runtime",
+    "check:runtime": "node scripts/check-runtime.js",
+    "check:sync": "node scripts/check-sync-logic.js",
+    "check:roundtrip": "node scripts/check-weekly-roundtrip.js",
+    "check:print": "node scripts/check-print-logic.js",
+    "check:weekly-selection": "node scripts/check-weekly-selection.js",
+    "check:autosave": "node scripts/check-autosave.js",
+    "check:child-sync": "node scripts/check-child-sync-logic.js",
+    "check:onedrive": "node scripts/check-onedrive-sync.js",
+    "check:backup": "node scripts/check-backup-roundtrip.js"
   }
 }

@@ -125,19 +125,15 @@ Der Lernstand-Kompass umfasst unter anderem:
 ## Lizenz
 
 Für den Lernstand-Kompass gilt die Datei [`LICENSE`](LICENSE). Für eingebundene Fremdbibliotheken gelten zusätzlich deren jeweilige Lizenzbedingungen, insbesondere die mitgelieferten Lizenzdateien.
+## Stabilitäts- und Prüfsystem
 
-## V13 – Wochenplan automatisch speichern
-- Jede Änderung im Wochenplan wird lokal automatisch gespeichert.
-- Texteingaben werden nach einer sehr kurzen Eingabepause gespeichert.
-- Aufgabe hinzufügen/entfernen, Reihenfolge, Sternchen, Sozialform, Materialauswahl und Einzelkind-Abweichungen werden sofort gespeichert.
-- Vor dem Wechsel zu einem anderen Kind oder Wochenplan wird der aktuelle Stand zuerst gespeichert.
-- Ein sichtbarer Status zeigt „Speichert …“ bzw. „✓ automatisch gespeichert“.
-- Der bisherige notwendige Speichern-Button im Wochenplan entfällt.
+Die aktuelle bereinigte Version besitzt automatisierte Prüfungen für Wochenplan-Speicherung, Autosave, Backup, Kinder-/Cloudflare-Sync, OneDrive-Konfliktschutz, Druck und die Vollständigkeit des Produktions-Builds.
 
+Wichtige Unterlagen:
 
-## V15 – Korrektur Lernübersicht (19.09.2026 17:20)
-- Die Lernübersicht verwendet pro Kind den tatsächlich relevanten neuesten datierten Wochenplan.
-- Alte Wochenpläne ohne Zeitraum gelten nicht mehr dauerhaft als aktuell.
-- Am Wochenende bzw. nach Ende einer Woche bleibt der zuletzt begonnene datierte Wochenplan für offene Aufgaben maßgeblich.
-- Legacy-Status „fertig“ wird bei mehrseitigen Einträgen nicht mehr pauschal auf nicht ausdrücklich erledigte Seiten übertragen.
-- V13-Autospeicherung und die V14-Abhakliste bleiben enthalten.
+- [`ABSCHLUSSBERICHT.md`](ABSCHLUSSBERICHT.md) – behobene Fehler und Prüfumfang
+- [`GITHUB-DEPLOY.md`](GITHUB-DEPLOY.md) – einmalige finale Bereitstellung
+- [`REPARATUR-SYNC.md`](REPARATUR-SYNC.md) – aktuelle Synchronisationsarchitektur
+
+Der vollständige Testlauf wird mit `npm run verify` gestartet.
+

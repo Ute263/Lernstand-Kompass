@@ -1385,6 +1385,7 @@ function normalizeWorkbookCatalogItem(item, fallbackClassId) {
     competence: item.competence || item.kompetenz || "",
     note: item.note || item.bemerkung || "",
     active: item.active !== false && item.aktiv !== false,
+    deletedAt: item.deletedAt || item.geloeschtAm || "",
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
   };
@@ -1483,6 +1484,7 @@ function normalizeWorkbookAssignment(item, fallbackClassId) {
     note: item.note || item.bemerkung || "",
     autoConfirm: item.autoConfirm === true,
     active: item.active !== false && item.aktiv !== false,
+    deletedAt: item.deletedAt || item.geloeschtAm || "",
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
   };
@@ -1611,6 +1613,7 @@ function normalizeActiveWorkbookMaterial(item, fallbackClassId, catalog = []) {
     validTo: item.validTo || item.gueltigBis || "",
     note: item.note || item.bemerkung || "",
     active: item.active !== false && item.aktiv !== false,
+    deletedAt: item.deletedAt || item.geloeschtAm || "",
     createdAt: item.createdAt || item.erstelltAm || timestamp,
     updatedAt: item.updatedAt || item.geaendertAm || timestamp
   };
@@ -1675,13 +1678,19 @@ function mergeDefaultWorkbookCatalogForClass(catalog, classId) {
 }
 
 function normalizeWeeklyPlan(item, fallbackClassId) {
+  const sourceItem = item && typeof item === "object" ? item : {};
   const timestamp = nowIso();
   const days = {};
   WEEK_DAYS.forEach((day) => {
-    const source = item.days?.[day] || item.tage?.[day] || {};
+    const source = sourceItem.days?.[day] || sourceItem.tage?.[day] || {};
     const deutschIds = normalizeIdList(source.deutschIds || source.deutschId || source.deutsch);
     const matheIds = normalizeIdList(source.matheIds || source.matheId || source.mathe);
+    // WICHTIG: unbekannte/neuere Wochenplanfelder bewusst erhalten. Die
+    // Wochenplanmodule erweitern die Tagesstruktur u. a. um Lesezeit,
+    // Lernwörter, Sternchen, Sozialformen und freie Aufgaben. Die zentrale
+    // Normalisierung darf diese Felder nie wieder beim Speichern entfernen.
     days[day] = {
+      ...source,
       deutschId: deutschIds[0] || "",
       deutschIds,
       deutschTaskNumber: normalizeTaskNumberText(source.deutschTaskNumber || source.deutschNumbers || source.deutschNr || ""),
@@ -1692,22 +1701,30 @@ function normalizeWeeklyPlan(item, fallbackClassId) {
     };
   });
   return {
-    id: item.id || makeId(),
-    classId: item.classId || item.klasseId || fallbackClassId,
-    title: item.title || item.titel || "Wochenplan",
-    weekLabel: item.weekLabel || item.kalenderwoche || "",
-    validFrom: item.validFrom || item.gueltigVon || "",
-    validTo: item.validTo || item.gueltigBis || "",
-    note: item.note || item.bemerkung || "",
-    assignmentMode: item.assignmentMode || item.zuordnung || "all",
-    animalIds: Array.isArray(item.animalIds) ? item.animalIds : [],
-    overrides: item.overrides && typeof item.overrides === "object" ? item.overrides : {},
-    progressMode: item.progressMode || (item.autoCreateEntries === true ? "auto" : "confirm"),
-    autoCreateEntries: item.autoCreateEntries === true || item.progressMode === "auto",
+    // Zukunftssicherheit: Felder neuerer Module bleiben erhalten, anschließend
+    // werden die zentral bekannten Felder vereinheitlicht.
+    ...sourceItem,
+    id: sourceItem.id || makeId(),
+    classId: sourceItem.classId || sourceItem.klasseId || fallbackClassId,
+    title: sourceItem.title || sourceItem.titel || "Wochenplan",
+    weekLabel: sourceItem.weekLabel || sourceItem.kalenderwoche || "",
+    validFrom: sourceItem.validFrom || sourceItem.gueltigVon || "",
+    validTo: sourceItem.validTo || sourceItem.gueltigBis || "",
+    note: sourceItem.note || sourceItem.bemerkung || "",
+    planningMode: sourceItem.planningMode === "week" ? "week" : "days",
+    deutschSectionOrder: Array.isArray(sourceItem.deutschSectionOrder)
+      ? [...sourceItem.deutschSectionOrder]
+      : ["Deutsch", "Lesezeit", "Lernwörter"],
+    assignmentMode: sourceItem.assignmentMode || sourceItem.zuordnung || "all",
+    animalIds: Array.isArray(sourceItem.animalIds) ? [...sourceItem.animalIds] : [],
+    overrides: sourceItem.overrides && typeof sourceItem.overrides === "object" ? sourceItem.overrides : {},
+    progressMode: sourceItem.progressMode || (sourceItem.autoCreateEntries === true ? "auto" : "confirm"),
+    autoCreateEntries: sourceItem.autoCreateEntries === true || sourceItem.progressMode === "auto",
     days,
-    active: item.active !== false && item.aktiv !== false,
-    createdAt: item.createdAt || item.erstelltAm || timestamp,
-    updatedAt: item.updatedAt || item.geaendertAm || timestamp
+    active: sourceItem.active !== false && sourceItem.aktiv !== false,
+    deletedAt: sourceItem.deletedAt || sourceItem.geloeschtAm || "",
+    createdAt: sourceItem.createdAt || sourceItem.erstelltAm || timestamp,
+    updatedAt: sourceItem.updatedAt || sourceItem.geaendertAm || timestamp
   };
 }
 
@@ -1726,9 +1743,43 @@ function normalizeTaskNumberText(value) {
 
 function normalizeWeeklyPlanStatus(item, fallbackClassId) {
   const timestamp = nowIso();
+  const normalizePageStatus = (value) => {
+    const legacy = value === "bearbeitet" || value === "von Lehrkraft bestätigt" ? "fertig" : value;
+    const normalized = legacy === "begonnen" ? "teilweise" : legacy;
+    return WEEKLY_PLAN_STATUSES.includes(normalized) ? normalized : "offen";
+  };
+
+  const rawPageStatuses = item?.pageStatuses && typeof item.pageStatuses === "object" && !Array.isArray(item.pageStatuses)
+    ? item.pageStatuses
+    : {};
+  const pageStatuses = Object.fromEntries(
+    Object.entries(rawPageStatuses)
+      .filter(([page]) => String(page || "").trim())
+      .map(([page, value]) => [String(page), normalizePageStatus(value)])
+  );
+  const rawPageTimes = item?.pageUpdatedAt && typeof item.pageUpdatedAt === "object" && !Array.isArray(item.pageUpdatedAt)
+    ? item.pageUpdatedAt
+    : {};
+  const pageUpdatedAt = Object.fromEntries(
+    Object.keys(pageStatuses).map((page) => [page, String(rawPageTimes[page] || item.updatedAt || item.completedAt || item.createdAt || timestamp)])
+  );
+
   const legacyStatus = item.status === "bearbeitet" || item.status === "von Lehrkraft bestätigt" ? "fertig" : item.status;
   const statusValue = legacyStatus === "begonnen" ? "teilweise" : legacyStatus;
-  const status = WEEKLY_PLAN_STATUSES.includes(statusValue) ? statusValue : "offen";
+  let status = WEEKLY_PLAN_STATUSES.includes(statusValue) ? statusValue : "offen";
+  let completedPages = normalizeIdList(item.completedPages || item.bearbeiteteSeiten);
+  let openPages = normalizeIdList(item.openPages || item.offeneSeiten);
+
+  if (Object.keys(pageStatuses).length) {
+    const pages = Object.keys(pageStatuses);
+    completedPages = pages.filter((page) => pageStatuses[page] === "fertig");
+    openPages = pages.filter((page) => pageStatuses[page] !== "fertig");
+    const values = Object.values(pageStatuses);
+    status = values.every((value) => value === "fertig")
+      ? "fertig"
+      : values.some((value) => value !== "offen") ? "teilweise" : "offen";
+  }
+
   return {
     id: item.id || makeId(),
     classId: item.classId || item.klasseId || fallbackClassId,
@@ -1738,8 +1789,10 @@ function normalizeWeeklyPlanStatus(item, fallbackClassId) {
     field: item.field || item.bereich || "Deutsch",
     workbookCatalogId: item.workbookCatalogId || item.catalogId || "",
     freeText: item.freeText || "",
-    completedPages: normalizeIdList(item.completedPages || item.bearbeiteteSeiten),
-    openPages: normalizeIdList(item.openPages || item.offeneSeiten),
+    completedPages,
+    openPages,
+    pageStatuses,
+    pageUpdatedAt,
     progressLinked: item.progressLinked === true,
     progressEntryId: item.progressEntryId || "",
     markedByChild: item.markedByChild === true,

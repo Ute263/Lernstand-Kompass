@@ -533,25 +533,45 @@ async function ensureOneDriveFolder() {
   }
 }
 
-async function getOneDriveBackup() {
+async function getOneDriveBackupRecord() {
   await ensureOneDriveFolder();
   const backupPath = oneDrivePath(LK_ONEDRIVE_FOLDER, LK_ONEDRIVE_FILENAME);
   try {
-    const response = await graphFetch(`/me/drive/root:/${backupPath}:/content`);
-    const text = await response.text();
-    return JSON.parse(text);
+    // Metadaten zuerst lesen, damit wir beim Schreiben mit eTag/If-Match vor
+    // parallelem Überschreiben durch ein zweites Lehrkraftgerät geschützt sind.
+    const metaResponse = await graphFetch(`/me/drive/root:/${backupPath}`);
+    const item = await metaResponse.json();
+    const contentResponse = await graphFetch(`/me/drive/items/${encodeURIComponent(item.id)}/content`);
+    const raw = await contentResponse.text();
+    return {
+      backup: JSON.parse(raw),
+      eTag: item.eTag || "",
+      itemId: item.id || "",
+      lastModifiedDateTime: item.lastModifiedDateTime || ""
+    };
   } catch (error) {
     if (error.status === 404) return null;
     throw error;
   }
 }
 
-async function putOneDriveBackup(backup) {
+async function getOneDriveBackup() {
+  const record = await getOneDriveBackupRecord();
+  return record?.backup || null;
+}
+
+async function putOneDriveBackup(backup, expectedETag = null) {
   await ensureOneDriveFolder();
   const backupPath = oneDrivePath(LK_ONEDRIVE_FOLDER, LK_ONEDRIVE_FILENAME);
+  const headers = { "Content-Type": "application/json; charset=utf-8" };
+  // Existiert die Datei bereits, darf nur exakt die zuvor gelesene Version
+  // ersetzt werden. Beim allerersten Anlegen verhindert If-None-Match, dass
+  // zwei Lehrkraftgeraete gleichzeitig unbemerkt den ersten Stand ueberschreiben.
+  if (expectedETag) headers["If-Match"] = expectedETag;
+  else headers["If-None-Match"] = "*";
   const response = await graphFetch(`/me/drive/root:/${backupPath}:/content`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers,
     body: JSON.stringify(backup)
   });
   return response.json();
@@ -579,15 +599,17 @@ async function replaceOneDriveWithLocalNow() {
   syncRuntime.msMessage = "Cloud-Sicherheitskopie wird erstellt …";
   render();
   try {
-    const remote = await getOneDriveBackup();
-    if (remote) {
-      await putOneDriveNamedBackup(remote, `lernstand-kompass-vor-ersetzung-${safeBackupTimestamp()}.json`);
+    const remoteRecord = await getOneDriveBackupRecord();
+    if (remoteRecord?.backup) {
+      await putOneDriveNamedBackup(remoteRecord.backup, `lernstand-kompass-vor-ersetzung-${safeBackupTimestamp()}.json`);
     }
     const localBackup = makeFullBackup(state);
-    await putOneDriveBackup(localBackup);
-    const verify = await getOneDriveBackup();
+    // Bei einer bewusst erzwungenen Ersetzung darf ein zwischenzeitlich von einem
+    // anderen Gerät geänderter Cloud-Stand nicht still überschrieben werden.
+    await putOneDriveBackup(localBackup, remoteRecord?.eTag || null);
+    const verifyRecord = await getOneDriveBackupRecord();
     const localJson = JSON.stringify(localBackup.state || {});
-    const remoteJson = JSON.stringify(verify?.state || {});
+    const remoteJson = JSON.stringify(verifyRecord?.backup?.state || {});
     if (localJson !== remoteJson) throw new Error("Die Cloud-Prüfung nach dem Schreiben war nicht identisch. Es wurde nichts weiter automatisch verändert.");
     await updateMicrosoftSyncMetadata(nowIso(), "Cloud wurde kontrolliert mit diesem Gerätestand ersetzt.");
     syncRuntime.msStatus = "success";
@@ -607,15 +629,10 @@ async function replaceLocalWithOneDriveNow() {
   syncRuntime.msMessage = "Cloud-Stand wird vollständig übernommen …";
   render();
   try {
-    const remote = await getOneDriveBackup();
-    if (!remote) throw new Error("In OneDrive wurde keine Sicherung gefunden.");
-    const nextState = stateFromBackup(remote);
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
+    const remoteRecord = await getOneDriveBackupRecord();
+    if (!remoteRecord?.backup) throw new Error("In OneDrive wurde keine Sicherung gefunden.");
+    const nextState = stateFromBackup(remoteRecord.backup);
+    await persistWithoutMicrosoftAuto(nextState);
     await updateMicrosoftSyncMetadata(nowIso(), "Cloud-Stand vollständig auf dieses Gerät übernommen.");
     syncRuntime.msStatus = "success";
     syncRuntime.msMessage = "Dieses Gerät entspricht jetzt vollständig dem Cloud-Stand.";
@@ -631,12 +648,27 @@ function mergeLearningGameSessions(baseState, importedBackup) {
   const imported = importedBackup?.type === "full-backup" ? importedBackup.state : importedBackup;
   const incoming = Array.isArray(imported?.learningGameSessions) ? imported.learningGameSessions : [];
   if (!incoming.length) return { state: baseState, added: 0 };
-  const existingIds = new Set((baseState.learningGameSessions || []).map((item) => item.id));
-  const added = incoming.filter((item) => item?.id && !existingIds.has(item.id));
-  return {
-    state: { ...baseState, learningGameSessions: [...(baseState.learningGameSessions || []), ...added] },
-    added: added.length
-  };
+  const list = [...(baseState.learningGameSessions || [])];
+  const byId = new Map(list.map((item, index) => [item?.id, index]).filter(([id]) => !!id));
+  let changed = 0;
+  incoming.forEach((item) => {
+    if (!item?.id) return;
+    const index = byId.get(item.id);
+    if (index === undefined) {
+      byId.set(item.id, list.length);
+      list.push(item);
+      changed += 1;
+      return;
+    }
+    const existing = list[index];
+    const existingTime = typeof recordSyncTimestamp === "function" ? recordSyncTimestamp(existing) : Date.parse(existing?.updatedAt || existing?.createdAt || "") || 0;
+    const incomingTime = typeof recordSyncTimestamp === "function" ? recordSyncTimestamp(item) : Date.parse(item?.updatedAt || item?.createdAt || "") || 0;
+    if (incomingTime > existingTime) {
+      list[index] = { ...existing, ...item, id: existing.id || item.id };
+      changed += 1;
+    }
+  });
+  return { state: { ...baseState, learningGameSessions: list }, added: changed };
 }
 
 function oneDriveMeaningfulDataCount(candidate) {
@@ -654,55 +686,96 @@ function shouldPreferCloudOnThisDevice(localState, remoteBackup) {
   return oneDriveMeaningfulDataCount(localState) === 0 && oneDriveMeaningfulDataCount(remoteBackup) > 0;
 }
 
+function oneDriveMergeChangeCount(report = {}, gameAdded = 0) {
+  const keys = [
+    "addedClasses", "addedAnimals", "addedMaterials", "addedEntries", "addedGoals",
+    "addedAssessments", "addedAssessmentTasks", "addedAssessmentResults",
+    "addedTrainingTasks", "addedTrainingCompletions", "addedTrainingHistory",
+    "addedWorkbookCatalog", "addedWorkbookAssignments", "addedWorkbookAssignmentStatuses",
+    "addedChildWorkbookReports", "addedActiveWorkbookMaterials", "addedWeeklyPlans",
+    "addedWeeklyPlanStatuses", "addedLearningGameSessions", "updatedRecords"
+  ];
+  return keys.reduce((sum, key) => sum + Number(report?.[key] || 0), Number(gameAdded || 0));
+}
+
+function mergeRemoteBackupIntoState(localState, remoteBackup) {
+  if (!remoteBackup) return { state: localState, changed: 0, cloudFirst: false };
+  const cloudFirst = shouldPreferCloudOnThisDevice(localState, remoteBackup);
+  if (cloudFirst) {
+    return {
+      state: stateFromBackup(remoteBackup),
+      changed: oneDriveMeaningfulDataCount(remoteBackup),
+      cloudFirst: true
+    };
+  }
+  const merged = mergeBackupData(localState, remoteBackup);
+  // Historische Versionen hatten Lernspielsitzungen teilweise außerhalb der
+  // allgemeinen Merge-Auswertung. Der Zusatzmerge ist idempotent und schützt
+  // deshalb auch ältere Backups.
+  const gameMerge = mergeLearningGameSessions(merged.state, remoteBackup);
+  return {
+    state: gameMerge.state,
+    changed: oneDriveMergeChangeCount(merged.report, gameMerge.added),
+    cloudFirst: false
+  };
+}
+
+async function persistWithoutMicrosoftAuto(nextState) {
+  const previous = syncRuntime.suppressAuto;
+  syncRuntime.suppressAuto = true;
+  try {
+    await persist(nextState);
+  } finally {
+    syncRuntime.suppressAuto = previous;
+  }
+}
+
+async function commitOneDriveWithConflictRetry(initialRecord = null, maxAttempts = 3) {
+  let record = initialRecord;
+  let conflictCount = 0;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      // Immer den aktuellsten lokalen Zustand schreiben. Lokale Änderungen, die
+      // während eines laufenden Syncs entstanden sind, werden so mitgenommen.
+      const result = await putOneDriveBackup(makeFullBackup(state), record?.eTag || null);
+      return { result, conflicts: conflictCount };
+    } catch (error) {
+      if (![409, 412].includes(Number(error?.status)) || attempt >= maxAttempts) throw error;
+      conflictCount += 1;
+      // Ein anderes Gerät hat zwischen Lesen und Schreiben gespeichert. Den neuen
+      // Cloud-Stand erneut lesen, zusammenführen und erst danach erneut schreiben.
+      record = await getOneDriveBackupRecord();
+      if (record?.backup) {
+        const merged = mergeRemoteBackupIntoState(state, record.backup);
+        await persistWithoutMicrosoftAuto(merged.state);
+      }
+    }
+  }
+  throw new Error("OneDrive-Konflikt konnte nach mehreren Versuchen nicht sicher aufgelöst werden.");
+}
+
 async function syncWithOneDriveNow() {
   if (syncRuntime.msStatus === "working") return;
   syncRuntime.msStatus = "working";
-  syncRuntime.msMessage = "OneDrive wird abgeglichen …";
+  syncRuntime.msMessage = "OneDrive wird sicher abgeglichen …";
   render();
   try {
     if (typeof window.lkPullAllChildChangesForCloud === "function") {
       await window.lkPullAllChildChangesForCloud();
     }
-    let nextState = state;
-    let changed = 0;
-    const remote = await getOneDriveBackup();
-    const cloudFirst = Boolean(remote && shouldPreferCloudOnThisDevice(nextState, remote));
+    const remoteRecord = await getOneDriveBackupRecord();
+    const merged = mergeRemoteBackupIntoState(state, remoteRecord?.backup || null);
+    await persistWithoutMicrosoftAuto(merged.state);
 
-    if (remote) {
-      if (cloudFirst) {
-        nextState = stateFromBackup(remote);
-        changed = oneDriveMeaningfulDataCount(remote);
-      } else {
-        const merged = mergeBackupData(nextState, remote);
-        nextState = merged.state;
-        const gameMerge = mergeLearningGameSessions(nextState, remote);
-        nextState = gameMerge.state;
-        changed += Number(merged.report?.addedEntries || 0)
-          + Number(merged.report?.updatedRecords || 0)
-          + Number(merged.report?.addedTrainingCompletions || 0)
-          + Number(merged.report?.addedAssessmentResults || 0)
-          + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
-          + gameMerge.added;
-      }
+    let conflictCount = 0;
+    if (!merged.cloudFirst) {
+      const committed = await commitOneDriveWithConflictRetry(remoteRecord);
+      conflictCount = committed.conflicts;
     }
 
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-
-    if (!cloudFirst) {
-      await putOneDriveBackup(makeFullBackup(state));
-    }
-
-    const status = cloudFirst
+    const status = merged.cloudFirst
       ? "Cloud-Stand vollständig auf diesem Gerät übernommen."
-      : (changed ? `${changed} neue oder aktualisierte Einträge übernommen; Cloud aktualisiert.` : "Cloud und Gerät sind abgeglichen.");
+      : `${merged.changed ? `${merged.changed} neue oder aktualisierte Einträge zusammengeführt. ` : ""}Cloud und Gerät sind abgeglichen.${conflictCount ? ` ${conflictCount} parallele Cloud-Änderung${conflictCount === 1 ? "" : "en"} wurde sicher nachgeladen.` : ""}`;
     await updateMicrosoftSyncMetadata(nowIso(), status);
     syncRuntime.msStatus = "success";
     syncRuntime.msMessage = status;
@@ -715,11 +788,6 @@ async function syncWithOneDriveNow() {
 }
 
 async function uploadOneDriveBackupNow(silent = false) {
-  // Wichtig für mehrere Lehrkraftgeräte:
-  // Niemals einen rein lokalen Stand blind nach OneDrive schreiben. Vor jedem
-  // Upload wird der vorhandene Cloud-Stand eingelesen und nach Zeitstempeln
-  // zusammengeführt. So kann ein älteres iPad/MacBook neuere Daten des
-  // jeweils anderen Geräts nicht mehr überschreiben.
   if (syncRuntime.msStatus === "working") return false;
   syncRuntime.msStatus = "working";
   if (!silent) {
@@ -727,46 +795,16 @@ async function uploadOneDriveBackupNow(silent = false) {
     render();
   }
   try {
+    // Reihenfolge ist verbindlich: Kinder -> lokal -> OneDrive lesen -> mergen -> schreiben.
     if (typeof window.lkPullAllChildChangesForCloud === "function") {
       await window.lkPullAllChildChangesForCloud();
     }
-    const remote = await getOneDriveBackup();
-    let nextState = state;
-    let changed = 0;
+    const remoteRecord = await getOneDriveBackupRecord();
+    const merged = mergeRemoteBackupIntoState(state, remoteRecord?.backup || null);
+    await persistWithoutMicrosoftAuto(merged.state);
 
-    if (remote) {
-      const cloudFirst = shouldPreferCloudOnThisDevice(nextState, remote);
-      if (cloudFirst) {
-        nextState = stateFromBackup(remote);
-        changed = oneDriveMeaningfulDataCount(remote);
-      } else {
-        const merged = mergeBackupData(nextState, remote);
-        nextState = merged.state;
-        const gameMerge = mergeLearningGameSessions(nextState, remote);
-        nextState = gameMerge.state;
-        changed += Number(merged.report?.addedEntries || 0)
-          + Number(merged.report?.updatedRecords || 0)
-          + Number(merged.report?.addedTrainingCompletions || 0)
-          + Number(merged.report?.addedAssessmentResults || 0)
-          + Number(merged.report?.addedWeeklyPlans || 0)
-          + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-          + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-          + Number(merged.report?.addedChildWorkbookReports || 0)
-          + gameMerge.added;
-      }
-    }
-
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(nextState);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-
-    await putOneDriveBackup(makeFullBackup(state));
-    const status = changed
-      ? `${changed} Cloud-/Geräteänderungen zusammengeführt und gesichert.`
-      : "Cloud und Gerät sind sicher zusammengeführt und gesichert.";
+    const committed = await commitOneDriveWithConflictRetry(remoteRecord);
+    const status = `${merged.changed ? `${merged.changed} Cloud-/Geräteänderungen zusammengeführt. ` : ""}Sicher in OneDrive gespeichert.${committed.conflicts ? ` ${committed.conflicts} parallele Änderung${committed.conflicts === 1 ? "" : "en"} wurde vor dem Schreiben erneut zusammengeführt.` : ""}`;
     await updateMicrosoftSyncMetadata(nowIso(), status);
     syncRuntime.msStatus = "success";
     syncRuntime.msMessage = status;
@@ -786,46 +824,18 @@ async function mergeOneDriveBackupNow() {
   syncRuntime.msMessage = "Cloud-Daten werden geladen …";
   render();
   try {
-    const remote = await getOneDriveBackup();
-    if (!remote) {
+    const remoteRecord = await getOneDriveBackupRecord();
+    if (!remoteRecord?.backup) {
       syncRuntime.msStatus = "success";
       syncRuntime.msMessage = "In OneDrive gibt es noch keine Sicherung.";
       render();
       return;
     }
-
-    const cloudFirst = shouldPreferCloudOnThisDevice(state, remote);
-    let next;
-    let count = 0;
-    if (cloudFirst) {
-      next = stateFromBackup(remote);
-      count = oneDriveMeaningfulDataCount(remote);
-    } else {
-      const merged = mergeBackupData(state, remote);
-      next = merged.state;
-      const gameMerge = mergeLearningGameSessions(next, remote);
-      next = gameMerge.state;
-      count = Number(merged.report?.addedEntries || 0)
-        + Number(merged.report?.updatedRecords || 0)
-        + Number(merged.report?.addedTrainingCompletions || 0)
-        + Number(merged.report?.addedAssessmentResults || 0)
-        + Number(merged.report?.addedWeeklyPlans || 0)
-        + Number(merged.report?.addedWeeklyPlanStatuses || 0)
-        + Number(merged.report?.addedWorkbookAssignmentStatuses || 0)
-        + Number(merged.report?.addedChildWorkbookReports || 0)
-        + gameMerge.added;
-    }
-
-    syncRuntime.suppressAuto = true;
-    try {
-      await persist(next);
-    } finally {
-      syncRuntime.suppressAuto = false;
-    }
-
-    const status = cloudFirst
+    const merged = mergeRemoteBackupIntoState(state, remoteRecord.backup);
+    await persistWithoutMicrosoftAuto(merged.state);
+    const status = merged.cloudFirst
       ? "Cloud-Stand vollständig auf diesem Gerät übernommen."
-      : `${count} neue oder aktualisierte Einträge aus OneDrive übernommen.`;
+      : `${merged.changed} neue oder aktualisierte Einträge aus OneDrive übernommen.`;
     await updateMicrosoftSyncMetadata(nowIso(), status);
     syncRuntime.msStatus = "success";
     syncRuntime.msMessage = status;
@@ -838,19 +848,15 @@ async function mergeOneDriveBackupNow() {
 }
 
 async function updateMicrosoftSyncMetadata(at, status) {
-  syncRuntime.suppressAuto = true;
-  try {
-    state = await storage.save({
-      ...state,
-      microsoftSync: {
-        ...currentMicrosoftSettings(),
-        lastSyncAt: at || nowIso(),
-        lastSyncStatus: status || ""
-      }
-    });
-  } finally {
-    syncRuntime.suppressAuto = false;
-  }
+  const nextState = {
+    ...state,
+    microsoftSync: {
+      ...currentMicrosoftSettings(),
+      lastSyncAt: at || nowIso(),
+      lastSyncStatus: status || ""
+    }
+  };
+  await persistWithoutMicrosoftAuto(nextState);
 }
 
 function scheduleMicrosoftAutoBackup() {
@@ -878,6 +884,7 @@ function friendlySyncError(error) {
   if (/consent|permission|privilege|403/i.test(message)) return "Microsoft hat den Zugriff nicht erlaubt. Prüfe in der Appregistrierung die delegierte Berechtigung Files.ReadWrite und melde dich anschließend neu an.";
   if (/network|fetch|internet|Failed to fetch/i.test(message)) return "Keine Verbindung. Prüfe Internet, Cloudflare-Adresse oder Microsoft-Anmeldung.";
   if (/client-id|client id|AADSTS700016/i.test(message)) return "Die Microsoft-Client-ID oder Appregistrierung stimmt noch nicht.";
+  if ([409, 412].includes(Number(error?.status))) return "OneDrive wurde parallel auf einem anderen Gerät geändert. Der Stand wurde nicht blind überschrieben; bitte den Abgleich erneut starten.";
   return message.length > 160 ? `${message.slice(0, 157)}…` : message;
 }
 

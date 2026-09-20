@@ -345,11 +345,64 @@
     }
   }
 
+  async function existingRemoteChildSnapshot(marker) {
+    try {
+      const response = await syncFetch(marker.endpoint, marker.transportBucket, { method: "GET" });
+      const body = await response.json();
+      const row = (body.items || []).find((item) => item.id === childRecordId(marker.animalId));
+      if (!row?.payload) return null;
+      const decoded = await decryptClassPayload(row.payload, marker.qrToken);
+      if (decoded?.type !== "lernstand-kompass-child-state" || decoded?.animalId !== marker.animalId || decoded?.classId !== marker.classId) return null;
+      return decoded;
+    } catch (error) {
+      // Ein fehlender/noch nicht erreichbarer Altstand darf das lokale Speichern
+      // nicht blockieren. Der eigentliche POST versucht es danach trotzdem.
+      console.warn("Kinder-Sync: vorhandener Cloud-Stand konnte vor dem Senden nicht gelesen werden.", error);
+      return null;
+    }
+  }
+
+  function mergeChildSnapshotsForPush(remote, local) {
+    if (!remote) return local;
+    const merged = { ...remote, ...local, updatedAt: nowIso() };
+    const fields = [
+      "entries", "weeklyPlanStatuses", "workbookAssignmentStatuses",
+      "childWorkbookReports", "trainingCompletions", "learningGameSessions"
+    ];
+    fields.forEach((field) => {
+      merged[field] = mergeByIdPreferNewest(remote[field] || [], local[field] || [], field).list;
+    });
+    return merged;
+  }
+
+  async function applyMergedChildSnapshotLocally(snapshot) {
+    if (!snapshot) return;
+    const next = { ...state };
+    const fields = [
+      "entries", "weeklyPlanStatuses", "workbookAssignmentStatuses",
+      "childWorkbookReports", "trainingCompletions", "learningGameSessions"
+    ];
+    fields.forEach((field) => {
+      next[field] = mergeByIdPreferNewest(state[field] || [], snapshot[field] || [], field).list;
+    });
+    runtime.applyingRemote = true;
+    try {
+      state = await storage.save(next);
+    } finally {
+      runtime.applyingRemote = false;
+    }
+  }
+
   async function pushChildStateNow() {
     if (!isChildDevice() || !navigator.onLine) return false;
     const marker = currentChildMarker();
     try {
-      const snapshot = childStateSnapshot();
+      // Read-before-write verhindert, dass zwei Kindergeräte desselben Kindes
+      // sich gegenseitig vollständige Snapshots wegschreiben.
+      const localSnapshot = childStateSnapshot();
+      const remoteSnapshot = await existingRemoteChildSnapshot(marker);
+      const snapshot = mergeChildSnapshotsForPush(remoteSnapshot, localSnapshot);
+      if (remoteSnapshot) await applyMergedChildSnapshotLocally(snapshot);
       const encrypted = await encryptClassPayload(snapshot, marker.qrToken);
       await syncFetch(marker.endpoint, marker.transportBucket, {
         method: "POST",

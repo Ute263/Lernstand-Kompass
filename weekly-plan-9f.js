@@ -539,7 +539,7 @@
     return `<span class="lk-wp-subject-badge extra" aria-hidden="true">✏️</span>`;
   }
 
-  function printTaskRow(item = null, previousSubject = "", previousWorkbook = "") {
+  function printTaskRow(item = null, previousSubject = "") {
     if (!item) {
       return `
         <div class="lk-wp-task-row blank">
@@ -553,10 +553,6 @@
     const subjectClass = printSubjectClass(subject);
     const parentSubject = printParentSubject(subject);
     const subjectLabel = printTaskSubjectLabel(subject);
-    const workbook = String(item?.catalogItem?.workbook || "");
-    const showCover = Boolean(item.catalogItem && workbook && workbook !== previousWorkbook);
-    const showWorksheetCover = Boolean(item.isWorksheetTask && !item.catalogItem);
-    const showMicrophone = Boolean(item.isMicrophoneTask && !item.catalogItem);
     return `
       <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
         <div class="lk-wp-task-text">
@@ -565,42 +561,52 @@
             ${printSubjectBadge(parentSubject)}
             <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
             ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
+            <span class="lk-wp-task-copy"><strong>${escapeHtml(pageText(item))}</strong></span>
           </span>
-          <div class="lk-wp-task-assignment ${(item.catalogItem || showWorksheetCover || showMicrophone) ? "with-cover" : ""}">
-            ${showCover ? renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover") : showWorksheetCover ? renderWorksheetCoverImage() : showMicrophone ? renderMicrophoneImage() : `<span class="lk-wp-book-cover-spacer" aria-hidden="true"></span>`}
-            <div class="lk-wp-task-copy">
-              <strong>${escapeHtml(pageText(item))}</strong>
-            </div>
-          </div>
         </div>
         <span class="lk-wp-circle"></span>
       </div>
     `;
   }
 
+  function renderPrintDayGroup(group, previousSubject = "") {
+    let subjectBefore = previousSubject;
+    const rows = group.items.map((item) => {
+      const html = printTaskRow(item, subjectBefore);
+      subjectBefore = printDisplaySection(item);
+      return html;
+    }).join("");
+    return {
+      html: `
+        <div class="lk-wp-day-material-group ${group.hasSymbol ? "has-symbol" : "no-symbol"}">
+          ${group.hasSymbol ? `<div class="lk-wp-day-symbol-cell ${group.type !== "workbook" ? "icon-only" : ""}">${group.symbolHtml}</div>` : ""}
+          <div class="lk-wp-day-material-tasks">${rows}</div>
+        </div>
+      `,
+      lastSubject: subjectBefore
+    };
+  }
+
   function renderPrintDay9f(plan, day, animal, options) {
     const items = printableItems(plan, day, animal, options);
-    // Im Druck nur noch eine Reservezeile pro Tag. Die bisher fest
-    // aufgefüllten fünf Zeilen machten einen normalen Wochenplan
-    // unnötig mehrseitig. Vorhandene Aufgaben werden natürlich alle gezeigt.
-    const minimumRows = 2;
-    const rows = [];
+    const groups = groupPrintItems(items);
+    const blocks = [];
     let previousSubject = "";
-    let previousWorkbook = "";
-
-    items.forEach((item) => {
-      rows.push(printTaskRow(item, previousSubject, previousWorkbook));
-      previousSubject = printDisplaySection(item);
-      previousWorkbook = String(item?.catalogItem?.workbook || "");
+    groups.forEach((group) => {
+      const rendered = renderPrintDayGroup(group, previousSubject);
+      blocks.push(rendered.html);
+      previousSubject = rendered.lastSubject;
     });
 
-    while (rows.length < minimumRows) rows.push(printTaskRow(null));
+    // Eine kleine Reservezeile bei sehr kurzen Tagesplaenen, aber keine kuenstliche
+    // Auffuellung, die den Druck auf mehrere Seiten drueckt.
+    if (items.length < 2) blocks.push(printTaskRow(null));
 
     return `
       <section class="lk-wp-day">
         <div class="lk-wp-day-name">${escapeHtml(day)}</div>
         <div class="lk-wp-day-tasks">
-          ${rows.join("")}
+          ${blocks.join("")}
         </div>
       </section>
     `;
@@ -636,11 +642,13 @@
   }
 
   function weekLayoutGroupMeta(item = null, fallbackIndex = 0) {
+    const section = printDisplaySection(item);
     const workbook = String(item?.catalogItem?.workbook || "").trim();
     if (workbook) {
       return {
-        key: `workbook:${workbook}`,
+        key: `workbook:${section}:${workbook}`,
         type: "workbook",
+        section,
         catalogItem: item.catalogItem || null,
         symbolHtml: renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover grouped"),
         hasSymbol: true
@@ -648,8 +656,9 @@
     }
     if (item?.isWorksheetTask) {
       return {
-        key: "worksheet",
+        key: `worksheet:${section}`,
         type: "worksheet",
+        section,
         catalogItem: null,
         symbolHtml: renderWorksheetCoverImage("lk-wp-book-cover grouped"),
         hasSymbol: true
@@ -657,42 +666,53 @@
     }
     if (item?.isMicrophoneTask) {
       return {
-        key: "microphone",
+        key: `microphone:${section}`,
         type: "microphone",
+        section,
         catalogItem: null,
         symbolHtml: renderMicrophoneImage("lk-wp-book-cover grouped"),
         hasSymbol: true
       };
     }
     return {
-      key: `plain:${fallbackIndex}`,
+      key: `plain:${section}:${fallbackIndex}`,
       type: "plain",
+      section,
       catalogItem: null,
       symbolHtml: "",
       hasSymbol: false
     };
   }
 
-  function renderWeekLayoutRows(items) {
-    if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
-
+  function groupPrintItems(items) {
     const groups = [];
-    items.forEach((item, index) => {
+    (items || []).forEach((item, index) => {
       const meta = weekLayoutGroupMeta(item, index);
       const last = groups[groups.length - 1];
       if (last && last.key === meta.key) {
         last.items.push(item);
         return;
       }
-      // Aufgaben ohne eigenes Materialsymbol werden direkt an einen laufenden
-      // Arbeitsblatt-/Mikrofon-Block angehängt. So steht das Symbol einmal
-      // mittig vor dem gesamten Aufgabenblock statt nur vor der ersten Zeile.
-      if (last && meta.type === "plain" && (last.type === "worksheet" || last.type === "microphone")) {
+      // Bei freien AB-/Mikrofon-Bloecken markiert die erste Aufgabe das Material.
+      // Direkt folgende freie Aufgaben derselben Unterrichtssektion gehoeren zum
+      // selben Block, bis ein neues Materialsymbol/ein Buch/eine Sektion beginnt.
+      if (
+        last
+        && meta.type === "plain"
+        && meta.section === last.section
+        && (last.type === "worksheet" || last.type === "microphone")
+      ) {
         last.items.push(item);
         return;
       }
       groups.push({ ...meta, items: [item] });
     });
+    return groups;
+  }
+
+  function renderWeekLayoutRows(items) {
+    if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
+    const groups = groupPrintItems(items);
 
     return groups.map((group) => `
       <div class="lk-wp-workbook-group ${group.hasSymbol ? "has-symbol" : "no-symbol"} ${group.type === "workbook" ? "has-cover" : ""}" style="--group-weight:${Math.max(1, group.items.length)}">
@@ -860,8 +880,12 @@
       page.style.height = "auto";
 
       const measured = Math.max(page.scrollHeight, page.getBoundingClientRect().height);
-      let scale = measured > targetHeight ? targetHeight / measured : 1;
-      scale = Math.max(0.62, Math.min(1, scale));
+      // Ein Ausdruck soll pro Kind wirklich auf genau einer A4-Seite bleiben.
+      // Bei normalen Plaenen bleibt 100 %, nur bei echtem Ueberlauf wird exakt
+      // auf die verfuegbare Hoehe skaliert. Keine kuenstliche Verteilung freien
+      // Platzes auf die Zeilen.
+      let scale = measured > targetHeight ? (targetHeight / measured) * 0.992 : 1;
+      scale = Math.max(0.24, Math.min(1, scale));
 
       if (scale < 0.999) {
         // CSS zoom wird von Chromium und Safari auch beim Drucken in die
@@ -870,6 +894,7 @@
         page.style.zoom = String(scale);
         page.style.width = `${(210 / scale).toFixed(2)}mm`;
       }
+      page.dataset.printScale = scale.toFixed(3);
     });
   };
 
@@ -1026,12 +1051,12 @@
         .lk-wp-density-medium .lk-wp-week-row > div { font-size:12.1pt; }
         .lk-wp-density-medium .lk-wp-task-copy strong,
         .lk-wp-density-medium .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:15pt; }
-        .lk-wp-density-medium .lk-wp-week-row { min-height:6.2mm; }
+        .lk-wp-density-medium .lk-wp-week-row { min-height:7mm; height:7mm; flex-basis:7mm; }
         .lk-wp-density-compact .lk-wp-task-main,
         .lk-wp-density-compact .lk-wp-week-row > div { font-size:11.4pt; }
         .lk-wp-density-compact .lk-wp-task-copy strong,
         .lk-wp-density-compact .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:14pt; }
-        .lk-wp-density-compact .lk-wp-week-row { min-height:5.8mm; }
+        .lk-wp-density-compact .lk-wp-week-row { min-height:6mm; height:6mm; flex-basis:6mm; }
         .lk-wp-density-compact .lk-wp-book-cover.grouped { width:12mm; height:17mm; }
         .lk-wp-density-compact .lk-wp-workbook-group { grid-template-columns:16mm minmax(0,1fr); }
         .lk-wp-density-compact .lk-wp-week-groups { gap:1.2mm; }
@@ -1077,6 +1102,29 @@
           text-align: center;
         }
         .lk-wp-day-tasks { min-width: 0; }
+        .lk-wp-day-material-group {
+          display:grid;
+          grid-template-columns:18mm minmax(0,1fr);
+          min-width:0;
+          border-bottom:.2mm solid #b9b9b9;
+        }
+        .lk-wp-day-material-group:last-child { border-bottom:0; }
+        .lk-wp-day-material-group.no-symbol { grid-template-columns:1fr; }
+        .lk-wp-day-symbol-cell {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          align-self:stretch;
+          padding:.8mm 1mm;
+          border-right:.2mm solid #d1d1d1;
+          background:rgba(255,255,255,.5);
+        }
+        .lk-wp-day-symbol-cell .lk-wp-book-cover {
+          width:12.5mm;
+          height:15mm;
+        }
+        .lk-wp-day-material-tasks { min-width:0; }
+        .lk-wp-day-material-group .lk-wp-task-row:last-child { border-bottom:0; }
         .lk-wp-task-row {
           display: grid;
           grid-template-columns: minmax(0,1fr) 22mm;
@@ -1105,6 +1153,7 @@
           align-items: center;
           gap: 1.3mm;
           min-width: 0;
+          width:100%;
           font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
           font-size: 13.2pt;
           line-height: 1.08;
@@ -1120,6 +1169,14 @@
         }
         .lk-wp-social-form img {
           max-width: none !important;
+        }
+        .lk-wp-task-main .lk-wp-task-copy {
+          min-height:0;
+          flex:1 1 auto;
+        }
+        .lk-wp-task-main .lk-wp-task-copy strong {
+          font-size:13.5pt;
+          white-space:normal;
         }
         .lk-wp-task-assignment {
           display:grid;

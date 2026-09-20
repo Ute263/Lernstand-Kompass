@@ -289,11 +289,191 @@ async function migrateSecurityState() {
   }
 }
 
+let persistQueue = Promise.resolve();
+let persistPendingCount = 0;
+
+function lkIsPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function lkRecordTimestamp(item) {
+  if (typeof recordSyncTimestamp === "function") return recordSyncTimestamp(item);
+  if (!item || typeof item !== "object") return 0;
+  const raw = item.updatedAt || item.completedAt || item.createdAt || item.datumUhrzeit || item.erstelltAm || "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function lkRecordEqual(a, b) {
+  if (a === b) return true;
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+}
+
+function lkArrayRecordKey(field, item, index = 0) {
+  if (!item || typeof item !== "object") return "";
+  if (field === "weeklyPlanStatuses") {
+    return typeof weeklyPlanStatusNaturalKey === "function"
+      ? weeklyPlanStatusNaturalKey(item)
+      : [item.classId || "", item.planId || "", item.animalId || "", item.day || "", item.field || ""].join("|");
+  }
+  if (field === "trainingCompletions") {
+    return [item.classId || "", item.animalId || "", item.taskCode || item.id || ""].join("|");
+  }
+  if (item.id) return `id:${item.id}`;
+  if (item.entryId) return `entry:${item.entryId}`;
+  if (item.code) return `code:${item.code}`;
+  if (item.catalogKey) return `catalog:${item.catalogKey}`;
+  return "";
+}
+
+function lkChooseConcurrentRecord(field, latestItem, desiredItem) {
+  if (!latestItem) return desiredItem;
+  if (!desiredItem) return latestItem;
+  if (field === "weeklyPlanStatuses" && typeof mergeWeeklyPlanStatusRecord === "function") {
+    return mergeWeeklyPlanStatusRecord(latestItem, desiredItem);
+  }
+  if (field === "weeklyPlans" && typeof mergeWeeklyPlanRecord === "function") {
+    return mergeWeeklyPlanRecord(latestItem, desiredItem);
+  }
+  const latestTime = lkRecordTimestamp(latestItem);
+  const desiredTime = lkRecordTimestamp(desiredItem);
+  if (latestTime && desiredTime && latestTime > desiredTime) return latestItem;
+  return desiredItem;
+}
+
+function lkReconcileArray(field, baseList, desiredList, latestList) {
+  if (desiredList === baseList) return latestList;
+  if (latestList === baseList) return desiredList;
+  const base = Array.isArray(baseList) ? baseList : [];
+  const desired = Array.isArray(desiredList) ? desiredList : [];
+  const latest = Array.isArray(latestList) ? latestList : [];
+
+  const allHaveKeys = [...base, ...desired, ...latest].every((item, index) => !item || typeof item !== "object" || !!lkArrayRecordKey(field, item, index));
+  if (!allHaveKeys) return desired;
+
+  const mapOf = (list) => {
+    const map = new Map();
+    list.forEach((item, index) => {
+      const key = lkArrayRecordKey(field, item, index);
+      if (key) map.set(key, item);
+    });
+    return map;
+  };
+  const baseMap = mapOf(base);
+  const desiredMap = mapOf(desired);
+  const latestMap = mapOf(latest);
+  const resultMap = new Map(latestMap);
+
+  const changedKeys = new Set([...baseMap.keys(), ...desiredMap.keys()]);
+  changedKeys.forEach((key) => {
+    const baseItem = baseMap.get(key);
+    const desiredItem = desiredMap.get(key);
+    const latestItem = latestMap.get(key);
+    const desiredChanged = !lkRecordEqual(baseItem, desiredItem);
+    if (!desiredChanged) return;
+
+    // Explizites Löschen: nur löschen, wenn derselbe Datensatz nicht parallel
+    // an anderer Stelle neuer verändert wurde. Datenverlust hat Vorrang vor Löschkomfort.
+    if (!desiredItem) {
+      if (!latestItem || lkRecordEqual(latestItem, baseItem) || lkRecordTimestamp(latestItem) <= lkRecordTimestamp(baseItem)) {
+        resultMap.delete(key);
+      }
+      return;
+    }
+
+    if (!latestItem || lkRecordEqual(latestItem, baseItem)) {
+      resultMap.set(key, desiredItem);
+      return;
+    }
+    resultMap.set(key, lkChooseConcurrentRecord(field, latestItem, desiredItem));
+  });
+
+  // Bestehende Reihenfolge des neuesten Zustands erhalten; neue lokale Elemente
+  // in der Reihenfolge des gewünschten Zustands anhängen.
+  const orderedKeys = [];
+  latest.forEach((item, index) => {
+    const key = lkArrayRecordKey(field, item, index);
+    if (key && resultMap.has(key) && !orderedKeys.includes(key)) orderedKeys.push(key);
+  });
+  desired.forEach((item, index) => {
+    const key = lkArrayRecordKey(field, item, index);
+    if (key && resultMap.has(key) && !orderedKeys.includes(key)) orderedKeys.push(key);
+  });
+  return orderedKeys.map((key) => resultMap.get(key));
+}
+
+function lkReconcileObject(baseObject, desiredObject, latestObject) {
+  if (desiredObject === baseObject) return latestObject;
+  if (latestObject === baseObject) return desiredObject;
+  if (!lkIsPlainObject(desiredObject) || !lkIsPlainObject(latestObject) || !lkIsPlainObject(baseObject)) return desiredObject;
+  const out = { ...latestObject };
+  const keys = new Set([...Object.keys(baseObject), ...Object.keys(desiredObject)]);
+  keys.forEach((key) => {
+    const baseValue = baseObject[key];
+    const desiredValue = desiredObject[key];
+    if (desiredValue === baseValue) return;
+    const latestValue = latestObject[key];
+    if (Array.isArray(desiredValue) && Array.isArray(baseValue) && Array.isArray(latestValue)) {
+      out[key] = lkReconcileArray(key, baseValue, desiredValue, latestValue);
+    } else if (lkIsPlainObject(desiredValue) && lkIsPlainObject(baseValue) && lkIsPlainObject(latestValue)) {
+      out[key] = lkReconcileObject(baseValue, desiredValue, latestValue);
+    } else if (desiredValue === undefined) {
+      delete out[key];
+    } else {
+      out[key] = desiredValue;
+    }
+  });
+  return out;
+}
+
+function lkReconcileConcurrentState(baseState, desiredState, latestState) {
+  if (baseState === latestState) return desiredState;
+  const out = { ...latestState };
+  const keys = new Set([...Object.keys(baseState || {}), ...Object.keys(desiredState || {})]);
+  keys.forEach((key) => {
+    const baseValue = baseState?.[key];
+    const desiredValue = desiredState?.[key];
+    if (desiredValue === baseValue) return;
+    const latestValue = latestState?.[key];
+    if (Array.isArray(desiredValue) && Array.isArray(baseValue) && Array.isArray(latestValue)) {
+      out[key] = lkReconcileArray(key, baseValue, desiredValue, latestValue);
+    } else if (lkIsPlainObject(desiredValue) && lkIsPlainObject(baseValue) && lkIsPlainObject(latestValue)) {
+      out[key] = lkReconcileObject(baseValue, desiredValue, latestValue);
+    } else if (desiredValue === undefined) {
+      delete out[key];
+    } else {
+      out[key] = desiredValue;
+    }
+  });
+  return out;
+}
+
 async function persist(nextState = state) {
+  const baseState = state;
+  const desiredState = nextState;
+  persistPendingCount += 1;
   hasUnsavedChanges = true;
-  state = await storage.save(nextState);
-  hasUnsavedChanges = false;
-  if (typeof scheduleMicrosoftAutoBackup === "function") scheduleMicrosoftAutoBackup();
+
+  const operation = persistQueue.then(async () => {
+    const latestState = state;
+    const reconciled = lkReconcileConcurrentState(baseState, desiredState, latestState);
+    state = await storage.save(reconciled);
+    if (typeof scheduleMicrosoftAutoBackup === "function") scheduleMicrosoftAutoBackup();
+    return state;
+  });
+
+  // Die interne Kette muss nach einem Fehler weiter benutzbar bleiben; der konkrete
+  // Aufrufer erhält den Fehler trotzdem über "operation" und kann einen Wechsel abbrechen.
+  persistQueue = operation.catch((error) => {
+    console.error("Lokales Speichern fehlgeschlagen.", error);
+  });
+
+  try {
+    return await operation;
+  } finally {
+    persistPendingCount = Math.max(0, persistPendingCount - 1);
+    hasUnsavedChanges = persistPendingCount > 0;
+  }
 }
 
 async function persistAndRender(nextState = state) {
@@ -3831,7 +4011,7 @@ function renderWeeklyPlans() {
         ${[
           ["current", "Aktuelle Woche"],
           ["create", "Wochenplan erstellen"],
-          ["templates", "Vorlagen"],
+          ["templates", "Alle Pläne"],
           ["catalog", "Arbeitsheft-Katalog"]
         ].map(([id, label]) => `<button class="small-button ${section === id ? "active" : ""}" type="button" onclick="setWeeklyPlanSection('${id}')">${label}</button>`).join("")}
       </div>
@@ -3873,25 +4053,49 @@ async function setWeeklyPlanSection(section) {
 function renderWeeklyCurrent(plans, focusAnimal = null) {
   const visiblePlans = focusAnimal ? plans.filter((plan) => weeklyPlanAppliesToAnimal(plan, focusAnimal.id)) : plans;
   const currentPlans = visiblePlans.filter((plan) => weeklyPlanIsCurrent(plan));
+  const relevantFallback = [];
+  if (!currentPlans.length) {
+    if (focusAnimal) {
+      const selected = selectRelevantWeeklyPlan(visiblePlans);
+      if (selected) relevantFallback.push(selected);
+    } else {
+      const seen = new Set();
+      animalsForActiveClass().filter((animal) => animal.aktiv).forEach((animal) => {
+        const selected = selectRelevantWeeklyPlan(visiblePlans.filter((plan) => weeklyPlanAppliesToAnimal(plan, animal.id)));
+        if (selected && !seen.has(selected.id)) {
+          seen.add(selected.id);
+          relevantFallback.push(selected);
+        }
+      });
+    }
+  }
+  const displayPlans = currentPlans.length ? currentPlans : relevantFallback;
   const title = focusAnimal ? `Aktuelle Woche für ${focusAnimal.tierEmoji} ${focusAnimal.tierName}` : "Aktuelle Woche";
   return `
     <section class="panel">
       <h2>${escapeHtml(title)}</h2>
-      ${currentPlans.length ? currentPlans.map((plan) => renderWeeklyPlanSummaryCard(plan)).join("") : `<div class="empty">Für diese Woche ist noch kein Wochenplan aktiv.</div>`}
+      ${displayPlans.length
+        ? `${currentPlans.length ? "" : `<p class="message">Heute ist kein Plan mit laufendem Zeitraum aktiv. Angezeigt wird der zuletzt relevante datierte Plan.</p>`}${displayPlans.map((plan) => renderWeeklyPlanSummaryCard(plan)).join("")}`
+        : `<div class="empty">Für diese Woche ist noch kein Wochenplan aktiv.</div>`}
     </section>
-    ${renderWeeklyPlanStatusOverview(currentPlans.length ? currentPlans : visiblePlans)}
+    ${displayPlans.length ? renderWeeklyPlanStatusOverview(displayPlans) : ""}
   `;
 }
 
 function renderWeeklyTemplates(plans) {
+  const sorted = [...plans].sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
+  const current = sorted.filter((plan) => weeklyPlanIsCurrent(plan));
+  const other = sorted.filter((plan) => !weeklyPlanIsCurrent(plan));
   return `
     <section class="panel">
-      <h2>Vorlagen</h2>
-      <p class="message">Kopiere eine vorhandene Woche und passe sie für die nächste Woche an.</p>
+      <h2>Alle gespeicherten Wochenpläne</h2>
+      <p class="message">Hier findest du auch bereits abgeschlossene oder ältere Wochenpläne. Gelöschte Pläne werden nicht mehr angezeigt.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="newWeeklyPlan()">Neuen Wochenplan erstellen</button>
       </div>
-      ${plans.length ? plans.map(renderWeeklyPlanSummaryCard).join("") : `<div class="empty">Noch kein Wochenplan angelegt.</div>`}
+      ${current.length ? `<h3>Aktuell</h3>${current.map(renderWeeklyPlanSummaryCard).join("")}` : ""}
+      ${other.length ? `<h3>Frühere / weitere Pläne</h3>${other.map(renderWeeklyPlanSummaryCard).join("")}` : ""}
+      ${sorted.length ? "" : `<div class="empty">Noch kein Wochenplan angelegt.</div>`}
     </section>
   `;
 }
@@ -4798,11 +5002,31 @@ function openWeeklyPrintDialog(planId) {
   render();
 }
 
-function openWeeklyPrintDialogFromEditor() {
-  weeklyPrintDraft = collectWeeklyPlanDraftFromDom();
-  weeklyPrintPlanId = weeklyPrintDraft.id || "";
-  weeklyPrintDialogOpen = true;
-  render();
+async function openWeeklyPrintDialogFromEditor() {
+  const draft = collectWeeklyPlanDraftFromDom();
+  weeklyPrintDraft = draft;
+  weeklyPrintPlanId = draft.id || "";
+  try {
+    if (typeof window.lkAutoSaveWeeklyPlan === "function") {
+      await window.lkAutoSaveWeeklyPlan({ snapshot: draft, reason: "vor Druck", immediate: true });
+    } else if (draft.id) {
+      const existing = (state.weeklyPlans || []).find((plan) => plan.id === draft.id);
+      const timestamp = nowIso();
+      const nextPlan = normalizeWeeklyPlan({ ...(existing || {}), ...draft, updatedAt: timestamp, createdAt: existing?.createdAt || draft.createdAt || timestamp }, state.activeClassId);
+      const weeklyPlans = existing
+        ? (state.weeklyPlans || []).map((plan) => plan.id === draft.id ? nextPlan : plan)
+        : [...(state.weeklyPlans || []), nextPlan];
+      await persist({ ...state, weeklyPlans });
+    }
+    weeklyPrintDraft = (state.weeklyPlans || []).find((plan) => plan.id === weeklyPrintPlanId) || draft;
+    weeklyPrintDialogOpen = true;
+    render();
+  } catch (error) {
+    console.error("Wochenplan konnte vor dem Drucken nicht gespeichert werden.", error);
+    globalMessage = "Der Wochenplan konnte vor dem Drucken nicht sicher gespeichert werden. Bitte versuche es erneut.";
+    weeklyPrintDialogOpen = false;
+    render();
+  }
 }
 
 function closeWeeklyPrintDialog() {
@@ -5214,8 +5438,33 @@ async function lkSaveWeeklyEditorBeforeSwitch(reason = "Wechsel") {
 
 async function newWeeklyPlan() {
   if (!(await lkSaveWeeklyEditorBeforeSwitch("vor neuem Wochenplan"))) return;
-  weeklyPlanEditorId = "";
-  weeklyPlanDraft = null;
+  const timestamp = nowIso();
+  const focusAnimalId = weeklyPlanFocusAnimalId || "";
+  const nextPlan = {
+    id: makeId(),
+    classId: state.activeClassId,
+    title: "Wochenplan",
+    weekLabel: "",
+    validFrom: "",
+    validTo: "",
+    note: "",
+    planningMode: "days",
+    deutschSectionOrder: ["Deutsch", "Lesezeit", "Lernwörter"],
+    assignmentMode: focusAnimalId ? "selected" : "all",
+    animalIds: focusAnimalId ? [focusAnimalId] : [],
+    progressMode: "confirm",
+    autoCreateEntries: false,
+    days: {},
+    overrides: {},
+    active: true,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  // Ein neuer Plan existiert ab dem Klick bereits persistent. Damit kann ein
+  // Kind-/Planwechsel keinen noch rein visuellen Entwurf verlieren.
+  await persist({ ...state, weeklyPlans: [...(state.weeklyPlans || []), nextPlan] });
+  weeklyPlanEditorId = nextPlan.id;
+  weeklyPlanDraft = { ...nextPlan };
   weeklyPickRequest = null;
   weeklyPlanSection = "create";
   render();
@@ -5270,12 +5519,18 @@ async function copyWeeklyPlan(planId) {
 }
 
 async function deleteWeeklyPlan(planId) {
-  if (!confirm("Diesen Wochenplan wirklich löschen? Status-Einträge zu diesem Wochenplan werden ebenfalls entfernt.")) return;
-  await persistAndRender({
-    ...state,
-    weeklyPlans: (state.weeklyPlans || []).filter((plan) => plan.id !== planId),
-    weeklyPlanStatuses: (state.weeklyPlanStatuses || []).filter((item) => item.planId !== planId)
-  });
+  if (!confirm("Diesen Wochenplan wirklich löschen? Er wird auf allen Lehrkraftgeräten ausgeblendet. Bereits dokumentierte Kinderstände bleiben zur Sicherheit erhalten.")) return;
+  const timestamp = nowIso();
+  const weeklyPlans = (state.weeklyPlans || []).map((plan) => plan.id === planId
+    ? { ...plan, active: false, deletedAt: timestamp, updatedAt: timestamp }
+    : plan);
+  if (weeklyPlanEditorId === planId) {
+    weeklyPlanEditorId = "";
+    weeklyPlanDraft = null;
+    weeklyPickRequest = null;
+    weeklyPlanSection = "templates";
+  }
+  await persistAndRender({ ...state, weeklyPlans });
 }
 
 async function saveWeeklyPlan(event) {
@@ -5669,41 +5924,11 @@ function renderWeeklyProgressForAnimal(classId, animalId) {
   `;
 }
 
-function weeklyPlanDateKey(plan) {
-  return String(plan?.validFrom || plan?.validTo || plan?.updatedAt || plan?.createdAt || "");
-}
-
 function overviewWeeklyPlanForAnimal(classId, animalId) {
-  const today = formatFileDate(new Date());
   const candidates = (state.weeklyPlans || [])
     .filter((plan) => plan.classId === classId && plan.active !== false)
     .filter((plan) => weeklyPlanAppliesToAnimal(plan, animalId));
-  if (!candidates.length) return null;
-
-  // Wichtig: Ein alter Plan ohne Zeitraum darf nicht für immer als "aktuell" gelten.
-  // Für die Lernübersicht zählt zuerst ein datierter Plan, der heute gilt.
-  // Gibt es heute keinen (z. B. am Wochenende), bleibt der zuletzt begonnene
-  // datierte Wochenplan maßgeblich. Erst wenn überhaupt kein datierter Plan
-  // existiert, wird auf einen undatierten Plan zurückgegriffen.
-  const dated = candidates.filter((plan) => plan.validFrom || plan.validTo);
-  const current = dated
-    .filter((plan) => (!plan.validFrom || today >= plan.validFrom) && (!plan.validTo || today <= plan.validTo))
-    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
-  if (current.length) return current[0];
-
-  const past = dated
-    .filter((plan) => !plan.validFrom || plan.validFrom <= today)
-    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
-  if (past.length) return past[0];
-
-  const future = dated
-    .slice()
-    .sort((a, b) => weeklyPlanDateKey(a).localeCompare(weeklyPlanDateKey(b)));
-  if (future.length) return future[0];
-
-  return candidates
-    .slice()
-    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0] || null;
+  return selectRelevantWeeklyPlan(candidates);
 }
 
 function buildWeeklyProgressRows(classId) {
@@ -9363,10 +9588,53 @@ function weeklyPlansForAnimal(animalId) {
     .sort(sortChildWeeklyPlans);
 }
 
+function weeklyPlanDateKey(plan) {
+  return String(plan?.validTo || plan?.validFrom || plan?.updatedAt || plan?.createdAt || "");
+}
+
+function selectRelevantWeeklyPlan(plans = [], today = formatFileDate(new Date())) {
+  const candidates = (plans || []).filter((plan) => plan && plan.active !== false);
+  if (!candidates.length) return null;
+
+  // Undatierte Entwürfe dürfen einen sauber terminierten Wochenplan weder in der
+  // Kinderansicht noch in der Lernübersicht verdrängen.
+  const dated = candidates.filter((plan) => plan.validFrom || plan.validTo);
+  const current = dated
+    .filter((plan) => (!plan.validFrom || today >= plan.validFrom) && (!plan.validTo || today <= plan.validTo))
+    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+  if (current.length) return current[0];
+
+  // Am Wochenende bzw. bevor der nächste Plan beginnt, bleibt der zuletzt
+  // begonnene datierte Plan maßgeblich. So verschwinden offene Aufgaben nicht.
+  const past = dated
+    .filter((plan) => !plan.validFrom || plan.validFrom <= today)
+    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+  if (past.length) return past[0];
+
+  // Nur wenn es noch keinen begonnenen Plan gibt, darf der nächste zukünftige
+  // Plan angezeigt werden.
+  const future = dated
+    .slice()
+    .sort((a, b) => weeklyPlanDateKey(a).localeCompare(weeklyPlanDateKey(b)));
+  if (future.length) return future[0];
+
+  // Undatierte Pläne sind lediglich Fallback, wenn überhaupt kein datierter Plan
+  // existiert. Der neueste Entwurf gewinnt dann.
+  return candidates
+    .slice()
+    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0] || null;
+}
+
+function relevantWeeklyPlanForAnimal(animalId) {
+  return selectRelevantWeeklyPlan(weeklyPlansForAnimal(animalId));
+}
+
 function sortChildWeeklyPlans(a, b) {
   const currentDiff = Number(weeklyPlanIsCurrent(b)) - Number(weeklyPlanIsCurrent(a));
   if (currentDiff) return currentDiff;
-  return String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || ""));
+  const datedDiff = Number(Boolean(b.validFrom || b.validTo)) - Number(Boolean(a.validFrom || a.validTo));
+  if (datedDiff) return datedDiff;
+  return weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a));
 }
 
 function weeklyPlanAppliesToAnimal(plan, animalId) {
@@ -9375,6 +9643,7 @@ function weeklyPlanAppliesToAnimal(plan, animalId) {
 }
 
 function weeklyPlanIsCurrent(plan) {
+  if (!plan || (!plan.validFrom && !plan.validTo)) return false;
   const today = formatFileDate(new Date());
   if (plan.validFrom && today < plan.validFrom) return false;
   if (plan.validTo && today > plan.validTo) return false;

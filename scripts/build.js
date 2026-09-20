@@ -1,72 +1,50 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
-const root = path.resolve(__dirname, "..");
-const dist = path.join(root, "dist");
+const root = path.resolve(__dirname, '..');
+const dist = path.join(root, 'dist');
 
-const files = [
-  "index.html",
-  "build-info.js",
-  "styles.css",
-  "progress-children-overview.css",
-  "legal-info.css",
-  "models.js",
-  "storage.js",
-  "exceljs.min.js",
-  "exceljs-LICENSE.txt",
-  "export.js",
-  "qrcode.js",
-  "jsqr.js",
-  "sync.js",
-  "app.js",
-  "child-sync.js",
-  "child-qr-fix.js",
-  "nomen-probe.js",
-  "nomen-plural-flex.js",
-  "nomen-activity.js",
-  "nomen-feedback.js",
-  "teacher-inbox.js",
-  "teacher-cockpit.js",
-  "learning-overview-simple.js",
-  "learning-games-plus.js",
-  "safety-tools.js",
-  "school-year-archive.js",
-  "colleague-mode.js",
-  "weekly-extra-tasks.js",
-  "weekly-ui-cleanup.js",
-  "weekly-plan-9e.js",
-  "weekly-plan-9f.js",
-  "weekly-minimax-pages.js",
-  "weekly-calendar-overview.js",
-  "weekly-editor-compact.js",
-  "simple-ui.js",
-  "progress-children-overview.js",
-  "legal-info.js",
-  "pwa.js",
-  "manifest.json",
-  "service-worker.js",
-  "README.md",
-  "LICENSE",
-  "lernstand-kompass.png",
-  "materials/cover-abc-der-tiere-1.svg",
-  "materials/cover-abc-der-tiere-2.svg",
-  "materials/cover-minimax-1.svg",
-  "materials/cover-minimax-2.svg",
-  "materials/stickerbogen-1-deutsch-mathe-1.png",
-  "materials/stickerbogen-2-mathe-forscher.png",
-  "materials/toni-nomen.png",
-  "icons/icon-180.png",
-  "icons/icon-192.png",
-  "icons/icon-512.png",
-  "icons/icon-maskable-512.png",
-  "icons/icon-192.svg",
-  "icons/icon-512.svg",
-  "icons/lernstand-kompass.png"
-];
+function stripQuery(value) {
+  return String(value || '').split('#')[0].split('?')[0].replace(/^\.\//, '');
+}
+
+function localRefsFromIndex(html) {
+  const refs = new Set();
+  const re = /(?:src|href)=["']([^"']+)["']/g;
+  for (const match of html.matchAll(re)) {
+    const raw = match[1];
+    if (!raw || /^(?:https?:|data:|mailto:|#)/i.test(raw)) continue;
+    const file = stripQuery(raw);
+    if (file) refs.add(file);
+  }
+  return refs;
+}
+
+function appFilesFromServiceWorker(text) {
+  const refs = new Set();
+  const block = text.match(/const\s+APP_FILES\s*=\s*\[([\s\S]*?)\];/);
+  if (!block) throw new Error('APP_FILES konnte im Service Worker nicht gelesen werden.');
+  const re = /["']\.\/([^"']+)["']/g;
+  for (const match of block[1].matchAll(re)) {
+    if (match[1]) refs.add(stripQuery(match[1]));
+  }
+  return refs;
+}
+
+function manifestRefs(text) {
+  const refs = new Set();
+  let manifest;
+  try { manifest = JSON.parse(text); } catch (error) { throw new Error(`manifest.json ist ungültig: ${error.message}`); }
+  (manifest.icons || []).forEach((icon) => {
+    const file = stripQuery(icon?.src || '');
+    if (file) refs.add(file);
+  });
+  return refs;
+}
 
 function copyFile(relativePath) {
   const source = path.join(root, relativePath);
-  if (!fs.existsSync(source)) {
+  if (!fs.existsSync(source) || !fs.statSync(source).isFile()) {
     throw new Error(`Build-Datei fehlt: ${relativePath}`);
   }
   const target = path.join(dist, relativePath);
@@ -84,18 +62,12 @@ function copyDirectory(relativeDir) {
   }
 }
 
-
 function berlinBuildStamp() {
   const now = new Date();
-  const parts = new Intl.DateTimeFormat("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
+  const parts = new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   }).formatToParts(now).reduce((acc, item) => {
     acc[item.type] = item.value;
     return acc;
@@ -107,31 +79,63 @@ function berlinBuildStamp() {
 
 function writeBuildStamp() {
   const stamp = berlinBuildStamp();
-  const buildInfo = `window.LK_BUILD_INFO = ${JSON.stringify(stamp, null, 2)};\n`;
-  fs.writeFileSync(path.join(dist, "build-info.js"), buildInfo, "utf8");
+  fs.writeFileSync(path.join(dist, 'build-info.js'), `window.LK_BUILD_INFO = ${JSON.stringify({ ...stamp, version: 'FINAL' }, null, 2)};\n`, 'utf8');
 
-  const indexPath = path.join(dist, "index.html");
-  let index = fs.readFileSync(indexPath, "utf8");
+  const indexPath = path.join(dist, 'index.html');
+  let index = fs.readFileSync(indexPath, 'utf8');
   index = index.replace(/App-Version: \d{2}\.\d{2}\.\d{4} · \d{2}:\d{2}:\d{2} Uhr/g, `App-Version: ${stamp.label}`);
   index = index.replace(/Lernstand-Kompass · \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/g, `Lernstand-Kompass · ${stamp.date} ${stamp.time.slice(0,5)}`);
   index = index.replace(/v=\d{8}-\d{6}/g, `v=${stamp.id}`);
-  fs.writeFileSync(indexPath, index, "utf8");
+  fs.writeFileSync(indexPath, index, 'utf8');
 
-  const swPath = path.join(dist, "service-worker.js");
-  let sw = fs.readFileSync(swPath, "utf8");
+  const swPath = path.join(dist, 'service-worker.js');
+  let sw = fs.readFileSync(swPath, 'utf8');
   sw = sw.replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "lernstand-kompass-${stamp.id}";`);
-  fs.writeFileSync(swPath, sw, "utf8");
-
+  fs.writeFileSync(swPath, sw, 'utf8');
   console.log(`App-Version: ${stamp.label}`);
+}
+
+function validateDist() {
+  const index = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  const sw = fs.readFileSync(path.join(dist, 'service-worker.js'), 'utf8');
+  const manifest = fs.readFileSync(path.join(dist, 'manifest.json'), 'utf8');
+  const required = new Set([
+    ...localRefsFromIndex(index),
+    ...appFilesFromServiceWorker(sw),
+    ...manifestRefs(manifest),
+    'index.html', 'service-worker.js', 'manifest.json'
+  ]);
+  const missing = [...required].filter((file) => !fs.existsSync(path.join(dist, file)));
+  if (missing.length) {
+    throw new Error(`Build unvollständig. Fehlende Laufzeitdateien:\n- ${missing.join('\n- ')}`);
+  }
+  // Zentraler Schutz gegen den früheren Fehler: Autosave und Wochenplan-Fix müssen im Produktionsbuild sein.
+  ['weekly-autosave.js', 'weekly-fix-172.js'].forEach((file) => {
+    if (!fs.existsSync(path.join(dist, file))) throw new Error(`Kritische Laufzeitdatei fehlt: ${file}`);
+  });
+  console.log(`Runtime-Prüfung erfolgreich: ${required.size} referenzierte Dateien vorhanden.`);
 }
 
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
-files.forEach(copyFile);
 
-// Materialien werden vollständig übernommen. So müssen neue Lehrwerks-Cover
-// nicht bei jeder Ergänzung einzeln in der Build-Liste nachgetragen werden.
-copyDirectory("materials");
+const sourceIndex = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const sourceSw = fs.readFileSync(path.join(root, 'service-worker.js'), 'utf8');
+const sourceManifest = fs.readFileSync(path.join(root, 'manifest.json'), 'utf8');
+const runtimeFiles = new Set([
+  ...localRefsFromIndex(sourceIndex),
+  ...appFilesFromServiceWorker(sourceSw),
+  ...manifestRefs(sourceManifest),
+  'index.html', 'service-worker.js', 'manifest.json', 'LICENSE', 'README.md', 'lernstand-kompass.png'
+]);
+
+// Alle referenzierten Dateien werden automatisch übernommen. Damit kann eine neue
+// Script-Datei nicht mehr versehentlich in index.html stehen, aber im Build fehlen.
+[...runtimeFiles].sort().forEach(copyFile);
+// Assets vollständig übernehmen, damit neue Cover/Icons nicht einzeln gepflegt werden müssen.
+copyDirectory('materials');
+copyDirectory('icons');
+
 writeBuildStamp();
-
+validateDist();
 console.log(`Build fertig: ${path.relative(root, dist)}`);

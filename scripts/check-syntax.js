@@ -14,12 +14,18 @@ const files = fs.readdirSync(root, { withFileTypes: true })
   .map((entry) => entry.name)
   .filter((name) => !vendorFiles.has(name));
 
+const scriptFiles = fs.existsSync(path.join(root, "scripts"))
+  ? fs.readdirSync(path.join(root, "scripts"), { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
+      .map((entry) => `scripts/${entry.name}`)
+  : [];
+
 const additionalFiles = [
   "cloudflare-worker/worker.js",
-  "scripts/build.js"
+  ...scriptFiles
 ].filter((relativePath) => fs.existsSync(path.join(root, relativePath)));
 
-const targets = [...files, ...additionalFiles];
+const targets = [...new Set([...files, ...additionalFiles])];
 let failed = false;
 
 for (const relativePath of targets) {

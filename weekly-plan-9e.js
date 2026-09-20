@@ -278,7 +278,12 @@
   function normalizeDayExtras(target, source = target) {
     ["Deutsch", "Lesezeit", "Lernwörter", "Mathe"].forEach((subject) => {
       const keys = taskKeys(subject);
-      const ids = normalizeIdArray(target[keys.ids] || target[keys.legacyId]);
+      // Der alte Basis-Normalizer kennt nur Deutsch/Mathe. Deshalb muessen
+      // insbesondere Lesezeit und Lernwoerter ihre IDs aus dem ORIGINALEN
+      // Tagesdatensatz zurueckbekommen; sonst verschwinden sie bei jedem save().
+      const ids = normalizeIdArray(
+        source?.[keys.ids] || source?.[keys.legacyId] || target[keys.ids] || target[keys.legacyId]
+      );
       target[keys.ids] = ids;
       target[keys.legacyId] = ids[0] || "";
       target[keys.numbers] = numberList(source?.[keys.numbers], source?.[keys.legacyNumber] || "", ids.length);
@@ -1212,11 +1217,12 @@
     renderChildWeek = function renderChildWeek9e() {
       const animal = selectedAnimal();
       const plans = animal ? weeklyPlansForAnimal(animal.id) : [];
-      // Kinder wählen keinen Wochenplan selbst aus. Es wird immer der aktuell
-      // gültige Plan angezeigt; falls keiner als aktuell erkannt wird, der
-      // erste für das Kind verfügbare Plan.
-      const current = plans.find((plan) => weeklyPlanIsCurrent(plan)) || plans[0] || null;
-      const selected = current;
+      // Kinder wählen keinen Wochenplan selbst aus. Es gilt dieselbe zentrale
+      // Auswahlregel wie in der Lernübersicht: datierter aktueller Plan, danach
+      // der zuletzt begonnene datierte Plan; undatiert nur als letzter Fallback.
+      const selected = animal && typeof relevantWeeklyPlanForAnimal === "function"
+        ? relevantWeeklyPlanForAnimal(animal.id)
+        : (plans.find((plan) => weeklyPlanIsCurrent(plan)) || plans[0] || null);
       if (selected) lkChildWeekPlanId = selected.id;
       if (!lkChildWeekDay) lkChildWeekDay = todayGerman();
 
