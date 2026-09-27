@@ -87,8 +87,9 @@ assert(html.includes('lk-wp-day-material-group has-symbol'), 'Tagesplan nutzt ke
 assert((html.match(/alt="Arbeitsblatt"/g) || []).length === 1, 'Arbeitsblatt-Symbol wird im Tagesplan nicht genau einmal pro Block ausgegeben.');
 assert(html.includes('Mathe'), 'Mathe fehlt im Tagesplan-Druck.');
 assert(html.includes('>1b<') && html.includes('>2b<') && html.includes('>3b<'), 'Aufgaben fehlen im Tagesplan-Druck.');
-assert(html.includes('grid-template-columns:12.5mm minmax(0,1fr)'), 'Tagesplan nutzt nicht die kompakte Materialspalte.');
+assert(html.includes('flex:0 0 12.5mm'), 'Tagesplan nutzt nicht die kompakte feste Materialspalte.');
+assert(html.includes('.lk-wp-day {') && html.includes('display:flex;'), 'Tagesplan nutzt nicht das stabile Flex-Raster.');
 assert(html.includes('width:7.8mm') && html.includes('height:9.2mm'), 'Materialbilder im Tagesplan sind noch zu gross.');
-assert(html.includes('min-height: 0;'), 'Tagesplan erzwingt noch zu hohe Tagesbloecke.');
+assert(html.includes('min-height:0;') && html.includes('height:auto;'), 'Tagesplan erzwingt noch zu hohe Tagesbloecke.');
 
 console.log('Drucklogik-Prüfung erfolgreich.');

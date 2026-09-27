@@ -1086,36 +1086,48 @@
           overflow: hidden;
         }
         .lk-wp-day {
-          display: grid;
-          grid-template-columns: 28mm 1fr;
-          min-height: 0;
-          border-bottom: .3mm solid #555;
+          display:flex;
+          align-items:stretch;
+          min-height:0;
+          height:auto;
+          border-bottom:.3mm solid #555;
         }
         .lk-wp-day:last-child { border-bottom: 0; }
         .lk-wp-day-name {
-          display: grid;
-          place-items: center;
-          padding: 2mm;
-          border-right: .3mm solid #555;
-          font-size: 13.5pt;
-          font-weight: 500;
-          text-align: center;
-        }
-        .lk-wp-day-tasks { min-width: 0; }
-        .lk-wp-day-material-group {
-          display:grid;
-          grid-template-columns:12.5mm minmax(0,1fr);
-          min-width:0;
-          border-bottom:.2mm solid #b9b9b9;
-        }
-        .lk-wp-day-material-group:last-child { border-bottom:0; }
-        .lk-wp-day-material-group.no-symbol { grid-template-columns:12.5mm minmax(0,1fr); }
-        .lk-wp-day-symbol-cell.empty { background:rgba(255,255,255,.32); }
-        .lk-wp-day-symbol-cell {
+          flex:0 0 28mm;
           display:flex;
           align-items:center;
           justify-content:center;
-          align-self:stretch;
+          box-sizing:border-box;
+          padding:2mm;
+          border-right:.3mm solid #555;
+          font-size:13.5pt;
+          font-weight:500;
+          text-align:center;
+        }
+        .lk-wp-day-tasks {
+          flex:1 1 auto;
+          min-width:0;
+          display:flex;
+          flex-direction:column;
+          align-items:stretch;
+        }
+        .lk-wp-day-material-group {
+          display:flex;
+          align-items:stretch;
+          flex:0 0 auto;
+          min-width:0;
+          height:auto;
+          border-bottom:.2mm solid #b9b9b9;
+        }
+        .lk-wp-day-material-group:last-child { border-bottom:0; }
+        .lk-wp-day-symbol-cell.empty { background:rgba(255,255,255,.32); }
+        .lk-wp-day-symbol-cell {
+          flex:0 0 12.5mm;
+          box-sizing:border-box;
+          display:flex;
+          align-items:center;
+          justify-content:center;
           padding:.3mm .55mm;
           border-right:.2mm solid #d1d1d1;
           background:rgba(255,255,255,.5);
@@ -1126,13 +1138,24 @@
           max-width:7.8mm;
           max-height:9.2mm;
         }
-        .lk-wp-day-material-tasks { min-width:0; }
+        .lk-wp-day-material-tasks {
+          flex:1 1 auto;
+          min-width:0;
+          display:flex;
+          flex-direction:column;
+        }
         .lk-wp-day .lk-wp-social-form {
           width:5.8mm;
           height:5.8mm;
           flex-basis:5.8mm;
         }
         .lk-wp-day-material-group .lk-wp-task-row:last-child { border-bottom:0; }
+        .lk-wp-day .lk-wp-task-row {
+          flex:0 0 auto;
+          height:auto;
+          min-height:7.4mm;
+        }
+        .lk-wp-day .lk-wp-task-copy { min-height:0; }
         .lk-wp-task-row {
           display: grid;
           grid-template-columns: minmax(0,1fr) 16mm;
