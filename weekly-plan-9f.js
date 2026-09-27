@@ -569,13 +569,22 @@
     `;
   }
 
+  function dayTaskTextClass(item = null) {
+    const length = String(item ? pageText(item) : "").trim().length;
+    if (length > 68) return "text-xlong";
+    if (length > 44) return "text-long";
+    if (length > 26) return "text-medium";
+    return "text-short";
+  }
+
   function renderDayTaskContent(item = null) {
     if (!item) return `<span class="lk-wp-day-empty-copy">&nbsp;</span>`;
     const subject = printDisplaySection(item);
     const parentSubject = printParentSubject(subject);
     const subjectLabel = printTaskSubjectLabel(subject);
+    const textClass = dayTaskTextClass(item);
     return `
-      <span class="lk-wp-day-task-main">
+      <span class="lk-wp-day-task-main ${textClass}">
         ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
         ${printSubjectBadge(parentSubject)}
         <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
@@ -599,7 +608,7 @@
             const subject = printDisplaySection(item);
             const subjectClass = printSubjectClass(subject);
             return `
-              <div class="lk-dayplan-row ${subjectClass} ${item.isExtraTask ? "starred" : ""}">
+              <div class="lk-dayplan-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${dayTaskTextClass(item)}">
                 <div class="lk-dayplan-assignment">${renderDayTaskContent(item)}</div>
                 <div class="lk-dayplan-done"><span class="lk-wp-circle"></span></div>
               </div>
@@ -1186,20 +1195,26 @@
         .lk-dayplan-row {
           display:grid;
           grid-template-columns:minmax(0,1fr) 16mm;
-          height:7.6mm !important;
-          min-height:7.6mm !important;
-          max-height:7.6mm !important;
+          height:8mm !important;
+          min-height:8mm !important;
+          max-height:8mm !important;
           box-sizing:border-box;
           border-bottom:.22mm solid #c8c8c8;
+        }
+        .lk-dayplan-row.text-long,
+        .lk-dayplan-row.text-xlong {
+          height:10.2mm !important;
+          min-height:10.2mm !important;
+          max-height:10.2mm !important;
         }
         .lk-dayplan-row:last-child { border-bottom:0; }
         .lk-dayplan-assignment {
           display:flex;
           align-items:center;
           min-width:0;
-          padding:.7mm 1.6mm;
+          padding:.8mm 1.6mm 1.05mm;
           border-right:.2mm solid #777;
-          overflow:hidden;
+          overflow:visible;
         }
         .lk-dayplan-done {
           display:flex;
@@ -1218,20 +1233,29 @@
           align-items:center;
           gap:.9mm;
           min-width:0;
+          width:100%;
           font-family:"Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
-          line-height:1.05;
-          white-space:nowrap;
+          line-height:1.14;
+          white-space:normal;
         }
         .lk-wp-day-task-copy {
           min-width:0;
-          overflow:hidden;
-          text-overflow:ellipsis;
+          flex:1 1 auto;
+          overflow:visible;
+          text-overflow:clip;
         }
         .lk-wp-day-task-copy strong {
-          font-size:14.6pt;
-          line-height:1.02;
+          display:block;
+          font-size:13.2pt;
+          line-height:1.14;
           font-weight:700;
+          white-space:normal;
+          overflow-wrap:anywhere;
         }
+        .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:13.2pt; }
+        .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:11.8pt; }
+        .lk-wp-day-task-main.text-long .lk-wp-day-task-copy strong { font-size:10.4pt; line-height:1.12; }
+        .lk-wp-day-task-main.text-xlong .lk-wp-day-task-copy strong { font-size:9.4pt; line-height:1.1; }
         .lk-dayplan-wrap .lk-wp-task-subject-label {
           min-width:27mm;
           font-size:7.4pt;
@@ -1250,10 +1274,18 @@
           background:#fff;
         }
         .lk-wp-day-empty-copy { display:block; min-height:5mm; }
-        .lk-wp-density-medium .lk-dayplan-row { height:7mm !important; min-height:7mm !important; max-height:7mm !important; }
-        .lk-wp-density-medium .lk-wp-day-task-copy strong { font-size:13.8pt; }
-        .lk-wp-density-compact .lk-dayplan-row { height:6.2mm !important; min-height:6.2mm !important; max-height:6.2mm !important; }
-        .lk-wp-density-compact .lk-wp-day-task-copy strong { font-size:12.8pt; }
+        .lk-wp-density-medium .lk-dayplan-row { height:7.6mm !important; min-height:7.6mm !important; max-height:7.6mm !important; }
+        .lk-wp-density-medium .lk-dayplan-row.text-long,
+        .lk-wp-density-medium .lk-dayplan-row.text-xlong { height:9.6mm !important; min-height:9.6mm !important; max-height:9.6mm !important; }
+        .lk-wp-density-medium .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:12.6pt; }
+        .lk-wp-density-medium .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:11.2pt; }
+        .lk-wp-density-compact .lk-dayplan-row { height:7.1mm !important; min-height:7.1mm !important; max-height:7.1mm !important; }
+        .lk-wp-density-compact .lk-dayplan-row.text-long,
+        .lk-wp-density-compact .lk-dayplan-row.text-xlong { height:9mm !important; min-height:9mm !important; max-height:9mm !important; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:11.8pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:10.6pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-long .lk-wp-day-task-copy strong { font-size:9.7pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-xlong .lk-wp-day-task-copy strong { font-size:8.9pt; }
         .lk-wp-density-compact .lk-dayplan-material .lk-wp-book-cover { width:7mm; height:8.2mm; }
         .lk-wp-task-row {
           display: grid;

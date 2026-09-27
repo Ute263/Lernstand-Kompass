@@ -29,7 +29,8 @@ const itemsByDay = {
     { subject: 'Deutsch', catalogItem: { workbook: 'ABC der Tiere 2', subject: 'Deutsch', page: 8 }, taskNumber: '1', socialForm: '' },
     { subject: 'Deutsch', catalogItem: { workbook: 'ABC der Tiere 2', subject: 'Deutsch', page: 9 }, taskNumber: '2', socialForm: 'group' },
     { subject: 'Mathe', catalogItem: { workbook: 'MiniMax 2', subject: 'Mathe', page: 4 }, taskNumber: '1' },
-    { subject: 'Mathe', catalogItem: { workbook: 'MiniMax 2', subject: 'Mathe', page: 5 }, taskNumber: '2' }
+    { subject: 'Mathe', catalogItem: { workbook: 'MiniMax 2', subject: 'Mathe', page: 5 }, taskNumber: '2' },
+    { subject: 'Extra', isFreeTask: true, freeText: 'Lerne das Gedicht von Seite 16 vollständig auswendig und trage es anschließend vor.' }
   ]
 };
 
@@ -89,7 +90,9 @@ assert((html.match(/alt="Arbeitsblatt"/g) || []).length === 1, 'Arbeitsblatt-Sym
 assert(html.includes('Mathe'), 'Mathe fehlt im Tagesplan-Druck.');
 assert(html.includes('>1b<') && html.includes('>2b<') && html.includes('>3b<'), 'Aufgaben fehlen im Tagesplan-Druck.');
 assert(html.includes('padding-left:12.5mm') && html.includes('width:12.5mm'), 'Tagesplan nutzt nicht die feste Materialspalte.');
-assert(html.includes('height:7.6mm !important') && html.includes('max-height:7.6mm !important'), 'Tagesplan nutzt keine strikt festen Aufgabenzeilen.');
+assert(html.includes('height:8mm !important') && html.includes('text-xlong'), 'Tagesplan nutzt keine adaptiven Aufgabenzeilen.');
+assert(html.includes('white-space:normal') && html.includes('overflow-wrap:anywhere'), 'Lange Tagesplantexte koennen noch abgeschnitten werden.');
+assert(html.includes('font-size:9.4pt') && html.includes('height:10.2mm !important'), 'Sehr lange Tagesplantexte werden nicht ausreichend verkleinert/erhoeht.');
 assert(html.includes('width:7.8mm') && html.includes('height:9.2mm'), 'Materialbilder im Tagesplan sind noch zu gross.');
 assert(!html.includes('lk-wp-day-table'), 'Alte Tagesplan-Tabelle ist noch aktiv.');
 assert(html.includes('.lk-dayplan-day {\n          position:relative') && html.includes('.lk-dayplan-dayname {\n          position:absolute'), 'Tagesname kann die Tageshoehe noch beeinflussen.');
