@@ -569,67 +569,47 @@
     `;
   }
 
-  function renderDayTaskContent(item = null) {
-    if (!item) return `<span class="lk-wp-day-empty-copy">&nbsp;</span>`;
-    const subject = printDisplaySection(item);
-    const parentSubject = printParentSubject(subject);
-    const subjectLabel = printTaskSubjectLabel(subject);
-    return `
-      <span class="lk-wp-day-task-main">
-        ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
-        ${printSubjectBadge(parentSubject)}
-        <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
-        ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
-        <span class="lk-wp-day-task-copy"><strong>${escapeHtml(pageText(item))}</strong></span>
-      </span>
-    `;
+  function renderPrintDayGroup(group, previousSubject = "") {
+    let subjectBefore = previousSubject;
+    const rows = group.items.map((item) => {
+      const html = printTaskRow(item, subjectBefore);
+      subjectBefore = printDisplaySection(item);
+      return html;
+    }).join("");
+    return {
+      html: `
+        <div class="lk-wp-day-material-group ${group.hasSymbol ? "has-symbol" : "no-symbol"}">
+          <div class="lk-wp-day-symbol-cell ${group.hasSymbol ? (group.type !== "workbook" ? "icon-only" : "") : "empty"}">${group.hasSymbol ? group.symbolHtml : ""}</div>
+          <div class="lk-wp-day-material-tasks">${rows}</div>
+        </div>
+      `,
+      lastSubject: subjectBefore
+    };
   }
 
-  function renderPrintDayTableRows(plan, day, animal, options) {
+  function renderPrintDay9f(plan, day, animal, options) {
     const items = printableItems(plan, day, animal, options);
     const groups = groupPrintItems(items);
-
-    if (!items.length) {
-      return `
-        <tr class="lk-wp-day-table-row blank day-start day-end">
-          <th class="lk-wp-day-cell">${escapeHtml(day)}</th>
-          <td class="lk-wp-material-cell empty"></td>
-          <td class="lk-wp-assignment-cell">${renderDayTaskContent(null)}</td>
-          <td class="lk-wp-done-cell"><span class="lk-wp-circle"></span></td>
-        </tr>
-      `;
-    }
-
-    const rowCount = groups.reduce((sum, group) => sum + group.items.length, 0);
-    let absoluteRow = 0;
-    const rows = [];
-
-    groups.forEach((group, groupIndex) => {
-      group.items.forEach((item, itemIndex) => {
-        const subject = printDisplaySection(item);
-        const subjectClass = printSubjectClass(subject);
-        const classes = [
-          "lk-wp-day-table-row",
-          subjectClass,
-          item.isExtraTask ? "starred" : "",
-          absoluteRow === 0 ? "day-start" : "",
-          absoluteRow === rowCount - 1 ? "day-end" : "",
-          itemIndex === 0 && groupIndex > 0 ? "material-start" : ""
-        ].filter(Boolean).join(" ");
-
-        rows.push(`
-          <tr class="${classes}">
-            ${absoluteRow === 0 ? `<th rowspan="${rowCount}" class="lk-wp-day-cell">${escapeHtml(day)}</th>` : ""}
-            ${itemIndex === 0 ? `<td rowspan="${group.items.length}" class="lk-wp-material-cell ${group.hasSymbol ? "has-symbol" : "empty"}">${group.hasSymbol ? group.symbolHtml : ""}</td>` : ""}
-            <td class="lk-wp-assignment-cell">${renderDayTaskContent(item)}</td>
-            <td class="lk-wp-done-cell"><span class="lk-wp-circle"></span></td>
-          </tr>
-        `);
-        absoluteRow += 1;
-      });
+    const blocks = [];
+    let previousSubject = "";
+    groups.forEach((group) => {
+      const rendered = renderPrintDayGroup(group, previousSubject);
+      blocks.push(rendered.html);
+      previousSubject = rendered.lastSubject;
     });
 
-    return rows.join("");
+    // Eine kleine Reservezeile bei sehr kurzen Tagesplaenen, aber keine kuenstliche
+    // Auffuellung, die den Druck auf mehrere Seiten drueckt.
+    if (items.length < 2) blocks.push(printTaskRow(null));
+
+    return `
+      <section class="lk-wp-day">
+        <div class="lk-wp-day-name">${escapeHtml(day)}</div>
+        <div class="lk-wp-day-tasks">
+          ${blocks.join("")}
+        </div>
+      </section>
+    `;
   }
 
   function renderFooterBox(title, kind = "", value = "") {
@@ -866,26 +846,15 @@
           </div>
         </header>
 
-        <div class="lk-wp-day-table-wrap">
-          <table class="lk-wp-day-table">
-            <colgroup>
-              <col class="lk-wp-col-day">
-              <col class="lk-wp-col-material">
-              <col class="lk-wp-col-assignment">
-              <col class="lk-wp-col-done">
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Tag</th>
-                <th colspan="2">Aufgaben</th>
-                <th>Erledigt</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${WEEK_DAYS.map((day) => renderPrintDayTableRows(plan, day, animal, options)).join("")}
-            </tbody>
-          </table>
+        <div class="lk-wp-table-head">
+          <span>Tag</span>
+          <span>Aufgaben</span>
+          <span>Erledigt</span>
         </div>
+
+        <main class="lk-wp-days">
+          ${WEEK_DAYS.map((day) => renderPrintDay9f(plan, day, animal, options)).join("")}
+        </main>
 
         ${renderSelectedFooter(options)}
       </section>
@@ -1093,144 +1062,77 @@
         .lk-wp-density-compact .lk-wp-week-groups { gap:1.2mm; }
         .lk-wp-density-compact .lk-wp-week-subsections { gap:.6mm; }
 
-        .lk-wp-day-table-wrap {
-          width:100%;
-          border:.35mm solid #444;
-          border-radius:4mm;
-          overflow:hidden;
-          box-sizing:border-box;
-          background:#fff;
+        .lk-wp-table-head {
+          display: grid;
+          grid-template-columns: 28mm 1fr 16mm;
+          border: .35mm solid #444;
+          border-radius: 4mm 4mm 0 0;
+          overflow: hidden;
+          background: #eef6fb;
+          font-size: 11pt;
+          text-align: center;
         }
-        .lk-wp-day-table {
-          width:100%;
-          border-collapse:collapse;
-          table-layout:fixed;
-          font-family:inherit;
+        .lk-wp-table-head span {
+          padding: 2mm 1mm;
+          border-right: .25mm solid #666;
         }
-        .lk-wp-day-table .lk-wp-col-day { width:28mm; }
-        .lk-wp-day-table .lk-wp-col-material { width:12.5mm; }
-        .lk-wp-day-table .lk-wp-col-done { width:16mm; }
-        .lk-wp-day-table thead th {
-          height:9mm;
-          padding:1mm;
-          background:#eef6fb;
-          border-right:.25mm solid #666;
-          border-bottom:.3mm solid #555;
-          font-size:11pt;
-          font-weight:600;
-          text-align:center;
-          vertical-align:middle;
+        .lk-wp-table-head span:last-child { border-right: 0; }
+
+        .lk-wp-days {
+          border-left: .35mm solid #444;
+          border-right: .35mm solid #444;
+          border-bottom: .35mm solid #444;
+          border-radius: 0 0 4mm 4mm;
+          overflow: hidden;
         }
-        .lk-wp-day-table thead th:last-child { border-right:0; }
-        .lk-wp-day-table td,
-        .lk-wp-day-table tbody th {
-          box-sizing:border-box;
+        .lk-wp-day {
+          display: grid;
+          grid-template-columns: 28mm 1fr;
+          min-height: 0;
+          border-bottom: .3mm solid #555;
         }
-        .lk-wp-day-cell {
-          padding:1.5mm 1mm;
-          border-right:.3mm solid #555;
-          border-bottom:.3mm solid #555;
-          background:#fff;
-          font-size:13.5pt;
-          font-weight:500;
-          text-align:center;
-          vertical-align:middle;
+        .lk-wp-day:last-child { border-bottom: 0; }
+        .lk-wp-day-name {
+          display: grid;
+          place-items: center;
+          padding: 2mm;
+          border-right: .3mm solid #555;
+          font-size: 13.5pt;
+          font-weight: 500;
+          text-align: center;
         }
-        .lk-wp-material-cell {
-          width:12.5mm;
-          padding:.35mm .55mm;
+        .lk-wp-day-tasks { min-width: 0; }
+        .lk-wp-day-material-group {
+          display:grid;
+          grid-template-columns:12.5mm minmax(0,1fr);
+          min-width:0;
+          border-bottom:.2mm solid #b9b9b9;
+        }
+        .lk-wp-day-material-group:last-child { border-bottom:0; }
+        .lk-wp-day-material-group.no-symbol { grid-template-columns:12.5mm minmax(0,1fr); }
+        .lk-wp-day-symbol-cell.empty { background:rgba(255,255,255,.32); }
+        .lk-wp-day-symbol-cell {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          align-self:stretch;
+          padding:.3mm .55mm;
           border-right:.2mm solid #d1d1d1;
-          border-bottom:.22mm solid #c8c8c8;
-          background:rgba(255,255,255,.58);
-          text-align:center;
-          vertical-align:middle;
+          background:rgba(255,255,255,.5);
         }
-        .lk-wp-material-cell.empty { background:rgba(255,255,255,.34); }
-        .lk-wp-material-cell .lk-wp-book-cover {
-          display:block;
+        .lk-wp-day-symbol-cell .lk-wp-book-cover {
           width:7.8mm;
           height:9.2mm;
           max-width:7.8mm;
           max-height:9.2mm;
-          margin:auto;
-          object-fit:contain;
         }
-        .lk-wp-assignment-cell {
-          height:7.6mm;
-          min-height:7.6mm;
-          padding:.7mm 1.6mm;
-          border-right:.2mm solid #777;
-          border-bottom:.22mm solid #c8c8c8;
-          vertical-align:middle;
-          overflow:hidden;
-        }
-        .lk-wp-done-cell {
-          width:16mm;
-          height:7.6mm;
-          min-height:7.6mm;
-          padding:0;
-          border-bottom:.22mm solid #c8c8c8;
-          text-align:center;
-          vertical-align:middle;
-          background:#fff;
-        }
-        .lk-wp-day-table-row.deutsch .lk-wp-assignment-cell { background:rgba(255,249,228,.72); }
-        .lk-wp-day-table-row.lesezeit .lk-wp-assignment-cell { background:rgba(232,247,237,.72); }
-        .lk-wp-day-table-row.lernwoerter .lk-wp-assignment-cell { background:rgba(244,237,250,.72); }
-        .lk-wp-day-table-row.mathe .lk-wp-assignment-cell { background:rgba(234,247,255,.78); }
-        .lk-wp-day-table-row.extra .lk-wp-assignment-cell { background:rgba(247,247,247,.82); }
-        .lk-wp-day-table-row.starred .lk-wp-assignment-cell { background:#fff6d9; }
-        .lk-wp-day-table-row.material-start .lk-wp-assignment-cell,
-        .lk-wp-day-table-row.material-start .lk-wp-done-cell { border-top:.24mm solid #9eabb2; }
-        .lk-wp-day-table-row.day-end .lk-wp-assignment-cell,
-        .lk-wp-day-table-row.day-end .lk-wp-done-cell,
-        .lk-wp-day-table-row.day-end .lk-wp-material-cell { border-bottom:.3mm solid #555; }
-        .lk-wp-day-table tbody tr:last-child > * { border-bottom:0 !important; }
-        .lk-wp-day-task-main {
-          display:flex;
-          align-items:center;
-          gap:.9mm;
-          min-width:0;
-          font-family:"Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
-          line-height:1.05;
-          white-space:nowrap;
-        }
-        .lk-wp-day-task-copy {
-          min-width:0;
-          overflow:hidden;
-          text-overflow:ellipsis;
-        }
-        .lk-wp-day-task-copy strong {
-          font-size:14.6pt;
-          line-height:1.02;
-          font-weight:700;
-        }
-        .lk-wp-day-table .lk-wp-task-subject-label {
-          min-width:27mm;
-          font-size:7.4pt;
-        }
-        .lk-wp-day-table .lk-wp-social-form {
+        .lk-wp-day-material-tasks { min-width:0; }
+        .lk-wp-day .lk-wp-social-form {
           width:5.8mm;
           height:5.8mm;
-          flex:0 0 5.8mm;
+          flex-basis:5.8mm;
         }
-        .lk-wp-day-table .lk-wp-circle {
-          display:inline-block;
-          width:4.3mm;
-          height:4.3mm;
-          border:.35mm solid #555;
-          border-radius:50%;
-          background:#fff;
-          vertical-align:middle;
-        }
-        .lk-wp-day-empty-copy { display:block; min-height:5mm; }
-        .lk-wp-density-medium .lk-wp-assignment-cell,
-        .lk-wp-density-medium .lk-wp-done-cell { height:7mm; min-height:7mm; }
-        .lk-wp-density-medium .lk-wp-day-task-copy strong { font-size:13.8pt; }
-        .lk-wp-density-compact .lk-wp-assignment-cell,
-        .lk-wp-density-compact .lk-wp-done-cell { height:6.2mm; min-height:6.2mm; }
-        .lk-wp-density-compact .lk-wp-day-task-copy strong { font-size:12.8pt; }
-        .lk-wp-density-compact .lk-wp-material-cell .lk-wp-book-cover { width:7mm; height:8.2mm; }
+        .lk-wp-day-material-group .lk-wp-task-row:last-child { border-bottom:0; }
         .lk-wp-task-row {
           display: grid;
           grid-template-columns: minmax(0,1fr) 16mm;

@@ -83,13 +83,14 @@ assert(html.includes('data-social="partner"') && html.includes('data-social="ind
 
 context.currentWeeklyPrintOptions = { layout: 'day', showExtra: true, footerNotes: {} };
 html = context.renderPrintWeeklyPlan('2c');
-assert(html.includes('lk-wp-day-material-group has-symbol'), 'Tagesplan nutzt keine gemeinsame Materialspalte.');
+assert(html.includes('lk-wp-day-table'), 'Tagesplan nutzt nicht die stabile Tabellenstruktur.');
+assert(html.includes('rowspan="3"') || html.includes('rowspan="7"'), 'Tages-/Materialzellen werden nicht ueber Aufgabenzeilen zusammengefasst.');
 assert((html.match(/alt="Arbeitsblatt"/g) || []).length === 1, 'Arbeitsblatt-Symbol wird im Tagesplan nicht genau einmal pro Block ausgegeben.');
 assert(html.includes('Mathe'), 'Mathe fehlt im Tagesplan-Druck.');
 assert(html.includes('>1b<') && html.includes('>2b<') && html.includes('>3b<'), 'Aufgaben fehlen im Tagesplan-Druck.');
-assert(html.includes('flex:0 0 12.5mm'), 'Tagesplan nutzt nicht die kompakte feste Materialspalte.');
-assert(html.includes('.lk-wp-day {') && html.includes('display:flex;'), 'Tagesplan nutzt nicht das stabile Flex-Raster.');
+assert(html.includes('width:12.5mm'), 'Tagesplan nutzt nicht die kompakte feste Materialspalte.');
+assert(html.includes('table-layout:fixed'), 'Tagesplan nutzt keine feste Tabellenaufteilung.');
 assert(html.includes('width:7.8mm') && html.includes('height:9.2mm'), 'Materialbilder im Tagesplan sind noch zu gross.');
-assert(html.includes('min-height:0;') && html.includes('height:auto;'), 'Tagesplan erzwingt noch zu hohe Tagesbloecke.');
+assert(!html.includes('class="lk-wp-day">'), 'Alte Tagesblock-Struktur ist noch aktiv.');
 
 console.log('Drucklogik-Prüfung erfolgreich.');
