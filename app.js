@@ -4056,12 +4056,12 @@ function renderWeeklyCurrent(plans, focusAnimal = null) {
   const relevantFallback = [];
   if (!currentPlans.length) {
     if (focusAnimal) {
-      const selected = selectRelevantWeeklyPlan(visiblePlans);
+      const selected = selectRelevantWeeklyPlan(visiblePlans, formatFileDate(new Date()), focusAnimal.id);
       if (selected) relevantFallback.push(selected);
     } else {
       const seen = new Set();
       animalsForActiveClass().filter((animal) => animal.aktiv).forEach((animal) => {
-        const selected = selectRelevantWeeklyPlan(visiblePlans.filter((plan) => weeklyPlanAppliesToAnimal(plan, animal.id)));
+        const selected = selectRelevantWeeklyPlan(visiblePlans.filter((plan) => weeklyPlanAppliesToAnimal(plan, animal.id)), formatFileDate(new Date()), animal.id);
         if (selected && !seen.has(selected.id)) {
           seen.add(selected.id);
           relevantFallback.push(selected);
@@ -4444,7 +4444,11 @@ function lkPlanForAnimalInWeek(animalId, offsetWeeks = 0) {
     const to = plan.validTo || plan.validFrom || "";
     if (!from && !to) return false;
     return (!from || from <= window.endKey) && (!to || to >= window.startKey);
-  }).sort((a,b)=>String(b.updatedAt||b.createdAt||b.validFrom||"").localeCompare(String(a.updatedAt||a.createdAt||a.validFrom||"")))[0] || null;
+  }).sort((a,b)=>{
+    const audience = weeklyPlanAudiencePriority(b, animalId) - weeklyPlanAudiencePriority(a, animalId);
+    if (audience) return audience;
+    return String(b.updatedAt||b.createdAt||b.validFrom||"").localeCompare(String(a.updatedAt||a.createdAt||a.validFrom||""));
+  })[0] || null;
 }
 function lkWeekResultForAnimal(animalId, plan, future = false) {
   if (!plan) return null;
@@ -4550,12 +4554,74 @@ function weeklyIndividualDaysForEditor(plan, animalId) {
   return days;
 }
 
+function weeklyPlanAudienceAnimalIds(plan = {}) {
+  return Array.isArray(plan.animalIds) ? [...new Set(plan.animalIds.filter(Boolean))] : [];
+}
+
+function weeklyPlanAudienceAutoTitle(assignmentMode = "all", animalIds = []) {
+  if (assignmentMode === "all") return "Klasse";
+  const ids = [...new Set((animalIds || []).filter(Boolean))];
+  const animals = animalsForActiveClass().filter((animal) => animal.aktiv && ids.includes(animal.id));
+  const matchingGroup = (state.animalGroups || []).find((group) => (
+    group.classId === state.activeClassId
+    && Array.isArray(group.animalIds)
+    && group.animalIds.length === ids.length
+    && [...group.animalIds].sort().every((id, index) => id === [...ids].sort()[index])
+  ));
+  if (matchingGroup?.name) return String(matchingGroup.name);
+  if (animals.length === 1) {
+    const animal = animals[0];
+    const name = state.teacherShowFirstNames && animal.firstName ? animal.firstName : animal.tierName || "Kind";
+    return `Einzelplan – ${name}`;
+  }
+  if (ids.length > 1) return `Auswahl – ${ids.length} Kinder`;
+  return "Wochenplan";
+}
+
+function weeklyPlanTitleLooksAutoManaged(plan = {}) {
+  if (plan.titleAuto === true) return true;
+  if (plan.titleAuto === false) return false;
+  const title = String(plan.title || "").trim();
+  if (!title) return true;
+  if (/^Auswahl\s*[–-]\s*\d+\s+Kinder$/i.test(title)) return true;
+  if (/^Einzelplan\s*[–-]\s*/i.test(title)) return true;
+  if (["Klasse", "Wochenplan"].includes(title)) return true;
+  return title === weeklyPlanAudienceAutoTitle(plan.assignmentMode || "all", weeklyPlanAudienceAnimalIds(plan));
+}
+
+function lkWeeklyTitleEdited() {
+  const hidden = document.getElementById("weeklyTitleAuto");
+  if (hidden) hidden.value = "0";
+}
+window.lkWeeklyTitleEdited = lkWeeklyTitleEdited;
+
+function lkWeeklyAudienceSelectionChanged() {
+  const mode = document.querySelector("input[name='weeklyAssignmentMode']:checked")?.value || "all";
+  const ids = [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")].map((input) => input.value);
+  const audienceLabel = document.getElementById("weeklyAudienceLabel");
+  if (audienceLabel) {
+    if (mode === "all") audienceLabel.textContent = "Ganze Klasse";
+    else if (ids.length === 1) {
+      const animal = animalsForActiveClass().find((item) => item.id === ids[0]);
+      audienceLabel.textContent = animal ? `${animal.tierEmoji || ""} ${animal.tierName || "Kind"}`.trim() : "1 Kind";
+    } else audienceLabel.textContent = `${ids.length} Kinder`;
+  }
+
+  const hidden = document.getElementById("weeklyTitleAuto");
+  const titleInput = document.getElementById("weeklyTitle");
+  if (hidden?.value === "1" && titleInput) {
+    titleInput.value = weeklyPlanAudienceAutoTitle(mode, ids);
+  }
+}
+window.lkWeeklyAudienceSelectionChanged = lkWeeklyAudienceSelectionChanged;
+
 function renderWeeklyPlanEditor(plan, focusAnimal = null) {
   const draft = weeklyPlanDraft || plan || {};
   const plans = weeklyPlansForActiveClass().sort((a, b) => String(b.validFrom || b.createdAt || "").localeCompare(String(a.validFrom || a.createdAt || "")));
   const draftId = draft.id || plan?.id || "";
   const isExistingPlan = Boolean(draftId && plans.some((item) => item.id === draftId));
   const title = draft.title || "Wochenplan";
+  const titleAutoManaged = weeklyPlanTitleLooksAutoManaged(draft);
   const weekLabel = draft.weekLabel || "";
   const validFrom = draft.validFrom || "";
   const validTo = draft.validTo || "";
@@ -4591,7 +4657,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
         <div class="weekly-clean-title">
           <span class="weekly-editor-badge ${isExistingPlan ? "edit" : "new"}">${isExistingPlan ? "Bearbeiten" : "Neu"}</span>
           <h2>Wochenplan</h2>
-          <p><strong>${escapeHtml(audienceLabel)}</strong>${periodLabel ? ` · ${escapeHtml(periodLabel)}` : ""}</p>
+          <p><strong id="weeklyAudienceLabel">${escapeHtml(audienceLabel)}</strong>${periodLabel ? ` · ${escapeHtml(periodLabel)}` : ""}</p>
         </div>
         <div class="weekly-clean-head-actions">
           <label class="field compact-field">Plan wechseln
@@ -4627,7 +4693,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           <div id="weeklyAudienceChildren" class="weekly-audience-child-grid ${assignmentMode === "all" ? "is-disabled" : ""}">
             ${animals.map((animal) => `
               <label class="weekly-audience-child">
-                <input class="weeklyAnimalCheckbox" type="checkbox" value="${escapeAttribute(animal.id)}" ${selectedAnimals.has(animal.id) ? "checked" : ""} ${assignmentMode === "all" ? "disabled" : ""}>
+                <input class="weeklyAnimalCheckbox" type="checkbox" value="${escapeAttribute(animal.id)}" ${selectedAnimals.has(animal.id) ? "checked" : ""} ${assignmentMode === "all" ? "disabled" : ""} onchange="lkWeeklyAudienceSelectionChanged()">
                 <span>${escapeHtml(animal.tierEmoji || "🐾")}</span>
                 <strong>${escapeHtml(animal.tierName || "Kind")}</strong>
               </label>
@@ -4678,7 +4744,8 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
           <summary>Weitere Einstellungen</summary>
           <div class="weekly-clean-more-body">
             <label class="field">Titel
-              <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan">
+              <input type="hidden" id="weeklyTitleAuto" value="${titleAutoManaged ? "1" : "0"}">
+              <input class="text-input" id="weeklyTitle" value="${escapeAttribute(title)}" placeholder="Wochenplan" oninput="lkWeeklyTitleEdited()">
             </label>
 
             ${!focusAnimal ? renderWeeklyCarryoverCheck(draft, targetAnimals) : ""}
@@ -5155,6 +5222,7 @@ function lkWeeklyAudienceModeChanged(mode) {
     if (preferred) preferred.checked = true;
   }
 
+  lkWeeklyAudienceSelectionChanged();
   if (typeof window.lkAutoSaveWeeklyPlan === "function") {
     window.lkAutoSaveWeeklyPlan({ reason: "Zielgruppe", immediate: true });
   }
@@ -5167,10 +5235,17 @@ function collectWeeklyPlanDraftFromDom() {
   const overrideVisible = weeklyOverrideAnimalId && weeklyPlannerInputsVisible("override", weeklyOverrideAnimalId);
   const assignmentModeInput = document.querySelector("input[name='weeklyAssignmentMode']:checked");
   const checkedAnimalInputs = [...document.querySelectorAll(".weeklyAnimalCheckbox:checked")];
+  const assignmentMode = assignmentModeInput?.value || weeklyPlanDraft?.assignmentMode || existing.assignmentMode || "all";
+  const selectedAnimalIds = checkedAnimalInputs.length || document.querySelector(".weeklyAnimalCheckbox")
+    ? checkedAnimalInputs.map((item) => item.value)
+    : [...(weeklyPlanDraft?.animalIds || existing.animalIds || [])];
+  const titleAuto = document.getElementById("weeklyTitleAuto")?.value === "1";
+  const enteredTitle = document.querySelector("#weeklyTitle")?.value.trim() || "Wochenplan";
   const draft = {
     ...existing,
     id: document.querySelector("#weeklyPlanId")?.value || existing.id || "",
-    title: document.querySelector("#weeklyTitle")?.value.trim() || "Wochenplan",
+    title: titleAuto ? weeklyPlanAudienceAutoTitle(assignmentMode, selectedAnimalIds) : enteredTitle,
+    titleAuto,
     weekLabel: document.querySelector("#weeklyLabel")?.value.trim() || "",
     validFrom: document.querySelector("#weeklyFrom")?.value || "",
     validTo: document.querySelector("#weeklyTo")?.value || "",
@@ -5181,10 +5256,8 @@ function collectWeeklyPlanDraftFromDom() {
           ? String(document.querySelector("#weeklyDeutschSectionOrder")?.value || "").split(",")
           : (weeklyPlanDraft?.deutschSectionOrder || existing.deutschSectionOrder))
       : (weeklyPlanDraft?.deutschSectionOrder || existing.deutschSectionOrder || ["Deutsch", "Lesezeit", "Lernwörter"]),
-    assignmentMode: assignmentModeInput?.value || weeklyPlanDraft?.assignmentMode || existing.assignmentMode || "all",
-    animalIds: checkedAnimalInputs.length || document.querySelector(".weeklyAnimalCheckbox")
-      ? checkedAnimalInputs.map((item) => item.value)
-      : [...(weeklyPlanDraft?.animalIds || existing.animalIds || [])],
+    assignmentMode,
+    animalIds: selectedAnimalIds,
     progressMode: document.querySelector("#weeklyProgressMode")?.value || existing.progressMode || "confirm",
     autoCreateEntries: (document.querySelector("#weeklyProgressMode")?.value || existing.progressMode) === "auto",
     days: standardVisible ? readWeeklyDaysFromDom("standard") : { ...(weeklyPlanDraft?.days || existing.days || {}) },
@@ -5444,6 +5517,7 @@ async function newWeeklyPlan() {
     id: makeId(),
     classId: state.activeClassId,
     title: "Wochenplan",
+    titleAuto: false,
     weekLabel: "",
     validFrom: "",
     validTo: "",
@@ -5503,6 +5577,7 @@ async function copyWeeklyPlan(planId) {
     ...plan,
     id: makeId(),
     title: `${plan.title} Kopie`,
+    titleAuto: false,
     weekLabel: "",
     validFrom: "",
     validTo: "",
@@ -5928,7 +6003,7 @@ function overviewWeeklyPlanForAnimal(classId, animalId) {
   const candidates = (state.weeklyPlans || [])
     .filter((plan) => plan.classId === classId && plan.active !== false)
     .filter((plan) => weeklyPlanAppliesToAnimal(plan, animalId));
-  return selectRelevantWeeklyPlan(candidates);
+  return selectRelevantWeeklyPlan(candidates, formatFileDate(new Date()), animalId);
 }
 
 function buildWeeklyProgressRows(classId) {
@@ -9592,7 +9667,14 @@ function weeklyPlanDateKey(plan) {
   return String(plan?.validTo || plan?.validFrom || plan?.updatedAt || plan?.createdAt || "");
 }
 
-function selectRelevantWeeklyPlan(plans = [], today = formatFileDate(new Date())) {
+function weeklyPlanAudiencePriority(plan, animalId = "") {
+  if (!animalId || !plan) return 0;
+  if (plan.assignmentMode === "selected" && Array.isArray(plan.animalIds) && plan.animalIds.includes(animalId)) return 2;
+  if (plan.assignmentMode === "all") return 1;
+  return 0;
+}
+
+function selectRelevantWeeklyPlan(plans = [], today = formatFileDate(new Date()), animalId = "") {
   const candidates = (plans || []).filter((plan) => plan && plan.active !== false);
   if (!candidates.length) return null;
 
@@ -9601,32 +9683,55 @@ function selectRelevantWeeklyPlan(plans = [], today = formatFileDate(new Date())
   const dated = candidates.filter((plan) => plan.validFrom || plan.validTo);
   const current = dated
     .filter((plan) => (!plan.validFrom || today >= plan.validFrom) && (!plan.validTo || today <= plan.validTo))
-    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+    .sort((a, b) => {
+      const audience = weeklyPlanAudiencePriority(b, animalId) - weeklyPlanAudiencePriority(a, animalId);
+      if (audience) return audience;
+      const period = weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a));
+      if (period) return period;
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    });
   if (current.length) return current[0];
 
   // Am Wochenende bzw. bevor der nächste Plan beginnt, bleibt der zuletzt
-  // begonnene datierte Plan maßgeblich. So verschwinden offene Aufgaben nicht.
+  // begonnene datierte Plan maßgeblich. Erst innerhalb desselben relevanten
+  // Zeitraums gewinnt ein individueller/Gruppenplan vor dem Klassenplan.
   const past = dated
     .filter((plan) => !plan.validFrom || plan.validFrom <= today)
-    .sort((a, b) => weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a)));
+    .sort((a, b) => {
+      const period = weeklyPlanDateKey(b).localeCompare(weeklyPlanDateKey(a));
+      if (period) return period;
+      const audience = weeklyPlanAudiencePriority(b, animalId) - weeklyPlanAudiencePriority(a, animalId);
+      if (audience) return audience;
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    });
   if (past.length) return past[0];
 
   // Nur wenn es noch keinen begonnenen Plan gibt, darf der nächste zukünftige
-  // Plan angezeigt werden.
+  // Plan angezeigt werden. Bei gleichem Beginn gilt wieder der spezifischere Plan.
   const future = dated
     .slice()
-    .sort((a, b) => weeklyPlanDateKey(a).localeCompare(weeklyPlanDateKey(b)));
+    .sort((a, b) => {
+      const period = weeklyPlanDateKey(a).localeCompare(weeklyPlanDateKey(b));
+      if (period) return period;
+      const audience = weeklyPlanAudiencePriority(b, animalId) - weeklyPlanAudiencePriority(a, animalId);
+      if (audience) return audience;
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    });
   if (future.length) return future[0];
 
   // Undatierte Pläne sind lediglich Fallback, wenn überhaupt kein datierter Plan
-  // existiert. Der neueste Entwurf gewinnt dann.
+  // existiert. Für ein Kind hat dabei ein gezielt zugeordneter Plan Vorrang.
   return candidates
     .slice()
-    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")))[0] || null;
+    .sort((a, b) => {
+      const audience = weeklyPlanAudiencePriority(b, animalId) - weeklyPlanAudiencePriority(a, animalId);
+      if (audience) return audience;
+      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    })[0] || null;
 }
 
 function relevantWeeklyPlanForAnimal(animalId) {
-  return selectRelevantWeeklyPlan(weeklyPlansForAnimal(animalId));
+  return selectRelevantWeeklyPlan(weeklyPlansForAnimal(animalId), formatFileDate(new Date()), animalId);
 }
 
 function sortChildWeeklyPlans(a, b) {

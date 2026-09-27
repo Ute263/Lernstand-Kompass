@@ -967,6 +967,7 @@
       id,
       classId: state.activeClassId,
       title: suggestedCalendarPlanTitle({ mode, animalIds: uniqueAnimalIds, group }),
+      titleAuto: true,
       planningMode: preferredPlanningModeForAudience(mode, uniqueAnimalIds),
       assignmentMode: mode === "all" ? "all" : "selected",
       animalIds: uniqueAnimalIds,

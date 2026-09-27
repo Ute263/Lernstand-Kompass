@@ -1064,7 +1064,7 @@
 
         .lk-wp-table-head {
           display: grid;
-          grid-template-columns: 31mm 1fr 22mm;
+          grid-template-columns: 28mm 1fr 16mm;
           border: .35mm solid #444;
           border-radius: 4mm 4mm 0 0;
           overflow: hidden;
@@ -1087,8 +1087,8 @@
         }
         .lk-wp-day {
           display: grid;
-          grid-template-columns: 31mm 1fr;
-          min-height: 30mm;
+          grid-template-columns: 28mm 1fr;
+          min-height: 0;
           border-bottom: .3mm solid #555;
         }
         .lk-wp-day:last-child { border-bottom: 0; }
@@ -1104,7 +1104,7 @@
         .lk-wp-day-tasks { min-width: 0; }
         .lk-wp-day-material-group {
           display:grid;
-          grid-template-columns:18mm minmax(0,1fr);
+          grid-template-columns:12.5mm minmax(0,1fr);
           min-width:0;
           border-bottom:.2mm solid #b9b9b9;
         }
@@ -1115,20 +1115,27 @@
           align-items:center;
           justify-content:center;
           align-self:stretch;
-          padding:.8mm 1mm;
+          padding:.3mm .55mm;
           border-right:.2mm solid #d1d1d1;
           background:rgba(255,255,255,.5);
         }
         .lk-wp-day-symbol-cell .lk-wp-book-cover {
-          width:12.5mm;
-          height:15mm;
+          width:7.8mm;
+          height:9.2mm;
+          max-width:7.8mm;
+          max-height:9.2mm;
         }
         .lk-wp-day-material-tasks { min-width:0; }
+        .lk-wp-day .lk-wp-social-form {
+          width:5.8mm;
+          height:5.8mm;
+          flex-basis:5.8mm;
+        }
         .lk-wp-day-material-group .lk-wp-task-row:last-child { border-bottom:0; }
         .lk-wp-task-row {
           display: grid;
-          grid-template-columns: minmax(0,1fr) 22mm;
-          min-height: 6.3mm;
+          grid-template-columns: minmax(0,1fr) 16mm;
+          min-height: 7.4mm;
           border-bottom: .2mm solid #b9b9b9;
         }
         .lk-wp-task-row:last-child { border-bottom: 0; }
@@ -1144,18 +1151,18 @@
           display: flex;
           flex-direction: column;
           justify-content: center;
-          padding: 1mm 2mm;
+          padding: .7mm 1.6mm;
           line-height: 1.12;
           overflow: hidden;
         }
         .lk-wp-task-main {
           display: flex;
           align-items: center;
-          gap: 1.3mm;
+          gap: .9mm;
           min-width: 0;
           width:100%;
           font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
-          font-size: 13.2pt;
+          font-size: 12.4pt;
           line-height: 1.08;
         }
         .lk-wp-task-subject-label {
@@ -1276,7 +1283,7 @@
           font-size:7.8pt;
           font-weight:700;
           color:#31586e;
-          min-width:31mm;
+          min-width:25mm;
           white-space:nowrap;
         }
         .lk-wp-star {
