@@ -579,7 +579,7 @@
     return {
       html: `
         <div class="lk-wp-day-material-group ${group.hasSymbol ? "has-symbol" : "no-symbol"}">
-          ${group.hasSymbol ? `<div class="lk-wp-day-symbol-cell ${group.type !== "workbook" ? "icon-only" : ""}">${group.symbolHtml}</div>` : ""}
+          <div class="lk-wp-day-symbol-cell ${group.hasSymbol ? (group.type !== "workbook" ? "icon-only" : "") : "empty"}">${group.hasSymbol ? group.symbolHtml : ""}</div>
           <div class="lk-wp-day-material-tasks">${rows}</div>
         </div>
       `,
@@ -1109,7 +1109,8 @@
           border-bottom:.2mm solid #b9b9b9;
         }
         .lk-wp-day-material-group:last-child { border-bottom:0; }
-        .lk-wp-day-material-group.no-symbol { grid-template-columns:1fr; }
+        .lk-wp-day-material-group.no-symbol { grid-template-columns:12.5mm minmax(0,1fr); }
+        .lk-wp-day-symbol-cell.empty { background:rgba(255,255,255,.32); }
         .lk-wp-day-symbol-cell {
           display:flex;
           align-items:center;
@@ -1145,7 +1146,7 @@
         .lk-wp-task-row.mathe { background: rgba(234,247,255,.62); }
         .lk-wp-task-row.extra { background: rgba(247,247,247,.72); }
         .lk-wp-task-row.starred { background: #fff6d9; }
-        .lk-wp-task-row.subject-break { border-top: .58mm solid #8fa7b5; }
+        .lk-wp-day .lk-wp-task-row.subject-break { border-top:0; }
         .lk-wp-task-text {
           min-width: 0;
           display: flex;
