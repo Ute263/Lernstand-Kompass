@@ -1106,14 +1106,24 @@
         .lk-dayplan-head > div:last-child { border-right:0; }
         .lk-dayplan-days { display:block; }
         .lk-dayplan-day {
-          display:grid;
-          grid-template-columns:28mm minmax(0,1fr);
+          position:relative;
+          display:block;
+          min-height:0 !important;
+          height:auto !important;
+          padding-left:28mm;
           border-bottom:.3mm solid #555;
           break-inside:avoid;
           page-break-inside:avoid;
+          background:#fff;
         }
         .lk-dayplan-day:last-child { border-bottom:0; }
         .lk-dayplan-dayname {
+          position:absolute;
+          left:0;
+          top:0;
+          bottom:0;
+          width:28mm;
+          box-sizing:border-box;
           display:flex;
           align-items:center;
           justify-content:center;
@@ -1123,20 +1133,31 @@
           font-size:13.5pt;
           font-weight:500;
           text-align:center;
+          pointer-events:none;
         }
         .lk-dayplan-taskarea {
           min-width:0;
+          width:100%;
           display:block;
           background:#fff;
         }
         .lk-dayplan-group {
-          display:grid;
-          grid-template-columns:12.5mm minmax(0,1fr);
+          position:relative;
+          display:block;
           min-width:0;
+          min-height:0 !important;
+          height:auto !important;
+          padding-left:12.5mm;
           border-bottom:.22mm solid #c8c8c8;
         }
         .lk-dayplan-group:last-child { border-bottom:0; }
         .lk-dayplan-material {
+          position:absolute;
+          left:0;
+          top:0;
+          bottom:0;
+          width:12.5mm;
+          box-sizing:border-box;
           display:flex;
           align-items:center;
           justify-content:center;
@@ -1144,6 +1165,7 @@
           padding:.35mm .55mm;
           border-right:.2mm solid #d1d1d1;
           background:rgba(255,255,255,.58);
+          pointer-events:none;
         }
         .lk-dayplan-material.empty { background:rgba(255,255,255,.34); }
         .lk-dayplan-material .lk-wp-book-cover {
@@ -1155,12 +1177,19 @@
           margin:auto;
           object-fit:contain;
         }
-        .lk-dayplan-group-rows { min-width:0; }
+        .lk-dayplan-group-rows {
+          min-width:0;
+          display:block;
+          height:auto !important;
+          min-height:0 !important;
+        }
         .lk-dayplan-row {
           display:grid;
           grid-template-columns:minmax(0,1fr) 16mm;
-          height:7.6mm;
-          min-height:7.6mm;
+          height:7.6mm !important;
+          min-height:7.6mm !important;
+          max-height:7.6mm !important;
+          box-sizing:border-box;
           border-bottom:.22mm solid #c8c8c8;
         }
         .lk-dayplan-row:last-child { border-bottom:0; }
@@ -1221,9 +1250,9 @@
           background:#fff;
         }
         .lk-wp-day-empty-copy { display:block; min-height:5mm; }
-        .lk-wp-density-medium .lk-dayplan-row { height:7mm; min-height:7mm; }
+        .lk-wp-density-medium .lk-dayplan-row { height:7mm !important; min-height:7mm !important; max-height:7mm !important; }
         .lk-wp-density-medium .lk-wp-day-task-copy strong { font-size:13.8pt; }
-        .lk-wp-density-compact .lk-dayplan-row { height:6.2mm; min-height:6.2mm; }
+        .lk-wp-density-compact .lk-dayplan-row { height:6.2mm !important; min-height:6.2mm !important; max-height:6.2mm !important; }
         .lk-wp-density-compact .lk-wp-day-task-copy strong { font-size:12.8pt; }
         .lk-wp-density-compact .lk-dayplan-material .lk-wp-book-cover { width:7mm; height:8.2mm; }
         .lk-wp-task-row {

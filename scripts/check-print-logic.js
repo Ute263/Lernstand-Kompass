@@ -88,9 +88,11 @@ assert(!html.includes('rowspan='), 'Tagesplan verwendet noch rowspan und kann da
 assert((html.match(/alt="Arbeitsblatt"/g) || []).length === 1, 'Arbeitsblatt-Symbol wird im Tagesplan nicht genau einmal pro Block ausgegeben.');
 assert(html.includes('Mathe'), 'Mathe fehlt im Tagesplan-Druck.');
 assert(html.includes('>1b<') && html.includes('>2b<') && html.includes('>3b<'), 'Aufgaben fehlen im Tagesplan-Druck.');
-assert(html.includes('grid-template-columns:12.5mm minmax(0,1fr)'), 'Tagesplan nutzt nicht die feste Materialspalte.');
-assert(html.includes('height:7.6mm') && html.includes('min-height:7.6mm'), 'Tagesplan nutzt keine festen Aufgabenzeilen.');
+assert(html.includes('padding-left:12.5mm') && html.includes('width:12.5mm'), 'Tagesplan nutzt nicht die feste Materialspalte.');
+assert(html.includes('height:7.6mm !important') && html.includes('max-height:7.6mm !important'), 'Tagesplan nutzt keine strikt festen Aufgabenzeilen.');
 assert(html.includes('width:7.8mm') && html.includes('height:9.2mm'), 'Materialbilder im Tagesplan sind noch zu gross.');
 assert(!html.includes('lk-wp-day-table'), 'Alte Tagesplan-Tabelle ist noch aktiv.');
+assert(html.includes('.lk-dayplan-day {\n          position:relative') && html.includes('.lk-dayplan-dayname {\n          position:absolute'), 'Tagesname kann die Tageshoehe noch beeinflussen.');
+assert(html.includes('.lk-dayplan-material {\n          position:absolute'), 'Materialbild kann die Blockhoehe noch beeinflussen.');
 
 console.log('Drucklogik-Prüfung erfolgreich.');
