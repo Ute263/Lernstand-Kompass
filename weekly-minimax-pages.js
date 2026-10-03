@@ -120,7 +120,7 @@
     return /inklus(?:iv|ion)|förder(?:heft|material|ung)?|foerder(?:heft|material|ung)?|forder(?:heft|material)?/.test(haystack);
   }
 
-  function mmCatalog(subject, supportOnly = false) {
+  function mmCatalog(subject, supportOnly = false, schoolYearOverride = "") {
     // Lesezeit und Lernwörter sind Wochenplan-Bereiche, aber keine eigenen
     // Fächer im Arbeitsmaterial-Katalog. Beide verwenden den Deutsch-Katalog.
     const catalogSubject = subject === "Mathe" ? "Mathe" : "Deutsch";
@@ -139,8 +139,10 @@
     // den Förderhefte-Schalter erreichbar.
     const classOnly = all.filter((item) => !mmIsSupportWorkbook(item));
 
-    let activeYear = "";
-    try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
+    let activeYear = String(schoolYearOverride || "").trim();
+    if (!activeYear) {
+      try { activeYear = activeClassSchoolYear(state.activeClassId); } catch {}
+    }
     if (!activeYear || activeYear === "none") return classOnly;
 
     const matching = classOnly.filter((item) => {
@@ -295,7 +297,8 @@
   window.lkSetPickerSupportMode = function lkSetPickerSupportMode(enabled) {
     if (!weeklyPickRequest) return;
     const supportMode = Boolean(enabled);
-    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+    const pickerSchoolYear = String(weeklyPickRequest.filters?.schoolYear || activeClassSchoolYear(state.activeClassId) || "2");
+    const items = mmCatalog(weeklyPickRequest.subject, false, pickerSchoolYear)
       .sort((a, b) =>
         a.workbook.localeCompare(b.workbook, "de", { numeric: true })
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
@@ -316,10 +319,37 @@
     render();
   };
 
+  window.lkSetPickerSchoolYear = function lkSetPickerSchoolYear(schoolYear) {
+    if (!weeklyPickRequest) return;
+    const pickerSchoolYear = ["1", "2"].includes(String(schoolYear)) ? String(schoolYear) : "2";
+    const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
+      .sort((a, b) =>
+        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+        || mmStart(a) - mmStart(b)
+      );
+    const first = items[0] || null;
+    weeklyPickRequest = {
+      ...weeklyPickRequest,
+      filters: {
+        ...(weeklyPickRequest.filters || {}),
+        schoolYear: pickerSchoolYear,
+        supportMode: false,
+        workbook: first?.workbook || "",
+        part: first?.part || "",
+        areaKey: "",
+        rangeStart: first ? mmRangeStart(mmStart(first)) : 1
+      }
+    };
+    render();
+  };
+
   window.lkSetPickerWorkbook = function lkSetPickerWorkbook(workbook) {
     if (!weeklyPickRequest) return;
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
-    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+    const pickerSchoolYear = String(weeklyPickRequest.filters?.schoolYear || activeClassSchoolYear(state.activeClassId) || "2");
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .filter((item) => item.workbook === workbook)
       .sort((a, b) => mmStart(a) - mmStart(b));
     const first = items[0] || null;
@@ -339,7 +369,8 @@
   window.lkSetPickerPart = function lkSetPickerPart(part) {
     if (!weeklyPickRequest) return;
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
-    const items = mmCatalog(weeklyPickRequest.subject, supportMode)
+    const pickerSchoolYear = String(weeklyPickRequest.filters?.schoolYear || activeClassSchoolYear(state.activeClassId) || "2");
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .filter((item) => item.workbook === (weeklyPickRequest.filters?.workbook || ""))
       .filter((item) => (item.part || "") === part)
       .sort((a, b) => mmStart(a) - mmStart(b));
@@ -426,7 +457,11 @@
     if (!weeklyPickRequest) return "";
 
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
-    const catalog = mmCatalog(weeklyPickRequest.subject, supportMode)
+    const activeYear = String(activeClassSchoolYear(state.activeClassId) || "2");
+    const pickerSchoolYear = ["1", "2"].includes(String(weeklyPickRequest.filters?.schoolYear || ""))
+      ? String(weeklyPickRequest.filters.schoolYear)
+      : (["1", "2"].includes(activeYear) ? activeYear : "2");
+    const catalog = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
         a.workbook.localeCompare(b.workbook, "de", { numeric: true })
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
@@ -481,7 +516,7 @@
       : mmCandidates(partItems, selectedWorkbook, selectedRange, rangeEnd);
 
     const hasPartStep = parts.length > 1 || (parts.length === 1 && parts[0]);
-    const groupingStepNumber = hasPartStep ? 3 : 2;
+    const groupingStepNumber = hasPartStep ? 4 : 3;
     const pageStepNumber = useAreaGrouping || rangeStarts.length > 1
       ? groupingStepNumber + 1
       : groupingStepNumber;
@@ -506,7 +541,19 @@
 
           ${workbooks.length ? `
             <div class="lk-picker-step">
-              <strong>1. Heft</strong>
+              <strong>1. Jahrgang</strong>
+              <div class="lk-picker-tabs lk-workbook-tabs lk-school-year-tabs">
+                <button
+                  class="lk-picker-tab ${!supportMode && pickerSchoolYear === "1" ? "active" : ""}"
+                  type="button"
+                  onclick="lkSetPickerSchoolYear('1')"
+                >Klasse 1</button>
+                <button
+                  class="lk-picker-tab ${!supportMode && pickerSchoolYear === "2" ? "active" : ""}"
+                  type="button"
+                  onclick="lkSetPickerSchoolYear('2')"
+                >Klasse 2</button>
+              </div>
               <div class="lk-picker-tabs lk-workbook-tabs lk-support-filter-tabs">
                 <button
                   class="lk-picker-tab ${supportMode ? "" : "active"}"
@@ -520,6 +567,10 @@
                   title="Förder-, Inklusions- und Forderhefte aus allen Schuljahren anzeigen"
                 >Förderhefte</button>
               </div>
+            </div>
+
+            <div class="lk-picker-step">
+              <strong>2. Heft</strong>
               <div class="lk-picker-tabs lk-workbook-tabs">
                 ${workbooks.map((workbook) => `
                   <button
@@ -534,7 +585,7 @@
 
             ${parts.length > 1 || (parts.length === 1 && parts[0]) ? `
               <div class="lk-picker-step">
-                <strong>2. Teil</strong>
+                <strong>3. Teil</strong>
                 <div class="lk-picker-tabs">
                   ${parts.map((part) => `
                     <button
@@ -622,12 +673,12 @@
               ${supportMode
                 ? "Förderhefte werden hier schuljahrübergreifend angezeigt. Jede Seite bleibt einzeln auswählbar."
                 : useAreaGrouping
-                  ? "Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts."
-                  : "Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen."}
+                  ? `Klasse ${pickerSchoolYear}: Jede Seite ist einzeln auswählbar. Die Bereiche folgen dem Inhaltsverzeichnis des Hefts.`
+                  : `Klasse ${pickerSchoolYear}: Jede Seite ist einzeln auswählbar. Eine bereits gewählte Seite kannst du noch einmal anklicken – dann wird sie als ⭐ Zusatzaufgabe eingetragen.`}
             </p>
           ` : `
             <div class="empty">
-              Für ${escapeHtml(weeklyPickRequest.subject)} ist noch kein Heft angelegt.
+              Für ${escapeHtml(weeklyPickRequest.subject)} ist ${supportMode ? "noch kein Förderheft" : `in Klasse ${pickerSchoolYear} noch kein Heft`} angelegt.
               <button class="primary lk-empty-add-book" type="button" onclick="lkOpenWorkbookManagerFromPicker()">Heft anlegen</button>
             </div>
           `}

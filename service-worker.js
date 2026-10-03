@@ -1,4 +1,4 @@
-const CACHE_NAME = "lernstand-kompass-20260927-194409";
+const CACHE_NAME = "lernstand-kompass-20261003-year-switch";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -55,6 +55,7 @@ const APP_FILES = [
   "./materials/cover-minimax-1.svg",
   "./materials/cover-minimax-2.svg",
   "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png",
+  "./materials/cover-abc-der-tiere-1-arbeitsheft.png",
   "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png",
   "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-b.png",
   "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-b.png",

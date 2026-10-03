@@ -9900,6 +9900,9 @@ function workbookCoverForCatalogItem(catalogItem) {
   const bookType = String(catalogItem?.bookType || catalogItem?.category || catalogItem?.part || "");
 
   if (workbook === "ABC der Tiere 1") {
+    if (/Arbeitsheft/i.test(bookType)) {
+      return { src: "./materials/cover-abc-der-tiere-1-arbeitsheft.png", alt: "ABC der Tiere 1 – Arbeitsheft Druckschrift" };
+    }
     const isPartB = /Teil\s*B/i.test(part);
     return { src: isPartB ? "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-b.png" : "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png", alt: bookType ? `ABC der Tiere 1 – ${bookType}` : "ABC der Tiere 1" };
   }
