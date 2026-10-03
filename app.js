@@ -694,7 +694,12 @@ async function startQrFlow(qrToken) {
   render();
 }
 
-function openLogin() {
+async function openLogin() {
+  // Falls dieses iPad gerade in einem Kinderzugang steckt, zuerst den
+  // zuvor gesicherten Lehrkraft-Zustand wiederherstellen.
+  if (typeof window.lkRestoreTeacherSession === "function") {
+    try { await window.lkRestoreTeacherSession(); } catch {}
+  }
   loginError = "";
   screen = "login";
   render();
@@ -711,7 +716,7 @@ function goHome() {
   render();
 }
 
-function childLogout() {
+async function childLogout() {
   stopQrScanner();
   if (typeof resetNomenRuntime === "function") resetNomenRuntime();
   childDraft = {};
@@ -719,17 +724,30 @@ function childLogout() {
   childMessage = "";
   qrErrorMessage = "";
 
-  // Auf gemeinsam genutzten Kinder-iPads darf der zuletzt geladene Tierzugang
-  // nach einem bewussten Abmelden nicht sofort automatisch wieder geöffnet werden.
-  try { sessionStorage.setItem("lkChildLoggedOut", "1"); } catch {}
+  // Der Kinderstand wird zuerst lokal zwischengespeichert und – wenn möglich –
+  // noch einmal synchronisiert. Anschließend wird auf gemeinsam genutzten iPads
+  // der vollständige Lehrkraft-Zustand wiederhergestellt.
+  let teacherRestored = false;
+  if (typeof window.lkEndChildSession === "function") {
+    try { teacherRestored = await window.lkEndChildSession(); } catch {}
+  }
 
-  // QR-Zugang aus Query/Hash entfernen, ohne den lokal gespeicherten Sync-Stand
-  // des Geräts zu löschen. So kann das nächste Kind direkt neu scannen.
+  // Ohne Lehrkraft-Zustand bleibt das Gerät ein Kindergerät, öffnet aber nicht
+  // automatisch wieder das zuletzt verwendete Tier. So kann sofort ein anderes
+  // Kind seinen QR-Code scannen.
+  try {
+    if (teacherRestored) sessionStorage.removeItem("lkChildLoggedOut");
+    else sessionStorage.setItem("lkChildLoggedOut", "1");
+  } catch {}
+
+  // QR-Zugang vollständig aus Adresse und Hash entfernen.
   try {
     const url = new URL(location.href);
     url.searchParams.delete("k");
-    const hash = url.hash && !url.hash.startsWith("#k=") ? url.hash : "";
-    history.replaceState(null, "", `${url.pathname}${url.search}${hash}` || "/");
+    const hashParams = new URLSearchParams((url.hash || "").replace(/^#/, ""));
+    hashParams.delete("k");
+    const nextHash = hashParams.toString();
+    history.replaceState(null, "", `${url.pathname}${url.search}${nextHash ? `#${nextHash}` : ""}` || "/");
   } catch {}
 
   screen = "start";

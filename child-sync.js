@@ -19,6 +19,8 @@
   const LK_CHILD_BOOTSTRAP_INTERVAL_MS = 60_000;
   const LK_CHILD_PUSH_DELAY_MS = 900;
   const LK_TEACHER_PUBLISH_DELAY_MS = 1_800;
+  const LK_TEACHER_HOST_STATE_KEY = "lkTeacherHostStateV1";
+  const LK_CHILD_STATE_CACHE_PREFIX = "lkChildStateCacheV1:";
 
   const runtime = {
     applyingRemote: false,
@@ -72,6 +74,64 @@
 
   function clearChildLoggedOut() {
     try { sessionStorage.removeItem("lkChildLoggedOut"); } catch {}
+  }
+
+  function isFullTeacherInstallation(candidate = state) {
+    return !!(candidate?.setupComplete
+      && candidate?.pinHash
+      && !String(candidate.pinHash).startsWith("child-device-")
+      && Array.isArray(candidate.classes)
+      && candidate.classes.length);
+  }
+
+  function preserveTeacherHostState(candidate = state) {
+    if (!isFullTeacherInstallation(candidate)) return false;
+    try {
+      localStorage.setItem(LK_TEACHER_HOST_STATE_KEY, JSON.stringify(candidate));
+      return true;
+    } catch (error) {
+      console.warn("Lehrkraft-Zustand konnte nicht für den Kinderwechsel gesichert werden.", error);
+      return false;
+    }
+  }
+
+  function readTeacherHostState() {
+    try {
+      const raw = localStorage.getItem(LK_TEACHER_HOST_STATE_KEY);
+      if (!raw) return null;
+      const parsed = normalizeState(JSON.parse(raw));
+      return isFullTeacherInstallation(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function childCacheKey(qrToken) {
+    return `${LK_CHILD_STATE_CACHE_PREFIX}${String(qrToken || "").trim()}`;
+  }
+
+  function cacheChildState(candidate = state) {
+    const marker = currentChildMarker(candidate);
+    if (!marker?.qrToken) return false;
+    try {
+      localStorage.setItem(childCacheKey(marker.qrToken), JSON.stringify(candidate));
+      return true;
+    } catch (error) {
+      console.warn("Kinderstand konnte nicht zwischengespeichert werden.", error);
+      return false;
+    }
+  }
+
+  function readCachedChildState(qrToken) {
+    try {
+      const raw = localStorage.getItem(childCacheKey(qrToken));
+      if (!raw) return null;
+      const parsed = normalizeState(JSON.parse(raw));
+      const marker = currentChildMarker(parsed);
+      return marker?.qrToken === qrToken ? parsed : null;
+    } catch {
+      return null;
+    }
   }
 
   function currentChildMarker(candidate = state) {
@@ -631,7 +691,9 @@
   }
 
   function mergeBootstrapIntoChildState(snapshot, qrToken) {
-    const previous = isChildDevice() && currentChildMarker()?.qrToken === qrToken ? state : emptyState();
+    const previous = isChildDevice() && currentChildMarker()?.qrToken === qrToken
+      ? state
+      : (readCachedChildState(qrToken) || emptyState());
     const animal = snapshot.animal;
     const classItem = snapshot.classItem;
     const classId = classItem.id;
@@ -733,10 +795,15 @@
     try {
       if (openChild) showChildBootstrapStatus("Deine Lernreise", "Dein Tier-Zugang wird geladen …");
       const snapshot = await fetchChildBootstrap(qrToken);
+      // Auf gemeinsam genutzten iPads bleibt der vollständige Lehrkraft-Zustand
+      // separat erhalten. Ein QR-Login darf ihn niemals überschreiben.
+      preserveTeacherHostState(state);
+      if (isChildDevice()) cacheChildState(state);
       const next = mergeBootstrapIntoChildState(snapshot, qrToken);
       runtime.applyingRemote = true;
       try {
         state = await storage.save(next);
+        cacheChildState(state);
       } finally {
         runtime.applyingRemote = false;
       }
@@ -766,6 +833,35 @@
     screen = "childSubject";
     render();
     return true;
+  }
+
+  async function restoreTeacherHostState() {
+    const hostState = readTeacherHostState();
+    if (!hostState) return false;
+    runtime.applyingRemote = true;
+    try {
+      state = await storage.save(hostState);
+    } finally {
+      runtime.applyingRemote = false;
+    }
+    clearChildLoggedOut();
+    return true;
+  }
+
+  async function endChildSession() {
+    if (isChildDevice()) {
+      cacheChildState(state);
+      if (navigator.onLine) {
+        try {
+          await Promise.race([
+            pushChildStateNow(),
+            new Promise((resolve) => setTimeout(() => resolve(false), 2500))
+          ]);
+        } catch {}
+      }
+      cacheChildState(state);
+    }
+    return await restoreTeacherHostState();
   }
 
   function scheduleChildBootstrapRefresh() {
@@ -870,6 +966,7 @@
     await basePersist(nextState);
     if (runtime.applyingRemote) return;
     if (isChildDevice()) {
+      cacheChildState(state);
       scheduleChildPush();
     } else if (teacherClassSyncReady()) {
       scheduleTeacherPublish();
@@ -1013,6 +1110,8 @@
     };
   }
 
+  window.lkEndChildSession = endChildSession;
+  window.lkRestoreTeacherSession = restoreTeacherHostState;
   window.publishAllChildBootstraps = publishAllChildBootstraps;
   window.pullTeacherChildStates = pullTeacherChildStates;
   window.pullTeacherChildStatesWithFeedback = pullTeacherChildStatesWithFeedback;
