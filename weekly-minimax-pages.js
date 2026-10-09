@@ -19,12 +19,61 @@
     return [...values].sort((a, b) => String(a).localeCompare(String(b), "de", { numeric: true }));
   }
 
+  function mmText(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return "";
+  }
+
+  function mmCompareText(a, b) {
+    return mmText(a).localeCompare(mmText(b), "de", { numeric: true });
+  }
+
+  function mmSafeCatalogRows(rows) {
+    const seen = new Set();
+    return (Array.isArray(rows) ? rows : [])
+      .filter((item) => item && typeof item === "object")
+      .map((item) => ({
+        ...item,
+        id: mmText(item.id),
+        classId: mmText(item.classId),
+        subject: mmText(item.subject || item.fach || "Deutsch") || "Deutsch",
+        schoolYear: mmText(item.schoolYear || item.schuljahr || item.gradeLevel),
+        workbook: mmText(item.workbook || item.lehrwerk || item.material),
+        part: mmText(item.part || item.teil),
+        area: mmText(item.area || item.bereich),
+        category: mmText(item.category || item.kategorie || item.typ),
+        title: mmText(item.title || item.thema || item.inhalt),
+        page: Number(item.page || item.startPage || item.seite || 0) || 0,
+        startPage: Number(item.startPage || item.page || item.seite || 0) || 0,
+        pageEnd: Number(item.pageEnd || item.endPage || item.seiteBis || 0) || "",
+        endPage: Number(item.endPage || item.pageEnd || item.startPage || item.page || 0) || 0
+      }))
+      // Ein leerer Heftname ist im Picker nicht sinnvoll und war in älteren/
+      // importierten Datensätzen eine mögliche Ursache für Laufzeitfehler.
+      .filter((item) => item.workbook)
+      .filter((item) => {
+        const key = [
+          item.id || item.catalogKey || "", item.subject, item.schoolYear, item.workbook,
+          item.part, item.area, item.startPage, item.endPage, item.title
+        ].join("|");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
   function mmStart(item) {
-    return Number(item?.startPage || item?.page || 0) || 0;
+    const value = Number(item?.startPage || item?.page || 0) || 0;
+    return value > 0 && value < 1000 ? value : 0;
   }
 
   function mmEnd(item) {
-    return Number(item?.endPage || item?.pageEnd || item?.startPage || item?.page || 0) || mmStart(item);
+    const start = mmStart(item);
+    const value = Number(item?.endPage || item?.pageEnd || item?.startPage || item?.page || 0) || start;
+    if (!start) return 0;
+    return value >= start && value < 1000 ? value : start;
   }
 
   function mmRangeStart(pageOrItem) {
@@ -124,7 +173,13 @@
     // Lesezeit und Lernwörter sind Wochenplan-Bereiche, aber keine eigenen
     // Fächer im Arbeitsmaterial-Katalog. Beide verwenden den Deutsch-Katalog.
     const catalogSubject = subject === "Mathe" ? "Mathe" : "Deutsch";
-    const all = workbookCatalogForActiveClass()
+    let sourceRows = [];
+    try {
+      sourceRows = workbookCatalogForActiveClass();
+    } catch (error) {
+      console.warn("Arbeitsheft-Katalog konnte nicht gelesen werden.", error);
+    }
+    const all = mmSafeCatalogRows(sourceRows)
       .filter((item) => item.active !== false && item.subject === catalogSubject);
 
     if (supportOnly) {
@@ -300,7 +355,7 @@
     const pickerSchoolYear = String(weeklyPickRequest.filters?.schoolYear || activeClassSchoolYear(state.activeClassId) || "2");
     const items = mmCatalog(weeklyPickRequest.subject, false, pickerSchoolYear)
       .sort((a, b) =>
-        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        mmCompareText(a.workbook, b.workbook)
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
         || mmStart(a) - mmStart(b)
       );
@@ -325,7 +380,7 @@
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
     const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
-        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        mmCompareText(a.workbook, b.workbook)
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
         || mmStart(a) - mmStart(b)
       );
@@ -455,6 +510,7 @@
 
   renderWeeklyCatalogPicker = function renderWeeklyCatalogPickerMiniMaxPages() {
     if (!weeklyPickRequest) return "";
+    try {
 
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
     const activeYear = String(activeClassSchoolYear(state.activeClassId) || "2");
@@ -463,7 +519,7 @@
       : (["1", "2"].includes(activeYear) ? activeYear : "2");
     const catalog = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
-        a.workbook.localeCompare(b.workbook, "de", { numeric: true })
+        mmCompareText(a.workbook, b.workbook)
         || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
         || mmStart(a) - mmStart(b)
       );
@@ -685,6 +741,19 @@
         </section>
       </div>
     `;
+    } catch (error) {
+      console.error("Arbeitsheft-Auswahl konnte nicht geöffnet werden.", error);
+      const subject = escapeHtml(weeklyPickRequest?.subject || "Arbeitsheft");
+      return `
+        <div class="training-modal-overlay lk-weekly-picker-overlay" role="dialog" aria-modal="true">
+          <section class="training-modal-card lk-weekly-picker-card">
+            <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyCatalogPicker()">×</button>
+            <h2>${subject} – Auswahl</h2>
+            <div class="empty">Die Heftauswahl enthält einen fehlerhaften oder älteren Katalogeintrag. Die App bleibt geöffnet. Bitte schließe dieses Fenster und öffne die Heftauswahl erneut.</div>
+          </section>
+        </div>
+      `;
+    }
   };
 
   const usedStyle = document.createElement("style");
