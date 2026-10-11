@@ -112,7 +112,6 @@ Der Lernstand-Kompass umfasst unter anderem:
 - Wochenpläne mit Lehrwerks- und Seitenzuordnung
 - individuellen Arbeitsstand je Kind
 - Lernstandsübersichten
-- Trainingszeit und Entdeckeraufgaben
 - Lernzielkontrollen
 - Lernspiele
 - QR-Zugang über Tier-Pseudonyme

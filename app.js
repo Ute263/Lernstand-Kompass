@@ -21,6 +21,7 @@ let currentPrintType = "";
 let printReturnTab = "printPdf";
 let assessmentEditorId = "";
 let assessmentFormOpen = false;
+let assessmentSubjectFilter = "";
 let pendingBackup = null;
 let lastMergeReport = null;
 let factoryResetMessage = "";
@@ -68,11 +69,6 @@ const TEACHER_GROUPS = [
       ["help", "Hilfe/Kontrolle"],
       ["history", "Verlauf"]
     ]
-  },
-  {
-    id: "trainingGroup",
-    label: "Trainingszeit",
-    sections: [["training", "Trainingszeit"]]
   },
   {
     id: "learningGamesGroup",
@@ -650,9 +646,9 @@ function renderStart() {
           <div class="modern-start-main-copy">
             <span class="modern-start-eyebrow">Für Kinder</span>
             <h2>${CHILD_AREA_NAME}</h2>
-            <p>Wochenplan ansehen, Aufgaben bearbeiten und Trainingszeit nutzen.</p>
+            <p>Wochenplan ansehen und Aufgaben bearbeiten.</p>
             <div class="modern-start-feature-row" aria-hidden="true">
-              <span>📘 Wochenplan</span><span>⭐ Trainingszeit</span><span>🎮 Lernspiele</span>
+              <span>📘 Wochenplan</span><span>🎮 Lernspiele</span>
             </div>
           </div>
           <button class="modern-start-primary" type="button" onclick="startChildFlow()">Los geht's <span>→</span></button>
@@ -876,9 +872,6 @@ function renderSubjectSelection() {
   }
   if (settings.showSelfReports && settings.allowSelfReports) {
     addCard("selfreport-subject-button", "✅", "Das habe ich geschafft", "Sag deiner Lehrkraft, was du bearbeitet hast.", "openChildSelfReport()")
-  }
-  if (settings.showTraining) {
-    addCard("training-subject-button", "⭐", "Trainingszeit", "Übe wichtige Aufgaben aus der Schule oder von zu Hause.", "openTrainingStart()")
   }
   if (settings.showLearningGames) {
     addCard("learning-games-subject-button", "🎮", "Lernspiele", "Spiele und übe dabei ganz nebenbei.", "setChildScreen('childLearningGames')")
@@ -1720,7 +1713,7 @@ function renderLogin() {
         <div class="teacher-login-copy">
           <span class="teacher-login-kicker">Für Lehrkräfte</span>
           <h2>Dein Überblick über die Lernwoche</h2>
-          <p>Wochenpläne · Lernstände · Trainingszeit</p>
+          <p>Wochenpläne · Lernstände · Lernspiele</p>
         </div>
         <div class="teacher-login-pin-wrap">
           <span class="teacher-login-lock" aria-hidden="true">🔒</span>
@@ -2152,13 +2145,14 @@ function setTeacherTab(tab) {
 function renderTeacherTab() {
   const group = teacherGroupForTab(teacherTab);
   const activeSection = group.sections.some(([id]) => id === teacherTab) ? teacherTab : group.sections[0][0];
+  const visibleSections = group.sections.filter(([, label]) => !String(label || "").startsWith("__"));
   if (group.id === "teacherHomeGroup") return renderTeacherHome();
-  if (group.sections.length === 1) return renderTeacherSection(activeSection);
+  if (visibleSections.length === 1) return renderTeacherSection(activeSection);
   return `
     <section class="panel teacher-group-panel">
       <h2>${escapeHtml(group.label)}</h2>
       <div class="section-tabs">
-        ${group.sections.map(([id, label]) => `
+        ${visibleSections.map(([id, label]) => `
           <button class="small-button ${activeSection === id ? "active" : ""}" type="button" onclick="setTeacherTab('${id}')">${escapeHtml(label)}</button>
         `).join("")}
       </div>
@@ -2210,7 +2204,6 @@ function renderTeacherHome() {
     { title: "Startseite", text: "Alle Bereiche im Überblick", icon: "🏠", action: "setTeacherGroup('teacherHomeGroup')" },
     { title: "Wochenplan", text: currentPlans ? `${currentPlans} aktueller Plan · ${openWeeklyStatuses} offene Markierungen` : "Klassenplan und individuelle Pläne erstellen", icon: "🗓️", action: "setTeacherGroup('weeklyPlansGroup')" },
     { title: "Lernübersicht", text: pendingReports ? `${pendingReports} Kindmeldungen warten` : "Fortschritt, Lernstände und Bearbeitungen ansehen", icon: "📈", action: "setTeacherGroup('learning')" },
-    { title: "Trainingszeit", text: "Schultraining und Entdeckeraufgaben im Blick", icon: "⭐", action: "setTeacherGroup('trainingGroup')" },
     { title: "Lernspiele", text: "Nomen-Probe üben, testen und Ergebnisse auswerten", icon: "🎮", action: "setTeacherGroup('learningGamesGroup')" },
     { title: "Lernzielkontrolle", text: "Tests anlegen und Ergebnisse erfassen", icon: "✅", action: "setTeacherGroup('assessmentGroup')" },
     { title: "Klassenverwaltung", text: `${activeAnimals} aktive Tiere · Gruppen, Namen und QR-Zugänge`, icon: "🐾", action: "setTeacherGroup('children')" },
@@ -2599,10 +2592,6 @@ function renderChildViewSettingsPanel() {
           Kinder dürfen selbst Seiten melden
         </label>
         <label class="check-row">
-          <input type="checkbox" id="childSettingShowTraining" ${settings.showTraining ? "checked" : ""}>
-          Trainingszeit anzeigen
-        </label>
-        <label class="check-row">
           <input type="checkbox" id="childSettingShowLearningGames" ${settings.showLearningGames ? "checked" : ""}>
           Lernspiele anzeigen
         </label>
@@ -2909,7 +2898,7 @@ function renderAnimalWeeklyProgressEditor(classId, animal) {
   return `
     <section class="panel">
       <h2>Wochenplan abhaken</h2>
-      <p class="message">Hier wird der Arbeitsheft-Wochenplan für ${teacherAnimalLabel(animal)} erfasst. Trainingszeit-Aufgaben erscheinen hier bewusst nicht.</p>
+      <p class="message">Hier wird der Arbeitsheft-Wochenplan für ${teacherAnimalLabel(animal)} erfasst.</p>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Tag</th><th>Fach</th><th>Aufgabe</th><th>Status</th><th>Aktion</th></tr></thead>
@@ -3855,12 +3844,16 @@ function renderProgressTable(rows) {
   `;
 }
 
-function renderAssessments() {
-  const items = assessmentsForActiveClass().sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")));
+function renderAssessments(subjectFilter = assessmentSubjectFilter) {
+  const normalizedSubject = String(subjectFilter || "").trim();
+  const items = assessmentsForActiveClass()
+    .filter((item) => !normalizedSubject || String(item.fach || "") === normalizedSubject)
+    .sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")));
   const selected = items.find((item) => item.id === assessmentEditorId) || null;
+  const subjectHeading = normalizedSubject ? ` · ${escapeHtml(normalizedSubject)}` : "";
   return `
     <section class="panel">
-      <h2>Tests & Lernzielkontrollen</h2>
+      <h2>Lernzielkontrollen${subjectHeading}</h2>
       <p class="message">Die Ergebnisse werden in der Kinderansicht nur den Tier-Pseudonymen zugeordnet. Optional hinterlegte Vornamen erscheinen ausschließlich im geschützten Lehrkraftbereich.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="openAssessmentForm()">Neue Lernzielkontrolle anlegen</button>
@@ -5768,7 +5761,7 @@ function renderAssessmentForm() {
           <input class="text-input" id="newAssessmentTitle" placeholder="Lernzielkontrolle Plus und Minus bis 20" autocomplete="off">
         </label>
         <label class="field">Fach
-          <select class="select-input" id="newAssessmentSubject">${ASSESSMENT_SUBJECTS.map((subject) => `<option>${escapeHtml(subject)}</option>`).join("")}</select>
+          <select class="select-input" id="newAssessmentSubject">${ASSESSMENT_SUBJECTS.map((subject) => `<option ${String(assessmentSubjectFilter || "") === subject ? "selected" : ""}>${escapeHtml(subject)}</option>`).join("")}</select>
         </label>
         <label class="field">Bereich
           <input class="text-input" id="newAssessmentArea" placeholder="Zahlenraum bis 20" autocomplete="off">
@@ -7460,7 +7453,6 @@ function renderPrintPdf() {
         <button class="primary" type="button" onclick="renderPrintView('week')">Wochenübersicht drucken</button>
         <button class="secondary" type="button" onclick="renderPrintView('helpControl')">Hilfe & Kontrolle drucken</button>
         <button class="secondary" type="button" onclick="renderPrintView('progress')">Fortschritt drucken</button>
-        <button class="secondary" type="button" onclick="renderPrintView('training')">Trainingszeit drucken</button>
         <button class="primary" type="button" onclick="renderPrintView('report')">Gesamtbericht drucken</button>
       </div>
       <p class="message">Die Druckansicht liest nur die lokal gespeicherten Daten und verändert keine Lernstände.</p>
@@ -9933,6 +9925,8 @@ function workbookCoverForCatalogItem(catalogItem) {
   }
   if (workbook === "MiniMax 1") return { src: "./materials/cover-minimax-1-neu.png", alt: "MiniMax 1" };
   if (workbook === "MiniMax 2" || workbook === "MiniMax") return { src: "./materials/cover-minimax-2-neu.png", alt: "MiniMax 2" };
+  if (workbook === "MiniMax 2 – Größen und Sachrechnen" || workbook === "MiniMax 2 - Größen und Sachrechnen") return { src: "./materials/cover-minimax-2-groessen-sachrechnen.png", alt: "MiniMax 2 – Größen und Sachrechnen" };
+  if (workbook === "MiniMax 2 – Geometrie" || workbook === "MiniMax 2 - Geometrie") return { src: "./materials/cover-minimax-2-geometrie.png", alt: "MiniMax 2 – Geometrie" };
   if (workbook === "Rico Schnabel 2 – Rechtschreiben" || workbook === "Rico Schnabel 2 - Rechtschreiben") return { src: "./materials/cover-rico-schnabel-2.png", alt: "Rico Schnabel 2 – Rechtschreiben" };
 
   if (workbook === "Flex und Flora A") {
@@ -10121,6 +10115,7 @@ function childViewSettings() {
   return {
     ...DEFAULT_CHILD_VIEW_SETTINGS,
     ...(state.childViewSettings || {}),
+    showTraining: false,
     allowedSelfReportMaterials: {
       ...DEFAULT_CHILD_VIEW_SETTINGS.allowedSelfReportMaterials,
       ...((state.childViewSettings || {}).allowedSelfReportMaterials || {})
@@ -10422,7 +10417,7 @@ async function saveChildViewSettings(event) {
     abcVisibility: document.querySelector("#childSettingAbcVisibility")?.value || "assigned",
     minimaxVisibility: document.querySelector("#childSettingMinimaxVisibility")?.value || "assigned",
     showSelfReports: document.querySelector("#childSettingShowReports")?.checked === true,
-    showTraining: document.querySelector("#childSettingShowTraining")?.checked === true,
+    showTraining: false,
     showLearningGames: document.querySelector("#childSettingShowLearningGames")?.checked === true,
     allowSelfReports: document.querySelector("#childSettingAllowReports")?.checked === true,
     allowedSelfReportMaterials: {

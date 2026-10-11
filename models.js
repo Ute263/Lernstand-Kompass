@@ -597,6 +597,24 @@ const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
     ["Sachrechnen", "", "60-61", "", "", ""],
     ["Division mit Rest", "", "62-63", "", "", "16"]
   ]),
+  ...miniMax2SupplementCatalog("MiniMax 2 – Größen und Sachrechnen", [
+    ["Wiederholung", "", "2-5", "", "", ""],
+    ["Längen", "Meter; Zentimeter; Rechnen mit Längen", "6-11", "12", "13", "17"],
+    ["Geld", "Gemischte Geldbeträge", "14-17", "18", "19", "18"],
+    ["Sachaufgaben lösen", "", "20-24", "", "25", "19"],
+    ["Zeit", "Zeitspannen", "26-31", "32", "33", "20"],
+    ["Jahr", "", "34-35", "", "", ""],
+    ["Kombinatorik", "", "36-37", "", "", ""],
+    ["Wahrscheinlichkeit", "", "38-39", "", "", ""]
+  ]),
+  ...miniMax2SupplementCatalog("MiniMax 2 – Geometrie", [
+    ["Wiederholung", "", "2-5", "", "", ""],
+    ["Körper", "Würfelgebäude; Ansichten", "6-11", "12", "13", "21"],
+    ["Flächen", "", "14-15", "16", "", "22"],
+    ["Figuren und Muster", "Geobrett", "17-23", "24", "25", "23"],
+    ["Spiegeln", "", "26-27", "28", "29", "24"],
+    ["Wege", "", "30-31", "", "", ""]
+  ]),
   ...miniMax3Catalog("Teil 1", [
     ["Wiederholung", "Addition und Subtraktion; Multiplikation und Division", "2-9"],
     ["Zahlen bis 1 000", "Geheimschrift; Hundertertafeln; Zerlegen", "10-17"],
@@ -717,6 +735,16 @@ function miniMaxCatalog(part, rows) {
       const visibleRanges = [basis, training, extra].filter(Boolean);
       const pageSpec = mergePageSpecs(visibleRanges);
       return pageSpec ? catalogItem("Mathe", "MiniMax 2", part, theme, "Thema", pageSpec, theme, subtheme ? `Unterthemen: ${subtheme}` : "", test ? `Test ${test}` : "") : null;
+    })
+    .filter(Boolean);
+}
+
+function miniMax2SupplementCatalog(workbook, rows) {
+  return rows
+    .map(([theme, subtheme, basis, training, extra, test]) => {
+      const visibleRanges = [basis, training, extra].filter(Boolean);
+      const pageSpec = mergePageSpecs(visibleRanges);
+      return pageSpec ? catalogItem("Mathe", workbook, "Heft mit Medien", theme, "Thema", pageSpec, theme, subtheme ? `Unterthemen: ${subtheme}` : "", test ? `Teste dich ${test}` : "") : null;
     })
     .filter(Boolean);
 }
@@ -920,7 +948,7 @@ const DEFAULT_CHILD_VIEW_SETTINGS = {
   abcVisibility: "assigned",
   minimaxVisibility: "assigned",
   showSelfReports: false,
-  showTraining: true,
+  showTraining: false,
   showLearningGames: true,
   allowSelfReports: false,
   allowedSelfReportMaterials: {
@@ -1117,6 +1145,8 @@ function emptyState() {
     weeklyPlans: [],
     weeklyPlanStatuses: [],
     learningGameSessions: [],
+    minimaxTestPoints: {},
+    minimaxTestScoring: {},
     microsoftSync: { clientId: "", authority: "consumers", redirectUri: "", autoBackup: false, connectedAccount: "", connectedName: "", lastSyncAt: "", lastSyncStatus: "" },
     classSync: { enabled: false, endpoint: "", syncCode: "", lastPushAt: "", lastPullAt: "", lastError: "" },
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
@@ -1232,6 +1262,8 @@ function createInitialState({ pinHash, recoveryKeyHash, className, description }
     weeklyPlans: [],
     weeklyPlanStatuses: [],
     learningGameSessions: [],
+    minimaxTestPoints: {},
+    minimaxTestScoring: {},
     microsoftSync: { clientId: "", authority: "consumers", redirectUri: "", autoBackup: false, connectedAccount: "", connectedName: "", lastSyncAt: "", lastSyncStatus: "" },
     classSync: { enabled: false, endpoint: "", syncCode: "", lastPushAt: "", lastPullAt: "", lastError: "" },
     progressSettings: { ...DEFAULT_PROGRESS_SETTINGS },
@@ -1282,6 +1314,8 @@ function normalizeState(candidate) {
     weeklyPlans: Array.isArray(candidate.weeklyPlans) ? candidate.weeklyPlans : [],
     weeklyPlanStatuses: Array.isArray(candidate.weeklyPlanStatuses) ? candidate.weeklyPlanStatuses : [],
     learningGameSessions: Array.isArray(candidate.learningGameSessions) ? candidate.learningGameSessions : [],
+    minimaxTestPoints: candidate.minimaxTestPoints && typeof candidate.minimaxTestPoints === "object" ? candidate.minimaxTestPoints : {},
+    minimaxTestScoring: candidate.minimaxTestScoring && typeof candidate.minimaxTestScoring === "object" ? candidate.minimaxTestScoring : {},
     microsoftSync: {
       clientId: candidate.microsoftSync?.clientId || "",
       authority: candidate.microsoftSync?.authority || "consumers",
@@ -1500,7 +1534,7 @@ function normalizeChildViewSettings(settings) {
       ? source.minimaxVisibility
       : legacyWorkbookVisibility,
     showSelfReports: source.showSelfReports === true || source.allowSelfReports === true,
-    showTraining: source.showTraining !== false,
+    showTraining: false,
     allowedSelfReportMaterials: {
       ...DEFAULT_CHILD_VIEW_SETTINGS.allowedSelfReportMaterials,
       ...(source.allowedSelfReportMaterials && typeof source.allowedSelfReportMaterials === "object" ? source.allowedSelfReportMaterials : {})

@@ -1,7 +1,7 @@
 {
   "name": "Lernstand-Kompass",
   "short_name": "Lernstand",
-  "description": "Arbeitshefte, Trainingszeit und Lernzielkontrollen lokal im Blick.",
+  "description": "Arbeitshefte, Lernstände und Lernzielkontrollen lokal im Blick.",
   "lang": "de",
   "display": "standalone",
   "id": ".",

@@ -16,7 +16,6 @@
     teacherHomeGroup: "Start",
     weeklyPlansGroup: "Wochenplan",
     learning: "Lernübersicht",
-    trainingGroup: "Trainingszeit",
     learningGamesGroup: "Lernspiele",
     assessmentGroup: "Lernzielkontrolle",
     children: "Klasse",
