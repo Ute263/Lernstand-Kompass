@@ -74,9 +74,11 @@
     return {child,week,mm,lzk,abc,latestMm:mm.length?mm[mm.length-1]:null,latestLzk:lzk[0]||null};
   }
 
-  function childSelector(children){
-    return `<div class="lk-dev-child-picker" role="list" aria-label="Kind auswählen">${children.map(k=>`
-      <button type="button" role="listitem" class="lk-dev-child-chip ${k.id===selectedChildId?'is-selected':''}" data-child-id="${attr(k.id)}" aria-pressed="${k.id===selectedChildId?'true':'false'}">${esc(childName(k))}</button>`).join('')}</div>`;
+  function childrenOverview(children){
+    return `<section class="panel lk-dev-children-overview">
+      <div class="lk-dev-children-overview-head"><h3>Kinder</h3><span>${children.length} Kinder</span></div>
+      <div class="lk-dev-children-grid">${children.map(k=>`<button type="button" class="lk-dev-child-overview-btn ${k.id===selectedChildId?'is-selected':''}" data-child-id="${attr(k.id)}">${esc(childName(k))}</button>`).join('')}</div>
+    </section>`;
   }
 
   function renderDevelopment(){
@@ -85,28 +87,46 @@
     if(!children.some(k=>k.id===selectedChildId)) selectedChildId=children[0].id;
     const {child,week,mm,lzk,abc,latestMm,latestLzk}=childData(selectedChildId);
 
-    const weekBody = week.empty ? `<p class="lk-dev-empty">Kein Wochenplan vorhanden.</p>` : `
-      <div class="lk-dev-metrics">${metric('bearbeitet',`${week.c.fertig}/${week.total}`)}${metric('teilweise',week.c.teilweise)}${metric('offen',week.c.offen)}${metric('Stand',`${week.pct} %`)}</div>
-      <div class="lk-dev-row"><b>${esc(week.plan.title||'Aktueller Wochenplan')}</b><span>${esc(week.plan.validFrom||'')} ${week.plan.validTo?`– ${esc(week.plan.validTo)}`:''}</span></div>`;
-
+    const weekLine = week.empty ? `<span class="lk-dev-status-muted">Kein Wochenplan</span>` : `<strong>${week.pct} %</strong><span>${week.c.fertig}/${week.total} fertig · ${week.c.teilweise} teilweise · ${week.c.offen} offen</span>`;
     const germanLzk=lzk.filter(x=>String(x.assessment.fach||'').toLowerCase().startsWith('deutsch')).slice(0,4);
-    const deBody = `<div class="lk-dev-split"><div><h4>ABC der Tiere</h4>${abc.length?abc.map(e=>`<div class="lk-dev-row"><span>${esc(e.displayTitle||e.topicTitle||e.zusatzText||e.workbookArea||'Lernstand')}</span><b>${esc(e.workStatus||e.status||'erfasst')}</b></div>`).join(''):`<p class="lk-dev-empty">Noch kein Lernstand erfasst.</p>`}</div><div><h4>Lernzielkontrollen</h4>${germanLzk.map(x=>`<div class="lk-dev-row"><span>${esc(x.assessment.titel||'LZK')}</span><b>${esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(x.assessment,x.result):'erfasst')}</b></div>`).join('')||`<p class="lk-dev-empty">Noch keine Deutsch-LZK.</p>`}</div></div>`;
-
     const mathLzk=lzk.filter(x=>/mathe/i.test(String(x.assessment.fach||''))).slice(0,4);
-    const maBody = `<div class="lk-dev-split"><div><h4>MiniMax · Teste dich</h4>${mm.slice(-4).reverse().map(t=>`<div class="lk-dev-row"><span>Teste dich ${t.id} · ${esc(t.title)}</span><b>${t.filled} Aufgaben erfasst</b></div>`).join('')||`<p class="lk-dev-empty">Noch keine Teste-dich-Punkte.</p>`}</div><div><h4>Lernzielkontrollen</h4>${mathLzk.map(x=>`<div class="lk-dev-row"><span>${esc(x.assessment.titel||'LZK')}</span><b>${esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(x.assessment,x.result):'erfasst')}</b></div>`).join('')||`<p class="lk-dev-empty">Noch keine Mathe-LZK.</p>`}</div></div>`;
 
-    return `<div class="lk-dev">
-      <section class="panel lk-dev-top">
-        <div><h2>Lernentwicklung · ${esc(childName(child))}</h2><p>Wochenplan, Lernstände und Leistungsnachweise auf einen Blick.</p></div>
-        <div class="lk-dev-print-actions"><button class="secondary compact" type="button" id="lkDevPrintOne">Dieses Kind drucken</button><button class="primary compact" type="button" id="lkDevPrintAll">Alle Kinder drucken</button></div>
+    const abcRows=abc.length?abc.slice(0,5).map(e=>`<div class="lk-dev-line"><span>${esc(e.displayTitle||e.topicTitle||e.zusatzText||e.workbookArea||'Lernstand')}</span><b>${esc(e.workStatus||e.status||'erfasst')}</b></div>`).join(''):`<div class="lk-dev-emptyline">Noch kein Lernstand erfasst.</div>`;
+    const deLzkRows=germanLzk.length?germanLzk.map(x=>`<div class="lk-dev-line"><span>${esc(x.assessment.titel||'LZK')}</span><b>${esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(x.assessment,x.result):'erfasst')}</b></div>`).join(''):`<div class="lk-dev-emptyline">Noch keine Deutsch-LZK.</div>`;
+    const mmRows=mm.length?mm.slice(-5).reverse().map(t=>`<div class="lk-dev-line"><span>Teste dich ${t.id} · ${esc(t.title)}</span><b>${t.filled} erfasst</b></div>`).join(''):`<div class="lk-dev-emptyline">Noch keine Teste-dich-Punkte.</div>`;
+    const maLzkRows=mathLzk.length?mathLzk.map(x=>`<div class="lk-dev-line"><span>${esc(x.assessment.titel||'LZK')}</span><b>${esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(x.assessment,x.result):'erfasst')}</b></div>`).join(''):`<div class="lk-dev-emptyline">Noch keine Mathe-LZK.</div>`;
+
+    return `<div class="lk-dev lk-dev-compact">
+      <section class="panel lk-dev-header">
+        <div><h2>Lernentwicklung · ${esc(childName(child))}</h2><p>${esc(className())}</p></div>
+        <div class="lk-dev-print-actions"><button class="secondary compact" type="button" id="lkDevPrintOne">Drucken</button><button class="secondary compact" type="button" id="lkDevPrintAll">Alle drucken</button></div>
       </section>
-      <section class="panel lk-dev-picker-panel"><div class="lk-dev-picker-title">Kind auswählen</div>${childSelector(children)}</section>
-      <section class="lk-dev-overview">${metric('Wochenplan',week.empty?'–':`${week.pct} %`,'aktueller Stand')}${metric('Teste dich',latestMm?`Nr. ${latestMm.id}`:'–',latestMm?latestMm.title:'noch kein Ergebnis')}${metric('LZK',latestLzk?esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(latestLzk.assessment,latestLzk.result):'erfasst'):'–',latestLzk?.assessment?.titel||'noch keine')}${metric('ABC-Lernstände',abc.length||0,'zuletzt erfasst')}</section>
-      <div class="lk-dev-grid">
-        ${card('Wochenplan','✓',weekBody,`<button class="secondary compact" type="button" onclick="setTeacherTab('weeklyPlans')">Öffnen</button>`)}
-        ${card('Deutsch','D',deBody,`<button class="secondary compact" type="button" onclick="setTeacherTab('learningGerman')">Öffnen</button>`)}
-        ${card('Mathematik','M',maBody,`<button class="secondary compact" type="button" onclick="setTeacherTab('minimaxTests')">Öffnen</button>`)}
-      </div>
+
+      ${childrenOverview(children)}
+
+      <section class="lk-dev-summarybar">
+        <div><span>Wochenplan</span>${week.empty?'<b>–</b>':`<b>${week.pct} %</b>`}</div>
+        <div><span>Teste dich</span><b>${latestMm?`Nr. ${latestMm.id}`:'–'}</b></div>
+        <div><span>LZK</span><b>${latestLzk?esc(typeof formatAssessmentMatrixValue==='function'?formatAssessmentMatrixValue(latestLzk.assessment,latestLzk.result):'erfasst'):'–'}</b></div>
+        <div><span>ABC</span><b>${abc.length||0}</b></div>
+      </section>
+
+      <section class="panel lk-dev-section">
+        <div class="lk-dev-section-head"><div><span class="lk-dev-section-icon">✓</span><h3>Wochenplan</h3></div><button class="secondary compact" type="button" onclick="setTeacherTab('weeklyPlans')">Öffnen</button></div>
+        <div class="lk-dev-weekline">${weekLine}</div>
+      </section>
+
+      <section class="panel lk-dev-section">
+        <div class="lk-dev-section-head"><div><span class="lk-dev-section-icon">D</span><h3>Deutsch</h3></div><button class="secondary compact" type="button" onclick="setTeacherTab('learningGerman')">Öffnen</button></div>
+        <div class="lk-dev-subsection"><h4>ABC der Tiere</h4>${abcRows}</div>
+        <div class="lk-dev-subsection"><h4>Lernzielkontrollen</h4>${deLzkRows}</div>
+      </section>
+
+      <section class="panel lk-dev-section">
+        <div class="lk-dev-section-head"><div><span class="lk-dev-section-icon">M</span><h3>Mathematik</h3></div><button class="secondary compact" type="button" onclick="setTeacherTab('minimaxTests')">Öffnen</button></div>
+        <div class="lk-dev-subsection"><h4>MiniMax · Teste dich</h4>${mmRows}</div>
+        <div class="lk-dev-subsection"><h4>Lernzielkontrollen</h4>${maLzkRows}</div>
+      </section>
     </div>`;
   }
 
@@ -137,7 +157,8 @@
   window.lkPrintAllLearningDevelopment = function(){ openPrintWindow(kids().map(k=>k.id), `Lernentwicklung ${className()}`); };
 
   function bindDevelopment(){
-    document.querySelectorAll('.lk-dev-child-chip').forEach(btn=>btn.addEventListener('click',()=>{ selectedChildId=btn.dataset.childId||''; render(); }));
+    const choose=id=>{ if(!id) return; selectedChildId=id; render(); };
+    document.querySelectorAll('.lk-dev-child-overview-btn').forEach(btn=>btn.addEventListener('click',()=>choose(btn.dataset.childId)));
     const one=document.getElementById('lkDevPrintOne'); if(one) one.onclick=window.lkPrintCurrentLearningDevelopment;
     const all=document.getElementById('lkDevPrintAll'); if(all) all.onclick=window.lkPrintAllLearningDevelopment;
   }
