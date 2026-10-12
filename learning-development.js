@@ -66,20 +66,70 @@
     return {symbol:'○',label:'offen',css:'open'};
   }
 
+  function compactPageRanges(values){
+    const nums=[...new Set((values||[]).map(Number).filter(Number.isFinite))].sort((a,b)=>a-b);
+    if(!nums.length) return '';
+    const out=[]; let a=nums[0], b=nums[0];
+    for(let i=1;i<=nums.length;i++){
+      const n=nums[i];
+      if(n===b+1){ b=n; continue; }
+      out.push(a===b ? `${a}` : `${a}–${b}`);
+      a=b=n;
+    }
+    return out.join(', ');
+  }
+
   function weeklyDetailsHtml(week){
     if(week.empty || !week.rows?.length) return `<div class="lk-dev-emptyline">Kein Wochenplan vorhanden.</div>`;
-    const days=[...(typeof WEEK_DAYS!=='undefined'?WEEK_DAYS:['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'])];
-    const groups=days.map(day=>({day,rows:week.rows.filter(r=>r.day===day)})).filter(g=>g.rows.length);
-    return `<div class="lk-dev-week-details">${groups.map(g=>`<div class="lk-dev-week-day">
-      <div class="lk-dev-week-day-name">${esc(g.day)}</div>
-      <div class="lk-dev-week-day-tasks">${g.rows.map(row=>{
-        const {material,topic}=weekItemLabel(row);
-        const pages=weekPages(row);
-        const overall=statusMeta(row.status);
-        const pageHtml=pages.length ? pages.map(page=>{const m=statusMeta(weekPageStatus(row,page));return `<span class="lk-dev-page-chip ${m.css}" title="${esc(m.label)}">S. ${page}<b>${m.symbol}</b></span>`}).join('') : `<span class="lk-dev-page-chip ${overall.css}">${esc(row?.item?.taskNumber || row?.item?.text || 'Aufgabe')}<b>${overall.symbol}</b></span>`;
-        return `<div class="lk-dev-week-task"><div class="lk-dev-week-task-main"><span class="lk-dev-subject-badge ${row.subject==='Mathe'?'math':'german'}">${row.subject==='Mathe'?'M':'D'}</span><div><strong>${esc(material)}</strong>${topic && topic!==material?`<small>${esc(topic)}</small>`:''}</div></div><div class="lk-dev-week-pages">${pageHtml}</div></div>`;
-      }).join('')}</div>
-    </div>`).join('')}</div>`;
+
+    const grouped=new Map();
+    week.rows.forEach((row,idx)=>{
+      const {material,topic}=weekItemLabel(row);
+      const subject=row.subject==='Mathe'?'Mathe':'Deutsch';
+      const key=`${subject}||${material}`;
+      if(!grouped.has(key)) grouped.set(key,{subject,material,pages:{done:[],partial:[],open:[]},tasks:{done:[],partial:[],open:[]},details:[]});
+      const g=grouped.get(key);
+      const pages=weekPages(row);
+      const detail={day:row.day,topic:topic||'',pages:[],status:row.status};
+      if(pages.length){
+        pages.forEach(page=>{
+          const m=statusMeta(weekPageStatus(row,page));
+          g.pages[m.css].push(Number(page));
+          detail.pages.push({page:Number(page),meta:m});
+        });
+      }else{
+        const m=statusMeta(row.status);
+        const label=String(row?.item?.taskNumber || row?.item?.text || topic || 'Aufgabe').trim();
+        g.tasks[m.css].push(label);
+      }
+      g.details.push(detail);
+    });
+
+    const statusLine=(label,symbol,css,pages,tasks)=>{
+      const ranges=compactPageRanges(pages);
+      const taskList=[...new Set(tasks||[])];
+      if(!ranges && !taskList.length) return '';
+      const bits=[];
+      if(ranges) bits.push(`S. ${esc(ranges)}`);
+      if(taskList.length) bits.push(taskList.slice(0,3).map(esc).join(' · ')+(taskList.length>3?` · +${taskList.length-3}`:''));
+      return `<div class="lk-dev-week-statusline ${css}"><span class="lk-dev-week-statusmark">${symbol}</span><span class="lk-dev-week-statuslabel">${label}</span><strong>${bits.join(' · ')}</strong></div>`;
+    };
+
+    return `<div class="lk-dev-week-compact">${[...grouped.values()].map(g=>{
+      const detailRows=g.details.map(d=>{
+        const pageText=d.pages.length ? d.pages.map(x=>`S. ${x.page} ${x.meta.symbol}`).join(', ') : '';
+        return `<div class="lk-dev-week-detailrow"><span>${esc(d.topic||g.material)}</span><b>${esc(pageText || statusMeta(d.status).label)}</b></div>`;
+      }).join('');
+      return `<section class="lk-dev-week-material">
+        <div class="lk-dev-week-material-head"><span class="lk-dev-subject-badge ${g.subject==='Mathe'?'math':'german'}">${g.subject==='Mathe'?'M':'D'}</span><div><strong>${esc(g.material)}</strong><small>${esc(g.subject)}</small></div></div>
+        <div class="lk-dev-week-statuses">
+          ${statusLine('fertig','✓','done',g.pages.done,g.tasks.done)}
+          ${statusLine('begonnen','◐','partial',g.pages.partial,g.tasks.partial)}
+          ${statusLine('offen','○','open',g.pages.open,g.tasks.open)}
+        </div>
+        <details class="lk-dev-week-more"><summary>Details</summary><div>${detailRows}</div></details>
+      </section>`;
+    }).join('')}</div>`;
   }
 
   function weeklyPrintDetails(week){
@@ -89,12 +139,12 @@
       const {material,topic}=weekItemLabel(row);
       const pages=weekPages(row);
       if(pages.length){
-        pages.forEach(page=>{const m=statusMeta(weekPageStatus(row,page)); rows.push(`<tr><td>${esc(row.day)}</td><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>S. ${page}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);});
+        pages.forEach(page=>{const m=statusMeta(weekPageStatus(row,page)); rows.push(`<tr><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>S. ${page}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);});
       }else{
-        const m=statusMeta(row.status); rows.push(`<tr><td>${esc(row.day)}</td><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>${esc(topic||row?.item?.text||'Aufgabe')}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);
+        const m=statusMeta(row.status); rows.push(`<tr><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>${esc(topic||row?.item?.text||'Aufgabe')}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);
       }
     });
-    return `<table><thead><tr><th>Tag</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    return `<table><thead><tr><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
 
   function minimaxSummary(animalId){
