@@ -4627,3 +4627,22 @@ body {
 @media(max-width:1000px){.lk-dev-children-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:760px){.lk-dev-children-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.lk-dev-header{grid-template-columns:1fr!important}.lk-dev-print-actions{justify-content:flex-start}}
 @media(max-width:520px){.lk-dev-children-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Lernentwicklung v13: detaillierte Wochenplan-Seiten */
+.lk-dev-week-details{border-top:1px solid #e7f0f3;margin-top:7px;padding-top:5px;display:grid;gap:2px}
+.lk-dev-week-day{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;padding:7px 0;border-bottom:1px solid #f0f4f6}
+.lk-dev-week-day:last-child{border-bottom:0}
+.lk-dev-week-day-name{font-weight:800;color:#456878;font-size:.82rem;padding-top:5px}
+.lk-dev-week-day-tasks{display:grid;gap:6px}
+.lk-dev-week-task{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.1fr);align-items:center;gap:10px;background:#f9fcfd;border:1px solid #e7f0f3;border-radius:10px;padding:6px 8px}
+.lk-dev-week-task-main{display:flex;align-items:center;gap:7px;min-width:0}
+.lk-dev-week-task-main>div{min-width:0;display:grid}
+.lk-dev-week-task-main strong{font-size:.82rem;color:#31586b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-dev-week-task-main small{font-size:.72rem;color:#7a909b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-dev-subject-badge{width:24px;height:24px;flex:0 0 24px;border-radius:7px;display:grid;place-items:center;font-weight:800;font-size:.76rem;background:#e8f6f8;color:#178da4}
+.lk-dev-subject-badge.math{background:#eef0ff;color:#5864ad}.lk-dev-subject-badge.german{background:#e8f6f8;color:#178da4}
+.lk-dev-week-pages{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-start}
+.lk-dev-page-chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 7px;border:1px solid #d8e5ea;background:#fff;font-size:.75rem;color:#59717e;white-space:nowrap}
+.lk-dev-page-chip b{font-size:.72rem}.lk-dev-page-chip.done{background:#eef9f4;border-color:#bee4d0;color:#267351}.lk-dev-page-chip.partial{background:#fff8e9;border-color:#f0d79a;color:#8a6920}.lk-dev-page-chip.open{background:#f7f9fa;color:#80919a}
+@media(max-width:760px){.lk-dev-week-day{grid-template-columns:1fr}.lk-dev-week-day-name{padding-top:0}.lk-dev-week-task{grid-template-columns:1fr}.lk-dev-week-pages{padding-left:31px}}

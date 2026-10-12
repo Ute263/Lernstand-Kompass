@@ -30,12 +30,71 @@
       const items = typeof weeklyPlanItemsForDay === 'function' ? weeklyPlanItemsForDay(plan,day,animalId) : [];
       items.forEach(item=>{
         const rec = typeof weeklyPlanStatusRecord === 'function' ? weeklyPlanStatusRecord(plan.id,animalId,day,item.field) : null;
-        rows.push({day,item,status: typeof normalizeSimpleWorkStatus==='function' ? normalizeSimpleWorkStatus(rec?.status||'offen') : (rec?.status||'offen')});
+        const subject = String(item?.subject || (String(item?.field||'').startsWith('Mathe') ? 'Mathe' : 'Deutsch'));
+        rows.push({plan,animal:{id:animalId},day,item,subject,statusRecord:rec,status: typeof normalizeSimpleWorkStatus==='function' ? normalizeSimpleWorkStatus(rec?.status||'offen') : (rec?.status||'offen')});
       });
     });
     const c={fertig:0,teilweise:0,offen:0}; rows.forEach(r=>{ if(r.status==='fertig')c.fertig++; else if(r.status==='teilweise')c.teilweise++; else c.offen++; });
     const total=rows.length; const pct=total?Math.round((c.fertig + c.teilweise*.5)/total*100):0;
     return {plan,rows,c,total,pct};
+  }
+
+
+  function weekItemLabel(row){
+    const catalog=row?.item?.catalogItem;
+    const material = typeof weeklyRowMaterialLabel==='function' ? weeklyRowMaterialLabel(row) : String(catalog?.workbook || row?.item?.workbookLabel || row?.item?.workbook || 'Material');
+    const topic=String(catalog?.topicTitle || catalog?.displayTitle || row?.item?.topicTitle || row?.item?.title || '').trim();
+    return {material,topic};
+  }
+
+  function weekPageStatus(row,page){
+    if(typeof weeklyRowPageStatus==='function') return weeklyRowPageStatus(row,page);
+    return row?.status || 'offen';
+  }
+
+  function weekPages(row){
+    if(typeof weeklyRowPages==='function') return weeklyRowPages(row);
+    const c=row?.item?.catalogItem;
+    if(c && typeof weeklyCatalogPages==='function') return weeklyCatalogPages(c).map(Number).filter(Boolean);
+    return [];
+  }
+
+  function statusMeta(status){
+    const st = typeof normalizeSimpleWorkStatus==='function' ? normalizeSimpleWorkStatus(status||'offen') : (status||'offen');
+    if(st==='fertig') return {symbol:'✓',label:'fertig',css:'done'};
+    if(st==='teilweise') return {symbol:'◐',label:'begonnen',css:'partial'};
+    return {symbol:'○',label:'offen',css:'open'};
+  }
+
+  function weeklyDetailsHtml(week){
+    if(week.empty || !week.rows?.length) return `<div class="lk-dev-emptyline">Kein Wochenplan vorhanden.</div>`;
+    const days=[...(typeof WEEK_DAYS!=='undefined'?WEEK_DAYS:['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'])];
+    const groups=days.map(day=>({day,rows:week.rows.filter(r=>r.day===day)})).filter(g=>g.rows.length);
+    return `<div class="lk-dev-week-details">${groups.map(g=>`<div class="lk-dev-week-day">
+      <div class="lk-dev-week-day-name">${esc(g.day)}</div>
+      <div class="lk-dev-week-day-tasks">${g.rows.map(row=>{
+        const {material,topic}=weekItemLabel(row);
+        const pages=weekPages(row);
+        const overall=statusMeta(row.status);
+        const pageHtml=pages.length ? pages.map(page=>{const m=statusMeta(weekPageStatus(row,page));return `<span class="lk-dev-page-chip ${m.css}" title="${esc(m.label)}">S. ${page}<b>${m.symbol}</b></span>`}).join('') : `<span class="lk-dev-page-chip ${overall.css}">${esc(row?.item?.taskNumber || row?.item?.text || 'Aufgabe')}<b>${overall.symbol}</b></span>`;
+        return `<div class="lk-dev-week-task"><div class="lk-dev-week-task-main"><span class="lk-dev-subject-badge ${row.subject==='Mathe'?'math':'german'}">${row.subject==='Mathe'?'M':'D'}</span><div><strong>${esc(material)}</strong>${topic && topic!==material?`<small>${esc(topic)}</small>`:''}</div></div><div class="lk-dev-week-pages">${pageHtml}</div></div>`;
+      }).join('')}</div>
+    </div>`).join('')}</div>`;
+  }
+
+  function weeklyPrintDetails(week){
+    if(week.empty || !week.rows?.length) return '<p>Kein Wochenplan vorhanden.</p>';
+    const rows=[];
+    week.rows.forEach(row=>{
+      const {material,topic}=weekItemLabel(row);
+      const pages=weekPages(row);
+      if(pages.length){
+        pages.forEach(page=>{const m=statusMeta(weekPageStatus(row,page)); rows.push(`<tr><td>${esc(row.day)}</td><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>S. ${page}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);});
+      }else{
+        const m=statusMeta(row.status); rows.push(`<tr><td>${esc(row.day)}</td><td>${esc(row.subject)}</td><td>${esc(material)}</td><td>${esc(topic||row?.item?.text||'Aufgabe')}</td><td>${m.symbol} ${esc(m.label)}</td></tr>`);
+      }
+    });
+    return `<table><thead><tr><th>Tag</th><th>Fach</th><th>Material</th><th>Seite/Aufgabe</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
   }
 
   function minimaxSummary(animalId){
@@ -114,6 +173,7 @@
       <section class="panel lk-dev-section">
         <div class="lk-dev-section-head"><div><span class="lk-dev-section-icon">✓</span><h3>Wochenplan</h3></div><button class="secondary compact" type="button" onclick="setTeacherTab('weeklyPlans')">Öffnen</button></div>
         <div class="lk-dev-weekline">${weekLine}</div>
+        ${weeklyDetailsHtml(week)}
       </section>
 
       <section class="panel lk-dev-section">
@@ -136,7 +196,7 @@
     const {child,week,mm,lzk,abc}=childData(animalId);
     const deLzk=lzk.filter(x=>String(x.assessment.fach||'').toLowerCase().startsWith('deutsch'));
     const maLzk=lzk.filter(x=>/mathe/i.test(String(x.assessment.fach||'')));
-    const weekHtml=week.empty?'<p>Kein Wochenplan vorhanden.</p>':`<table><tbody><tr><th>Bearbeitet</th><td>${week.c.fertig}/${week.total}</td><th>Teilweise</th><td>${week.c.teilweise}</td><th>Offen</th><td>${week.c.offen}</td><th>Stand</th><td>${week.pct} %</td></tr></tbody></table>`;
+    const weekHtml=week.empty?'<p>Kein Wochenplan vorhanden.</p>':`<table><tbody><tr><th>Bearbeitet</th><td>${week.c.fertig}/${week.total}</td><th>Teilweise</th><td>${week.c.teilweise}</td><th>Offen</th><td>${week.c.offen}</td><th>Stand</th><td>${week.pct} %</td></tr></tbody></table>${weeklyPrintDetails(week)}`;
     const mmHtml=mm.length?`<table><thead><tr><th>Teste dich</th><th>Thema</th><th>Erfasste Aufgaben</th></tr></thead><tbody>${mm.map(t=>`<tr><td>${t.id}</td><td>${esc(t.title)}</td><td>${t.filled}</td></tr>`).join('')}</tbody></table>`:'<p>Noch keine Teste-dich-Punkte.</p>';
     const abcHtml=abc.length?`<table><thead><tr><th>Lernstand</th><th>Status</th></tr></thead><tbody>${abc.map(e=>`<tr><td>${esc(e.displayTitle||e.topicTitle||e.zusatzText||e.workbookArea||'Lernstand')}</td><td>${esc(e.workStatus||e.status||'erfasst')}</td></tr>`).join('')}</tbody></table>`:'<p>Noch kein ABC-Lernstand erfasst.</p>';
     function lzkTable(items){ return items.length?`<table><thead><tr><th>Lernzielkontrolle</th><th>Ergebnis</th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.assessment.titel||'LZK')}</td><td>${esc(assessmentValue(x))}</td></tr>`).join('')}</tbody></table>`:'<p>Noch keine Lernzielkontrollen.</p>'; }
