@@ -6,6 +6,10 @@ class AppStorage {
     this.dbPromise = null;
     this.usesIndexedDB = "indexedDB" in window;
     this.lastStorageType = this.usesIndexedDB ? "IndexedDB" : "localStorage";
+    this.localMirrorTimer = null;
+    this.pendingLocalMirror = null;
+    this.localMirrorDelay = 1200;
+    this.installMirrorFlushHooks();
   }
 
   async load() {
@@ -34,7 +38,10 @@ class AppStorage {
     try {
       const db = await this.openDB();
       await this.writeRecord(db, { id: STORE_KEY, value: nextState });
-      this.saveToLocalStorage(nextState);
+      // IndexedDB ist der primaere Speicher. Die zusaetzliche localStorage-Kopie
+      // wird zeitversetzt geschrieben, damit kleine Eingaben nicht zweimal den
+      // kompletten Datenbestand synchron serialisieren muessen.
+      this.scheduleLocalMirror(nextState);
       this.lastStorageType = "IndexedDB";
       return nextState;
     } catch (error) {
@@ -44,6 +51,33 @@ class AppStorage {
       this.saveToLocalStorage(nextState);
       return nextState;
     }
+  }
+
+  scheduleLocalMirror(state) {
+    this.pendingLocalMirror = state;
+    if (this.localMirrorTimer) clearTimeout(this.localMirrorTimer);
+    this.localMirrorTimer = setTimeout(() => this.flushLocalMirror(), this.localMirrorDelay);
+  }
+
+  flushLocalMirror() {
+    if (this.localMirrorTimer) {
+      clearTimeout(this.localMirrorTimer);
+      this.localMirrorTimer = null;
+    }
+    if (!this.pendingLocalMirror) return;
+    const snapshot = this.pendingLocalMirror;
+    this.pendingLocalMirror = null;
+    try { this.saveToLocalStorage(snapshot); } catch (error) {
+      console.warn("Lokale Sicherungskopie konnte nicht geschrieben werden.", error);
+    }
+  }
+
+  installMirrorFlushHooks() {
+    if (typeof window === "undefined") return;
+    window.addEventListener("pagehide", () => this.flushLocalMirror());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") this.flushLocalMirror();
+    });
   }
 
   loadFromLocalStorage() {
@@ -61,6 +95,9 @@ class AppStorage {
   }
 
   async clear() {
+    if (this.localMirrorTimer) clearTimeout(this.localMirrorTimer);
+    this.localMirrorTimer = null;
+    this.pendingLocalMirror = null;
     localStorage.removeItem(STORE_KEY);
     LEGACY_STORE_KEYS.forEach((key) => localStorage.removeItem(key));
     if (!this.usesIndexedDB) return;

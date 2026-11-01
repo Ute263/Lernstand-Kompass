@@ -144,6 +144,9 @@ function exportToExcelCsv(entries, filename) {
 }
 
 async function exportBeautifulWorkbook(report) {
+  if (!window.ExcelJS && typeof lkLoadScriptOnce === "function") {
+    await lkLoadScriptOnce("exceljs.min.js?v=20261101-perf1", () => Boolean(window.ExcelJS));
+  }
   if (!window.ExcelJS) {
     throw new Error("ExcelJS ist nicht geladen.");
   }

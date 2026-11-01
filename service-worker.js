@@ -1,21 +1,16 @@
-const CACHE_NAME = "lernstand-kompass-20261009-workbook-picker-fix";
+const CACHE_NAME = "lernstand-kompass-20261101-perf1";
 const APP_FILES = [
   "./",
   "./index.html",
   "./build-info.js",
   "./styles.css",
-  "./minimax-tests.css",
-  "./minimax-tests.js",
-  "./learning-subjects.js",
   "./progress-children-overview.css",
   "./legal-info.css",
+  "./minimax-tests.css",
   "./models.js",
   "./storage.js",
-  "./exceljs.min.js",
-  "./exceljs-LICENSE.txt",
   "./export.js",
   "./qrcode.js",
-  "./jsqr.js",
   "./sync.js",
   "./app.js",
   "./child-sync.js",
@@ -36,79 +31,24 @@ const APP_FILES = [
   "./weekly-plan-9e.js",
   "./weekly-plan-9f.js",
   "./weekly-minimax-pages.js",
-  "./weekly-fix-172.js",
   "./weekly-calendar-overview.js",
   "./weekly-editor-compact.js",
   "./simple-ui.js",
+  "./minimax-tests.js",
+  "./learning-subjects.js",
+  "./learning-navigation-v7.js",
+  "./learning-development.js",
+  "./learning-navigation-v8.js",
+  "./weekly-fix-172.js",
   "./progress-children-overview.js",
   "./weekly-autosave.js",
   "./legal-info.js",
   "./pwa.js",
   "./manifest.json",
-  "./LICENSE",
-  "./icons/icon-180.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/lernstand-kompass.png",
   "./lernstand-kompass.png",
-  "./icons/icon-maskable-512.png",
-  "./materials/cover-abc-der-tiere-1.svg",
-  "./materials/cover-abc-der-tiere-2.svg",
-  "./materials/cover-abc-der-tiere-2.png",
-  "./materials/cover-minimax-1.svg",
-  "./materials/cover-minimax-2.svg",
-  "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-a.png",
-  "./materials/cover-abc-der-tiere-1-arbeitsheft.png",
-  "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-a.png",
-  "./materials/cover-abc-der-tiere-1-schreiblehrgang-teil-b.png",
-  "./materials/cover-abc-der-tiere-2-spracharbeitsheft-teil-b.png",
-  "./materials/cover-minimax-1-neu.png",
-  "./materials/cover-minimax-2-neu.png",
-  "./materials/cover-rico-schnabel-2.png",
-  "./materials/cover-flex-a-bh1.jpg",
-  "./materials/cover-flex-a-bh2.jpg",
-  "./materials/cover-flex-a-bh3.jpg",
-  "./materials/cover-flex-a-gut-starten.jpg",
-  "./materials/cover-flex-b-bh4.jpg",
-  "./materials/cover-flex-b-bh5.jpg",
-  "./materials/cover-flex-b-bh6.jpg",
-  "./materials/cover-flex-b-bh7.jpg",
-  "./materials/cover-flex-c-lesen.jpg",
-  "./materials/cover-flex-c-texte.jpg",
-  "./materials/cover-flex-c-richtig.jpg",
-  "./materials/cover-flex-c-sprache.jpg",
-  "./materials/cover-wdz-a1.jpg",
-  "./materials/cover-wdz-a2.jpg",
-  "./materials/cover-wdz-a3.jpg",
-  "./materials/cover-wdz-a4.jpg",
-  "./materials/cover-wdz-b1.jpg",
-  "./materials/cover-wdz-b2.jpg",
-  "./materials/cover-wdz-b3.jpg",
-  "./materials/cover-wdz-b4.jpg",
-  "./materials/cover-wdz-c1.jpg",
-  "./materials/cover-wdz-c2.jpg",
-  "./materials/cover-wdz-c3.jpg",
-  "./materials/cover-wdz-c4.jpg",
-  "./materials/cover-wdz-d1.jpg",
-  "./materials/cover-wdz-d2.jpg",
-  "./materials/cover-wdz-d3.jpg",
-  "./materials/cover-wdz-d4.jpg",
-  "./materials/cover-wdz-e1.jpg",
-  "./materials/cover-wdz-e2.jpg",
-  "./materials/cover-wdz-e3.jpg",
-  "./materials/cover-wdz-e4.jpg",
-  "./materials/cover-wdz-f1.jpg",
-  "./materials/cover-wdz-f2.jpg",
-  "./materials/cover-wdz-f3.jpg",
-  "./materials/cover-wdz-f4.jpg",
-  "./materials/stickerbogen-1-deutsch-mathe-1.png",
-  "./materials/stickerbogen-2-mathe-forscher.png",
-  "./materials/toni-nomen.png",
-  "./materials/cover-arbeitsblatt.png",
-  "./materials/socialform-icons.png",
+  "./icons/icon-192.png",
   "./materials/icon-microphone.png",
-  "./icons/icon-192.svg",
-  "./icons/icon-512.svg"
+  "./materials/socialform-icons.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -129,17 +69,25 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
+async function cacheFirstWithRefresh(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  const refresh = fetch(request).then((response) => {
+    if (response && response.ok) cache.put(request, response.clone());
+    return response;
+  }).catch(() => null);
+  if (cached) {
+    // Netzwerkaktualisierung laeuft weiter, blockiert aber die Anzeige nicht.
+    refresh.catch(() => {});
+    return cached;
+  }
+  return (await refresh) || cache.match("./index.html");
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
-  event.respondWith(
-    fetch(request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-      return response;
-    }).catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html")))
-  );
+  event.respondWith(cacheFirstWithRefresh(request));
 });

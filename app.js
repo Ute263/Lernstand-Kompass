@@ -251,20 +251,52 @@ window.addEventListener("beforeunload", (event) => {
   event.returnValue = "";
 });
 
+function lkRunWhenIdle(callback) {
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => callback(), { timeout: 900 });
+  } else {
+    setTimeout(callback, 0);
+  }
+}
+
+const lkLazyScripts = new Map();
+function lkLoadScriptOnce(src, globalCheck) {
+  if (typeof globalCheck === "function" && globalCheck()) return Promise.resolve();
+  if (lkLazyScripts.has(src)) return lkLazyScripts.get(src);
+  const promise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-lk-lazy-src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", () => reject(new Error(`${src} konnte nicht geladen werden.`)), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.lkLazySrc = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`${src} konnte nicht geladen werden.`));
+    document.head.appendChild(script);
+  });
+  lkLazyScripts.set(src, promise);
+  return promise;
+}
+
 async function initApp() {
   state = await storage.load();
   await migrateSecurityState();
-  if (typeof initCloudSync === "function") await initCloudSync();
-  if (state.setupComplete) {
-    await persist(state);
-  }
-  if (pendingRecoveryKey) {
-    screen = "recoveryReveal";
-    render();
-    return;
-  }
-  screen = state.setupComplete ? "start" : "setup";
+
+  // Zuerst sofort die lokal vorhandene App anzeigen. Cloud-Verbindungen und
+  // Hintergrund-Synchronisation duerfen den ersten sichtbaren Bildschirm nicht blockieren.
+  screen = pendingRecoveryKey ? "recoveryReveal" : (state.setupComplete ? "start" : "setup");
   render();
+
+  if (typeof initCloudSync === "function") {
+    lkRunWhenIdle(() => initCloudSync().then(() => {
+      // Nur neu zeichnen, wenn der Nutzer nicht gerade tippt.
+      if (!document.activeElement || !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) render();
+    }).catch((error) => console.warn("Cloud-Sync konnte im Hintergrund nicht initialisiert werden.", error)));
+  }
 }
 
 async function migrateSecurityState() {
@@ -1862,6 +1894,9 @@ async function startQrScanner() {
       }
     }
 
+    if (!barcodeDetector && typeof window.jsQR !== "function") {
+      try { await lkLoadScriptOnce("jsqr.js?v=20261101-perf1", () => typeof window.jsQR === "function"); } catch {}
+    }
     const localFallbackAvailable = typeof window.jsQR === "function";
     if (!barcodeDetector && !localFallbackAvailable) {
       message.textContent = "Die QR-Erkennung konnte nicht geladen werden. Bitte lade die App neu.";
@@ -1920,6 +1955,9 @@ async function scanQrPhoto(event) {
   const file = event?.target?.files?.[0];
   const message = document.querySelector("#scannerMessage");
   if (!file) return;
+  if (typeof window.jsQR !== "function") {
+    try { await lkLoadScriptOnce("jsqr.js?v=20261101-perf1", () => typeof window.jsQR === "function"); } catch {}
+  }
   if (typeof window.jsQR !== "function") {
     if (message) message.textContent = "Die QR-Erkennung konnte nicht geladen werden.";
     return;
