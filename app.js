@@ -39,6 +39,7 @@ let progressFilters = {
   comparison: "both"
 };
 let progressAnimalTab = "overview";
+let workedPagesDataIndex = null;
 let classOverviewFilter = "all";
 let workDoneFilters = { subject: "", status: "", source: "" };
 let hasUnsavedChanges = false;
@@ -509,7 +510,27 @@ async function persistAndRender(nextState = state) {
   render();
 }
 
+function persistOptimisticSnapshot(snapshot) {
+  persistPendingCount += 1;
+  hasUnsavedChanges = true;
+  const operation = persistQueue.then(async () => {
+    await storage.save(snapshot);
+    if (typeof scheduleMicrosoftAutoBackup === "function") scheduleMicrosoftAutoBackup();
+    return snapshot;
+  });
+  persistQueue = operation.catch((error) => {
+    console.error("Lokales Speichern fehlgeschlagen.", error);
+  });
+  operation.finally(() => {
+    persistPendingCount = Math.max(0, persistPendingCount - 1);
+    hasUnsavedChanges = persistPendingCount > 0;
+  });
+  return operation;
+}
+
 function render() {
+  // Teure Fortschrittslisten nur einmal pro Bildschirmaufbau indizieren.
+  workedPagesDataIndex = null;
   document.body.classList.toggle("print-doc-mode", screen === "printView");
   if (screen === "loading") {
     app.innerHTML = `<main class="app-shell"><div class="empty">App wird geladen...</div></main>`;
@@ -2418,6 +2439,29 @@ function materialPageKey(material, page) {
   return `${String(material || "Material").trim().toLowerCase()}|${Number(page)}`;
 }
 
+function buildWorkedPagesDataIndex() {
+  if (workedPagesDataIndex) return workedPagesDataIndex;
+  const entriesByAnimalSubject = new Map();
+  const statusesByAnimal = new Map();
+  const plansById = new Map((state.weeklyPlans || []).map((plan) => [plan.id, plan]));
+  (state.entries || []).forEach((entry) => {
+    if (entry.classId !== state.activeClassId) return;
+    const animalId = entry.tierID || entry.animalId || entry.tierId;
+    const subject = String(entry.fach || entry.subject || "");
+    const key = `${animalId}|${subject}`;
+    if (!entriesByAnimalSubject.has(key)) entriesByAnimalSubject.set(key, []);
+    entriesByAnimalSubject.get(key).push(entry);
+  });
+  (state.weeklyPlanStatuses || []).forEach((status) => {
+    if (status.classId !== state.activeClassId) return;
+    const key = String(status.animalId || "");
+    if (!statusesByAnimal.has(key)) statusesByAnimal.set(key, []);
+    statusesByAnimal.get(key).push(status);
+  });
+  workedPagesDataIndex = { entriesByAnimalSubject, statusesByAnimal, plansById };
+  return workedPagesDataIndex;
+}
+
 function workedPagesForAnimal(animalId, subject) {
   const rows = new Map();
   const rank = { offen: 0, teilweise: 1, fertig: 2 };
@@ -2433,9 +2477,8 @@ function workedPagesForAnimal(animalId, subject) {
     }
   };
 
-  (state.entries || [])
-    .filter((entry) => entry.classId === state.activeClassId && (entry.tierID || entry.animalId || entry.tierId) === animalId)
-    .filter((entry) => String(entry.fach || entry.subject || "") === subject)
+  const workedIndex = buildWorkedPagesDataIndex();
+  (workedIndex.entriesByAnimalSubject.get(`${animalId}|${subject}`) || [])
     .forEach((entry) => {
       const overall = normalizeSimpleWorkStatus(entry.workStatus || entry.status || (entry.completedPages?.length ? "fertig" : "teilweise"));
       const material = workedEntryMaterialLabel(entry);
@@ -2454,10 +2497,9 @@ function workedPagesForAnimal(animalId, subject) {
       });
     });
 
-  (state.weeklyPlanStatuses || [])
-    .filter((status) => status.classId === state.activeClassId && status.animalId === animalId)
+  (workedIndex.statusesByAnimal.get(String(animalId)) || [])
     .forEach((status) => {
-      const plan = (state.weeklyPlans || []).find((item) => item.id === status.planId);
+      const plan = workedIndex.plansById.get(status.planId);
       if (!plan) return;
       let task = null;
       try {
@@ -2502,7 +2544,7 @@ function currentWeeklyPageKeys(rows, includeFinished = true) {
 }
 
 
-async function cycleWorkedPageStatus(animalId, subject, material, page, currentStatus) {
+function cycleWorkedPageStatus(button, animalId, subject, material, page, currentStatus) {
   const nextStatus = normalizeSimpleWorkStatus(currentStatus) === "fertig"
     ? "teilweise"
     : normalizeSimpleWorkStatus(currentStatus) === "teilweise"
@@ -2597,7 +2639,34 @@ async function cycleWorkedPageStatus(animalId, subject, material, page, currentS
   }
   const label = nextStatus === "fertig" ? "fertig" : nextStatus === "teilweise" ? "in Bearbeitung" : "offen";
   globalMessage = `${material} · S. ${page}: ${label}.`;
-  await persistAndRender({ ...state, entries, weeklyPlanStatuses });
+
+  // UI und In-Memory-State sofort aktualisieren. Dauerhaftes Speichern darf den Klick nicht blockieren.
+  const nextState = { ...state, entries, weeklyPlanStatuses };
+  state = nextState;
+  workedPagesDataIndex = null;
+
+  if (button) {
+    if (nextStatus === "offen") {
+      const group = button.closest(".weekly-worked-material-group");
+      const container = button.closest(".weekly-worked-material-groups");
+      button.remove();
+      if (group && !group.querySelector(".weekly-worked-page")) group.remove();
+      if (container && !container.querySelector(".weekly-worked-page")) container.remove();
+    } else {
+      button.classList.remove("fertig", "teilweise", "offen");
+      button.classList.add(nextStatus);
+      button.innerHTML = `S. ${page}<b>${nextStatus === "fertig" ? "✓" : "◐"}</b>`;
+      button.title = "Klicken: Status ändern";
+      button.setAttribute("aria-label", `${material}, Seite ${page}: ${label}. Status ändern`);
+      button.setAttribute("onclick", `cycleWorkedPageStatus(this,${JSON.stringify(animalId)},${JSON.stringify(subject)},${JSON.stringify(material)},${Number(page)},${JSON.stringify(nextStatus)})`);
+    }
+  }
+
+  // Speichern/Auto-Backup asynchron; weitere Klicks bleiben währenddessen möglich.
+  persistOptimisticSnapshot(nextState).catch((error) => {
+    console.error("Seitenstatus konnte nicht gespeichert werden.", error);
+    globalMessage = "Die Änderung konnte nicht gespeichert werden.";
+  });
 }
 
 function renderWorkedPages(animalId, subject, currentRows = []) {
@@ -2615,7 +2684,7 @@ function renderWorkedPages(animalId, subject, currentRows = []) {
   return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Bearbeitet: <small>Seite anklicken: ✓ → ◐ → offen</small></span>${[...groups.entries()].map(([material, items]) => `
     <div class="weekly-worked-material-group">
       <span class="weekly-worked-material-label">${escapeHtml(material)}</span>
-      <div class="weekly-worked-pages">${items.map((item) => `<button type="button" class="weekly-worked-page ${item.status}" title="Klicken: Status ändern" aria-label="${escapeAttribute(`${material}, Seite ${item.page}: ${item.status === "fertig" ? "fertig" : "in Bearbeitung"}. Status ändern`)}" onclick="cycleWorkedPageStatus('${escapeAttribute(animalId)}','${escapeAttribute(subject)}','${escapeAttribute(material)}','${item.page}','${escapeAttribute(item.status)}')">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></button>`).join("")}</div>
+      <div class="weekly-worked-pages">${items.map((item) => `<button type="button" class="weekly-worked-page ${item.status}" title="Klicken: Status ändern" aria-label="${escapeAttribute(`${material}, Seite ${item.page}: ${item.status === "fertig" ? "fertig" : "in Bearbeitung"}. Status ändern`)}" onclick="cycleWorkedPageStatus(this,'${escapeAttribute(animalId)}','${escapeAttribute(subject)}','${escapeAttribute(material)}','${item.page}','${escapeAttribute(item.status)}')">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></button>`).join("")}</div>
     </div>
   `).join("")}</div>`;
 }
