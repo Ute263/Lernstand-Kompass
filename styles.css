@@ -4654,3 +4654,14 @@ body {
 .lk-dev-week-statuses{display:grid;gap:4px}.lk-dev-week-statusline{display:grid;grid-template-columns:20px 78px minmax(0,1fr);gap:5px;align-items:center;font-size:.8rem;min-height:24px}.lk-dev-week-statusmark{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-weight:900}.lk-dev-week-statuslabel{color:#6c818c}.lk-dev-week-statusline strong{font-weight:750;color:#345c6d;min-width:0;overflow-wrap:anywhere}.lk-dev-week-statusline.done .lk-dev-week-statusmark{background:#e9f8f1;color:#267351}.lk-dev-week-statusline.partial .lk-dev-week-statusmark{background:#fff6df;color:#8a6920}.lk-dev-week-statusline.open .lk-dev-week-statusmark{background:#f1f5f6;color:#80919a}
 .lk-dev-week-more{margin-top:7px;border-top:1px solid #edf3f5;padding-top:6px}.lk-dev-week-more summary{cursor:pointer;color:#6e8996;font-size:.76rem;user-select:none}.lk-dev-week-more>div{display:grid;gap:2px;margin-top:5px}.lk-dev-week-detailrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;font-size:.72rem;color:#768c97;padding:2px 0}.lk-dev-week-detailrow span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lk-dev-week-detailrow b{font-weight:700;color:#5d7784;white-space:nowrap}
 @media(max-width:620px){.lk-dev-week-statusline{grid-template-columns:20px 70px minmax(0,1fr)}.lk-dev-week-detailrow{grid-template-columns:minmax(0,1fr)}.lk-dev-week-detailrow b{white-space:normal}}
+
+/* Bearbeitete Heftseiten sind in der Klassen-/Kindansicht direkt korrigierbar. */
+button.weekly-worked-page {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+button.weekly-worked-page:hover { filter: brightness(.98); transform: translateY(-1px); }
+button.weekly-worked-page:focus-visible { outline: 2px solid #2caeb2; outline-offset: 2px; }

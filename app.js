@@ -2437,9 +2437,21 @@ function workedPagesForAnimal(animalId, subject) {
     .filter((entry) => entry.classId === state.activeClassId && (entry.tierID || entry.animalId || entry.tierId) === animalId)
     .filter((entry) => String(entry.fach || entry.subject || "") === subject)
     .forEach((entry) => {
-      const status = entry.workStatus || entry.status || (entry.completedPages?.length ? "fertig" : "teilweise");
+      const overall = normalizeSimpleWorkStatus(entry.workStatus || entry.status || (entry.completedPages?.length ? "fertig" : "teilweise"));
       const material = workedEntryMaterialLabel(entry);
-      workedPageNumbersFromEntry(entry).forEach((page) => addPage(material, page, status, entry.updatedAt || entry.datumUhrzeit || entry.createdAt));
+      const completed = new Set((entry.completedPages || []).map(String));
+      const explicitStatuses = entry.pageStatuses || {};
+      workedPageNumbersFromEntry(entry).forEach((page) => {
+        const explicit = explicitStatuses[String(page)];
+        const pageStatus = explicit
+          ? normalizeSimpleWorkStatus(explicit)
+          : completed.has(String(page))
+            ? "fertig"
+            : (overall === "fertig" && !(entry.completedPages || []).length)
+              ? "fertig"
+              : "offen";
+        if (pageStatus !== "offen") addPage(material, page, pageStatus, entry.updatedAt || entry.datumUhrzeit || entry.createdAt);
+      });
     });
 
   (state.weeklyPlanStatuses || [])
@@ -2489,6 +2501,105 @@ function currentWeeklyPageKeys(rows, includeFinished = true) {
   return keys;
 }
 
+
+async function cycleWorkedPageStatus(animalId, subject, material, page, currentStatus) {
+  const nextStatus = normalizeSimpleWorkStatus(currentStatus) === "fertig"
+    ? "teilweise"
+    : normalizeSimpleWorkStatus(currentStatus) === "teilweise"
+      ? "offen"
+      : "fertig";
+  const pageKey = String(Number(page));
+  const stamp = nowIso();
+  let changed = false;
+
+  const entries = (state.entries || []).map((entry) => {
+    const entryAnimalId = entry.tierID || entry.animalId || entry.tierId;
+    if (entry.classId !== state.activeClassId || entryAnimalId !== animalId) return entry;
+    if (String(entry.fach || entry.subject || "") !== subject) return entry;
+    if (workedEntryMaterialLabel(entry) !== material) return entry;
+    if (!workedPageNumbersFromEntry(entry).map(String).includes(pageKey)) return entry;
+
+    const catalogPages = workedPageNumbersFromEntry(entry).map(String);
+    const pageStatuses = { ...(entry.pageStatuses || {}) };
+    catalogPages.forEach((catalogPage) => {
+      if (!pageStatuses[catalogPage]) {
+        pageStatuses[catalogPage] = (entry.completedPages || []).map(String).includes(catalogPage) ? "fertig" : "offen";
+      }
+    });
+    pageStatuses[pageKey] = nextStatus;
+    const completedPages = catalogPages.filter((catalogPage) => normalizeSimpleWorkStatus(pageStatuses[catalogPage]) === "fertig");
+    const partialPages = catalogPages.filter((catalogPage) => normalizeSimpleWorkStatus(pageStatuses[catalogPage]) === "teilweise");
+    const workStatus = completedPages.length === catalogPages.length && !partialPages.length
+      ? "fertig"
+      : (completedPages.length || partialPages.length)
+        ? "teilweise"
+        : "offen";
+    changed = true;
+    return {
+      ...entry,
+      pageStatuses,
+      completedPages,
+      openPages: catalogPages.filter((catalogPage) => normalizeSimpleWorkStatus(pageStatuses[catalogPage]) === "offen"),
+      workStatus,
+      status: workStatus === "fertig" ? "fertig" : entry.status,
+      updatedAt: stamp,
+      datumUhrzeit: stamp
+    };
+  });
+
+  const weeklyPlanStatuses = (state.weeklyPlanStatuses || []).map((statusRecord) => {
+    if (statusRecord.classId !== state.activeClassId || statusRecord.animalId !== animalId) return statusRecord;
+    const plan = (state.weeklyPlans || []).find((item) => item.id === statusRecord.planId);
+    if (!plan) return statusRecord;
+    let task = null;
+    try {
+      task = weeklyPlanItemsForDay(plan, statusRecord.day, animalId).find((item) => item.field === statusRecord.field);
+    } catch {}
+    if (!task) return statusRecord;
+    const taskSubject = String(task.subject || (String(statusRecord.field || "").startsWith("Mathe") ? "Mathe" : "Deutsch"));
+    const taskMaterial = String(task.catalogItem?.workbook || task.workbookLabel || "Material").trim() || "Material";
+    const taskPages = task.catalogItem ? weeklyCatalogPages(task.catalogItem).map(String) : [];
+    if (taskSubject !== subject || taskMaterial !== material || !taskPages.includes(pageKey)) return statusRecord;
+
+    const pageStatuses = { ...(statusRecord.pageStatuses || {}) };
+    const previousCompleted = new Set((statusRecord.completedPages || []).map(String));
+    taskPages.forEach((taskPage) => {
+      if (!pageStatuses[taskPage]) {
+        const overall = normalizeSimpleWorkStatus(statusRecord.status || "offen");
+        pageStatuses[taskPage] = previousCompleted.has(taskPage)
+          ? "fertig"
+          : (overall === "fertig" && !previousCompleted.size ? "fertig" : "offen");
+      }
+    });
+    pageStatuses[pageKey] = nextStatus;
+    const completedPages = taskPages.filter((taskPage) => normalizeSimpleWorkStatus(pageStatuses[taskPage]) === "fertig");
+    const partialPages = taskPages.filter((taskPage) => normalizeSimpleWorkStatus(pageStatuses[taskPage]) === "teilweise");
+    const status = completedPages.length === taskPages.length && !partialPages.length
+      ? "fertig"
+      : (completedPages.length || partialPages.length)
+        ? "teilweise"
+        : "offen";
+    changed = true;
+    return {
+      ...statusRecord,
+      pageStatuses,
+      completedPages,
+      status,
+      updatedAt: stamp,
+      completedAt: status === "fertig" ? (statusRecord.completedAt || stamp) : ""
+    };
+  });
+
+  if (!changed) {
+    globalMessage = "Die Seite konnte keinem gespeicherten Heft-Eintrag zugeordnet werden.";
+    render();
+    return;
+  }
+  const label = nextStatus === "fertig" ? "fertig" : nextStatus === "teilweise" ? "in Bearbeitung" : "offen";
+  globalMessage = `${material} · S. ${page}: ${label}.`;
+  await persistAndRender({ ...state, entries, weeklyPlanStatuses });
+}
+
 function renderWorkedPages(animalId, subject, currentRows = []) {
   const unfinishedCurrentKeys = currentWeeklyPageKeys(currentRows, false);
   const pages = workedPagesForAnimal(animalId, subject).filter((item) => !unfinishedCurrentKeys.has(item.key));
@@ -2501,10 +2612,10 @@ function renderWorkedPages(animalId, subject, currentRows = []) {
     groups.get(material).push(item);
   });
 
-  return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Bearbeitet:</span>${[...groups.entries()].map(([material, items]) => `
+  return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Bearbeitet: <small>Seite anklicken: ✓ → ◐ → offen</small></span>${[...groups.entries()].map(([material, items]) => `
     <div class="weekly-worked-material-group">
       <span class="weekly-worked-material-label">${escapeHtml(material)}</span>
-      <div class="weekly-worked-pages">${items.map((item) => `<span class="weekly-worked-page ${item.status}" title="${item.status === "fertig" ? "fertig" : "begonnen"}">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></span>`).join("")}</div>
+      <div class="weekly-worked-pages">${items.map((item) => `<button type="button" class="weekly-worked-page ${item.status}" title="Klicken: Status ändern" aria-label="${escapeAttribute(`${material}, Seite ${item.page}: ${item.status === "fertig" ? "fertig" : "in Bearbeitung"}. Status ändern`)}" onclick="cycleWorkedPageStatus('${escapeAttribute(animalId)}','${escapeAttribute(subject)}','${escapeAttribute(material)}','${item.page}','${escapeAttribute(item.status)}')">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></button>`).join("")}</div>
     </div>
   `).join("")}</div>`;
 }
@@ -10891,6 +11002,7 @@ function upsertWorkbookProgressEntry(currentState, { classId, animal, catalog, s
     status: "fertig",
     workStatus: normalizedStatus,
     completedPages: mergedCompletedPages,
+    pageStatuses: Object.fromEntries(pages.map((page) => [String(page), mergedCompletedPages.includes(String(page)) ? "fertig" : "offen"])),
     openPages: pages.map(String).filter((page) => !mergedCompletedPages.includes(page)),
     erledigt: false,
     datumUhrzeit: timestamp,

@@ -1,0 +1,1917 @@
+/* Paket 9f: kindgerechte A4-Wochenplan-Druckvorlage,
+ * diskreter Kinder-Code, korrigierte freie Aufgaben und konkretisierte
+ * Rico-Schnabel-Themen.
+ *
+ * Lädt NACH weekly-plan-9e.js.
+ */
+(() => {
+  if (
+    typeof renderWeeklyPrintDialog !== "function" ||
+    typeof startWeeklyPlanPrint !== "function" ||
+    typeof renderPrintWeeklyPlan !== "function" ||
+    typeof renderAnimalMapping !== "function" ||
+    typeof weeklyPlanItemsForDay !== "function"
+  ) {
+    console.warn("Paket 9f konnte nicht initialisiert werden.");
+    return;
+  }
+
+  const baseRenderAnimalMapping = renderAnimalMapping;
+  const RICO_WORKBOOK = window.LKWeeklyPlan9e?.RICO_WORKBOOK || "Rico Schnabel 2 – Rechtschreiben";
+  const RICO_ROWS = window.LKWeeklyPlan9e?.RICO_ROWS || [];
+
+  let lkPrint9fMessage = "";
+
+  function normalizeCode(value) {
+    return String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-ZÄÖÜ0-9]/g, "")
+      .slice(0, 3);
+  }
+
+  function teacherAnimalName(animal) {
+    const base = `${animal?.tierEmoji || ""} ${animal?.tierName || ""}`.trim();
+    return animal?.firstName ? `${base} · ${animal.firstName}` : base;
+  }
+
+  function printAudienceLabel(animal) {
+    if (!animal) return "Ganze Klasse";
+    return `${animal?.tierEmoji || ""} ${animal?.tierName || "Kind"}`.trim();
+  }
+
+  function printDensityClass(taskCount = 0) {
+    if (taskCount > 22) return "lk-wp-density-compact";
+    if (taskCount > 16) return "lk-wp-density-medium";
+    return "lk-wp-density-roomy";
+  }
+
+  /* ---------- Diskreter Kinder-Code ---------- */
+
+  window.lkSaveWeeklyCode = async function lkSaveWeeklyCode(animalId, value) {
+    const code = normalizeCode(value);
+    const animals = (state.animals || []).map((animal) =>
+      animal.id === animalId ? { ...animal, weeklyCode: code } : animal
+    );
+    await persist({ ...state, animals });
+  };
+
+  renderAnimalMapping = function renderAnimalMapping9f() {
+    const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+    return `
+      ${baseRenderAnimalMapping()}
+      <section class="panel lk-weekly-code-panel">
+        <div class="lk-code-head">
+          <div>
+            <h2>Wochenplan-Code</h2>
+            <p class="privacy-text">
+              Optionaler, unauffälliger Buchstabe für individuelle Wochenpläne.
+              Beispiel: A für Adrian, E für Emil. Der Name wird nicht auf den Plan gedruckt.
+            </p>
+          </div>
+          <span class="lk-code-example">A</span>
+        </div>
+        <div class="lk-code-grid">
+          ${animals.map((animal) => `
+            <label class="lk-code-row">
+              <span>${escapeHtml(teacherAnimalName(animal))}</span>
+              <input
+                class="text-input lk-code-input"
+                maxlength="3"
+                value="${escapeAttribute(animal.weeklyCode || "")}"
+                placeholder="z. B. A"
+                aria-label="Wochenplan-Code für ${escapeAttribute(animal.tierName || "")}"
+                onchange="lkSaveWeeklyCode('${escapeAttribute(animal.id)}', this.value)"
+              >
+            </label>
+          `).join("")}
+        </div>
+        <p class="message subtle">
+          Der Code erscheint nur klein und ohne Beschriftung oben rechts auf einem individuell gedruckten Plan.
+        </p>
+      </section>
+    `;
+  };
+
+  /* ---------- Rico Schnabel konkretisieren ---------- */
+
+  function ricoTopicForPage(page) {
+    const number = Number(page || 0);
+    if (!number || !RICO_ROWS.length) return null;
+    let result = null;
+    for (let i = 0; i < RICO_ROWS.length; i += 1) {
+      const [start, title, area] = RICO_ROWS[i];
+      const nextStart = RICO_ROWS[i + 1]?.[0] || 113;
+      if (number >= start && number < nextStart) {
+        result = {
+          start,
+          end: Math.max(start, nextStart - 1),
+          title,
+          area
+        };
+        break;
+      }
+    }
+    return result;
+  }
+
+  async function migrateRicoTopics9f() {
+    if (!state?.setupComplete || !state.activeClassId || !RICO_ROWS.length) return 0;
+    let changed = 0;
+    const timestamp = typeof nowIso === "function" ? nowIso() : new Date().toISOString();
+
+    const workbookCatalog = (state.workbookCatalog || []).map((item) => {
+      if (item.classId !== state.activeClassId || item.workbook !== RICO_WORKBOOK) return item;
+      const page = Number(item.page || item.startPage || 0);
+      const topic = ricoTopicForPage(page);
+      if (!topic) return item;
+
+      const next = {
+        ...item,
+        part: topic.area,
+        area: topic.area,
+        category: topic.area,
+        title: topic.title,
+        competence: "Rechtschreiben",
+        updatedAt: timestamp
+      };
+
+      if (
+        next.part !== item.part ||
+        next.area !== item.area ||
+        next.category !== item.category ||
+        next.title !== item.title
+      ) changed += 1;
+      return next;
+    });
+
+    if (changed) await persist({ ...state, workbookCatalog });
+    return changed;
+  }
+
+  window.lkRefreshRicoTopics = async function lkRefreshRicoTopics() {
+    const count = await migrateRicoTopics9f();
+    globalMessage = count
+      ? `${count} Rico-Schnabel-Seiten wurden mit den Themen aus dem Inhaltsverzeichnis aktualisiert.`
+      : "Rico Schnabel 2 ist bereits konkret nach Themen zugeordnet.";
+    render();
+  };
+
+  /* ---------- Druckdialog ---------- */
+
+  function fixedPrintAnimalIds(plan, animals) {
+    if (!plan || plan.assignmentMode !== "selected" || !Array.isArray(plan.animalIds) || !plan.animalIds.length) return [];
+    const validIds = new Set((animals || []).map((animal) => animal.id));
+    return [...new Set(plan.animalIds)].filter((id) => validIds.has(id));
+  }
+
+  function fixedPrintAnimalRows(animals) {
+    return animals.map((animal) => `
+      <div class="lk-print-animal-row lk-print-animal-row-fixed">
+        <span class="lk-print-fixed-mark" aria-hidden="true">✓</span>
+        <span>${escapeHtml(teacherAnimalName(animal))}</span>
+        <span class="lk-print-code-label">Code</span>
+        <input
+          class="text-input lk-print-code-input"
+          id="lkPrintCode_${escapeAttribute(animal.id)}"
+          maxlength="3"
+          value="${escapeAttribute(animal.weeklyCode || "")}"
+          placeholder="A"
+          aria-label="Druck-Code für ${escapeAttribute(teacherAnimalName(animal))}"
+        >
+      </div>
+    `).join("");
+  }
+
+  function animalPrintRows(animals) {
+    return animals.map((animal, index) => `
+      <label class="lk-print-animal-row">
+        <input class="weeklyPrintAnimalCheckbox" type="checkbox" value="${escapeAttribute(animal.id)}" ${index === 0 ? "checked" : ""}>
+        <span>${escapeHtml(teacherAnimalName(animal))}</span>
+        <span class="lk-print-code-label">Code</span>
+        <input
+          class="text-input lk-print-code-input"
+          id="lkPrintCode_${escapeAttribute(animal.id)}"
+          maxlength="3"
+          value="${escapeAttribute(animal.weeklyCode || "")}"
+          placeholder="A"
+          aria-label="Druck-Code"
+        >
+      </label>
+    `).join("");
+  }
+
+  renderWeeklyPrintDialog = function renderWeeklyPrintDialog9f() {
+    if (!weeklyPrintDialogOpen) return "";
+    const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
+    const animals = animalsForActiveClass().filter((animal) => animal.aktiv);
+    const fixedIds = fixedPrintAnimalIds(plan, animals);
+    const fixedAnimals = fixedIds.map((id) => animals.find((animal) => animal.id === id)).filter(Boolean);
+    const isClassPlan = !plan || plan.assignmentMode === "all" || !fixedAnimals.length;
+    const audienceLabel = isClassPlan
+      ? "Ganze Klasse"
+      : `${fixedAnimals.length} ${fixedAnimals.length === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}`;
+
+    return `
+      <div class="training-modal-overlay lk-print9f-overlay" role="presentation" onclick="if (event.target === this) closeWeeklyPrintDialog()">
+        <section class="training-modal-card lk-print9f-card" role="dialog" aria-modal="true" aria-labelledby="weeklyPrintTitle">
+          <button class="modal-close" type="button" aria-label="Schließen" onclick="closeWeeklyPrintDialog()">×</button>
+          <div class="lk-print9f-head">
+            <div>
+              <span class="weekly-editor-badge">Druck</span>
+              <h2 id="weeklyPrintTitle">Wochenplan drucken</h2>
+              <p class="privacy-text">
+                Die Druckvorlage ist fest auf eine ruhige DIN-A4-Seite ausgelegt.
+                Name und Erledigt-Kreise bleiben zum handschriftlichen Ausfüllen frei.
+              </p>
+            </div>
+          </div>
+
+          ${plan ? `
+            <div class="lk-print9f-steps">
+              <section class="lk-print-fixed-audience">
+                <strong>Für wen wird gedruckt?</strong>
+                <div class="lk-print-fixed-summary">
+                  <span class="lk-print-fixed-icon">✓</span>
+                  <div>
+                    <b>${escapeHtml(audienceLabel)}</b>
+                    <small>${isClassPlan
+                      ? "Die Zielgruppe wurde beim Erstellen des Wochenplans festgelegt. Alle erhalten denselben Plan."
+                      : "Die Zielgruppe wurde beim Erstellen des Wochenplans festgelegt und wird automatisch übernommen."}</small>
+                  </div>
+                </div>
+
+                ${isClassPlan ? "" : `
+                  <div class="lk-print-animal-grid lk-print-fixed-grid">
+                    ${fixedPrintAnimalRows(fixedAnimals)}
+                  </div>
+                  <p class="message subtle">
+                    Die kleinen Druck-Codes kannst du bei Bedarf ändern. Die Kinder-Auswahl selbst ist fest.
+                  </p>
+                `}
+              </section>
+
+              <section class="lk-print-layout-section">
+                <strong>Layout</strong>
+                <div class="lk-print-layout-grid">
+                  <label class="lk-print-layout-choice ${plan?.planningMode === "week" ? "disabled" : ""}">
+                    <input type="radio" name="lkPrintLayout" value="day"
+                      ${plan?.planningMode === "week" ? "disabled" : "checked"}>
+                    <span>📅</span>
+                    <div>
+                      <b>Tagesplan</b>
+                      <small>Montag bis Freitag einzeln</small>
+                      ${plan?.planningMode === "week" ? `<em>Nur bei Planung nach Tagen</em>` : ""}
+                    </div>
+                  </label>
+                  <label class="lk-print-layout-choice">
+                    <input type="radio" name="lkPrintLayout" value="week"
+                      ${plan?.planningMode === "week" ? "checked" : ""}>
+                    <span>🗂</span>
+                    <div>
+                      <b>Wochenplan</b>
+                      <small>Deutsch/Mathe · Pflicht vor Sternchen</small>
+                    </div>
+                  </label>
+                </div>
+              </section>
+
+              <section>
+                <strong>Inhalt</strong>
+                <label class="toggle-label lk-print-toggle">
+                  <input id="weeklyPrintExtra" type="checkbox" checked>
+                  ⭐ Zusatzaufgaben mitdrucken
+                </label>
+              </section>
+
+              <section class="lk-print-footer-inputs">
+                <div class="lk-print-footer-inputs-head">
+                  <strong>Notizfelder auf dem Ausdruck <span>optional</span></strong>
+                  <small>Nur ausgewählte Felder werden gedruckt. So bleibt mehr Platz für die Aufgaben.</small>
+                </div>
+                <div class="lk-print-footer-choice-grid">
+                  <label class="lk-print-footer-choice">
+                    <input type="checkbox" id="lkPrintRememberEnabled" onchange="lkTogglePrintFooterField('Remember',this.checked)">
+                    <span>Daran denke ich</span>
+                  </label>
+                  <label class="lk-print-footer-choice">
+                    <input type="checkbox" id="lkPrintTeacherNoteEnabled" onchange="lkTogglePrintFooterField('TeacherNote',this.checked)">
+                    <span>Mitteilung Lehrkraft</span>
+                  </label>
+                  <label class="lk-print-footer-choice">
+                    <input type="checkbox" id="lkPrintParentNoteEnabled" onchange="lkTogglePrintFooterField('ParentNote',this.checked)">
+                    <span>Mitteilung Eltern</span>
+                  </label>
+                </div>
+                <div class="lk-print-footer-input-grid">
+                  <label class="field lk-print-footer-field hidden" id="lkPrintRememberWrap">
+                    Daran denke ich
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintRemember" rows="2" placeholder="Leer lassen für Schreiblinien"></textarea>
+                  </label>
+                  <label class="field lk-print-footer-field hidden" id="lkPrintTeacherNoteWrap">
+                    Mitteilung Lehrkraft
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintTeacherNote" rows="2" placeholder="Leer lassen für Schreiblinien"></textarea>
+                  </label>
+                  <label class="field lk-print-footer-field hidden" id="lkPrintParentNoteWrap">
+                    Mitteilung Eltern
+                    <textarea class="text-input lk-print-footer-text" id="lkPrintParentNote" rows="2" placeholder="Leer lassen für Schreiblinien"></textarea>
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            ${lkPrint9fMessage ? `<p class="message error">${escapeHtml(lkPrint9fMessage)}</p>` : ""}
+
+            <div class="backup-actions lk-print9f-actions">
+              <button class="secondary" type="button" onclick="closeWeeklyPrintDialog()">Abbrechen</button>
+              <button class="primary" type="button" onclick="startWeeklyPlanPrint()">Vorschau öffnen</button>
+            </div>
+          ` : `<div class="empty">Der Wochenplan wurde nicht gefunden.</div>`}
+        </section>
+      </div>
+    `;
+  };
+
+  window.lkToggle9fPrintTarget = function lkToggle9fPrintTarget() {
+    const target = document.querySelector('input[name="lkPrintTarget"]:checked')?.value || "all";
+    document.getElementById("lkPrintIndividualWrap")?.classList.toggle("hidden", target !== "selected");
+  };
+
+  window.lkSelectAllPrintAnimals = function lkSelectAllPrintAnimals(checked) {
+    document.querySelectorAll(".weeklyPrintAnimalCheckbox").forEach((input) => {
+      input.checked = Boolean(checked);
+    });
+  };
+
+  window.lkTogglePrintFooterField = function lkTogglePrintFooterField(key, enabled) {
+    const wrap = document.getElementById(`lkPrint${key}Wrap`);
+    wrap?.classList.toggle("hidden", !enabled);
+    if (enabled) setTimeout(() => document.getElementById(`lkPrint${key}`)?.focus(), 0);
+  };
+
+  startWeeklyPlanPrint = function startWeeklyPlanPrint9f() {
+    const plan = weeklyPrintDraft || (state.weeklyPlans || []).find((item) => item.id === weeklyPrintPlanId);
+    if (!plan) return;
+
+    const availableAnimals = animalsForActiveClass().filter((animal) => animal.aktiv);
+    const fixedIds = fixedPrintAnimalIds(plan, availableAnimals);
+    const target = fixedIds.length ? "selected" : "all";
+    const selectedAnimals = fixedIds;
+
+    const codes = {};
+    selectedAnimals.forEach((animalId) => {
+      codes[animalId] = normalizeCode(document.getElementById(`lkPrintCode_${animalId}`)?.value || "");
+    });
+
+    lkPrint9fMessage = "";
+    currentWeeklyPrintPlan = plan;
+    currentWeeklyPrintOptions = {
+      template: "kindgerecht-v1",
+      variant: "kindgerecht",
+      target,
+      animalIds: selectedAnimals,
+      days: [...WEEK_DAYS],
+      showTheme: true,
+      showExtra: document.querySelector("#weeklyPrintExtra")?.checked !== false,
+      showCheckboxes: true,
+      showFirstNames: false,
+      layout: document.querySelector('input[name="lkPrintLayout"]:checked')?.value
+        || (plan.planningMode === "week" ? "week" : "day"),
+      codes,
+      footerNotes: {
+        rememberEnabled: document.querySelector("#lkPrintRememberEnabled")?.checked === true,
+        teacherEnabled: document.querySelector("#lkPrintTeacherNoteEnabled")?.checked === true,
+        parentEnabled: document.querySelector("#lkPrintParentNoteEnabled")?.checked === true,
+        remember: String(document.querySelector("#lkPrintRemember")?.value || "").trim(),
+        teacher: String(document.querySelector("#lkPrintTeacherNote")?.value || "").trim(),
+        parent: String(document.querySelector("#lkPrintParentNote")?.value || "").trim()
+      }
+    };
+    weeklyPrintDialogOpen = false;
+    currentPrintType = "weeklyPlan";
+    printReturnTab = "weeklyPlans";
+    screen = "printView";
+    render();
+  };
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !weeklyPrintDialogOpen) return;
+    event.preventDefault();
+    closeWeeklyPrintDialog();
+  });
+
+  /* ---------- A4 Druckvorlage ---------- */
+
+  function germanDate(value) {
+    if (!value) return "";
+    try {
+      return typeof formatGermanDate === "function"
+        ? formatGermanDate(value)
+        : new Date(value).toLocaleDateString("de-DE");
+    } catch {
+      return String(value);
+    }
+  }
+
+  function codeForAnimal(animal, options) {
+    if (!animal) return "";
+    return normalizeCode(options?.codes?.[animal.id] || animal.weeklyCode || "");
+  }
+
+  function printSubject(item) {
+    const raw = String(item?.subject || item?.label || "")
+      .replace(/^⭐\s*/, "")
+      .trim();
+    if (/deutsch/i.test(raw)) return "Deutsch";
+    if (/mathe/i.test(raw)) return "Mathe";
+    if (/extra|freie aufgabe|sonstig/i.test(raw)) return "Extra";
+
+    const catalogSubject = String(item?.catalogItem?.subject || "").trim();
+    if (/deutsch/i.test(catalogSubject)) return "Deutsch";
+    if (/mathe/i.test(catalogSubject)) return "Mathe";
+    return item?.isFreeTask ? "Extra" : raw;
+  }
+
+  function printDisplaySection(item) {
+    return item?.weeklySection || printSubject(item);
+  }
+
+  function printDeutschSectionOrder(plan) {
+    const defaults = ["Deutsch", "Lesezeit", "Lernwörter"];
+    const input = Array.isArray(plan?.deutschSectionOrder) ? plan.deutschSectionOrder : [];
+    const valid = input.filter((item) => defaults.includes(item));
+    return [...new Set([...valid, ...defaults])].slice(0, defaults.length);
+  }
+
+  function printSectionTitle(section) {
+    return section === "Deutsch" ? "Arbeitsaufträge" : section;
+  }
+
+  function printParentSubject(section) {
+    return section === "Lesezeit" || section === "Lernwörter" ? "Deutsch" : section;
+  }
+
+  function printTaskSubjectLabel(section) {
+    if (section === "Deutsch") return "Arbeitsaufträge";
+    if (section === "Lesezeit") return "Lesezeit";
+    if (section === "Lernwörter") return "Lernwörter";
+    return section;
+  }
+
+  function printableItems(plan, day, animal, options) {
+    let items = weeklyPlanItemsForDay(plan, day, animal?.id || "");
+    if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
+
+    const order = printDeutschSectionOrder(plan);
+    const rank = Object.fromEntries(order.map((section, index) => [section, index + 1]));
+    rank.Mathe = 10;
+    rank.Extra = 20;
+    return items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => (
+        (rank[printDisplaySection(a.item)] || 30) - (rank[printDisplaySection(b.item)] || 30)
+        || a.index - b.index
+      ))
+      .map(({ item }) => item);
+  }
+
+  function pageText(item) {
+    if (item?.weeklySection === "Lernwörter") {
+      const free = String(item.freeText || item.text || "").replace(/^⭐\s*/, "").trim();
+      if (free) return free;
+      const legacyTitle = String(item?.catalogItem?.title || "").trim();
+      if (legacyTitle && !/^Lernwörter(?:\s+Seite\s+\d+)?$/i.test(legacyTitle)) return legacyTitle;
+      return "Lernwörter";
+    }
+    if (item.isFreeTask || !item.catalogItem) {
+      return String(item.freeText || item.text || "").replace(/^⭐\s*/, "").trim();
+    }
+    const catalog = item.catalogItem;
+    let page = "";
+    try { page = pageRangeLabel(catalog); } catch {}
+    const bits = [
+      page,
+      item.taskNumber ? `Nr. ${item.taskNumber}` : ""
+    ].filter(Boolean);
+    return bits.join(" · ");
+  }
+
+  function detailText(item) {
+    if (!item.catalogItem) return "";
+    const bits = [
+      String(item.catalogItem.title || item.catalogItem.area || "").trim(),
+      String(item.catalogItem.workbook || "").trim()
+    ].filter(Boolean);
+    return bits.join(" · ");
+  }
+
+  function printSubjectClass(subject) {
+    if (subject === "Deutsch") return "deutsch";
+    if (subject === "Lesezeit") return "lesezeit";
+    if (subject === "Lernwörter") return "lernwoerter";
+    if (subject === "Mathe") return "mathe";
+    return "extra";
+  }
+
+  function renderWorksheetCoverImage(className = "") {
+    const classes = ["lk-wp-book-cover", className].filter(Boolean).join(" ");
+    return `<img class="${escapeAttribute(classes)}" src="./materials/cover-arbeitsblatt.png" alt="Arbeitsblatt">`;
+  }
+
+  function renderMicrophoneImage(className = "") {
+    const classes = ["lk-wp-book-cover", "lk-wp-microphone-image", className].filter(Boolean).join(" ");
+    return `<img class="${escapeAttribute(classes)}" src="./materials/icon-microphone.png" alt="Mikrofon">`;
+  }
+
+  function printSubjectBadge(subject) {
+    if (subject === "Deutsch") {
+      return `<span class="lk-wp-subject-badge deutsch" aria-hidden="true"><span class="a">A</span><span class="b">B</span><span class="c">C</span></span>`;
+    }
+    if (subject === "Lesezeit") {
+      return `<span class="lk-wp-subject-badge lesezeit" aria-hidden="true">📖</span>`;
+    }
+    if (subject === "Lernwörter") {
+      return `<span class="lk-wp-subject-badge lernwoerter" aria-hidden="true">Aa</span>`;
+    }
+    if (subject === "Mathe") {
+      return `<span class="lk-wp-subject-badge mathe" aria-hidden="true"><span class="n1">1</span><span class="n2">2</span><span class="n3">3</span></span>`;
+    }
+    return `<span class="lk-wp-subject-badge extra" aria-hidden="true">✏️</span>`;
+  }
+
+  function printTaskRow(item = null, previousSubject = "") {
+    if (!item) {
+      return `
+        <div class="lk-wp-task-row blank">
+          <div class="lk-wp-task-text"><span>&nbsp;</span></div>
+          <span class="lk-wp-circle"></span>
+        </div>
+      `;
+    }
+
+    const subject = printDisplaySection(item);
+    const subjectClass = printSubjectClass(subject);
+    const parentSubject = printParentSubject(subject);
+    const subjectLabel = printTaskSubjectLabel(subject);
+    return `
+      <div class="lk-wp-task-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${previousSubject && previousSubject !== subject ? "subject-break" : ""}">
+        <div class="lk-wp-task-text">
+          <span class="lk-wp-task-main">
+            ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
+            ${printSubjectBadge(parentSubject)}
+            <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
+            ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
+            <span class="lk-wp-task-copy"><strong>${escapeHtml(pageText(item))}</strong></span>
+          </span>
+        </div>
+        <span class="lk-wp-circle"></span>
+      </div>
+    `;
+  }
+
+  function dayTaskTextClass(item = null) {
+    const length = String(item ? pageText(item) : "").trim().length;
+    if (length > 68) return "text-xlong";
+    if (length > 44) return "text-long";
+    if (length > 26) return "text-medium";
+    return "text-short";
+  }
+
+  function renderDayTaskContent(item = null) {
+    if (!item) return `<span class="lk-wp-day-empty-copy">&nbsp;</span>`;
+    const subject = printDisplaySection(item);
+    const parentSubject = printParentSubject(subject);
+    const subjectLabel = printTaskSubjectLabel(subject);
+    const textClass = dayTaskTextClass(item);
+    return `
+      <span class="lk-wp-day-task-main ${textClass}">
+        ${item.isExtraTask ? `<b class="lk-wp-star" aria-label="Zusatzaufgabe">★</b>` : ""}
+        ${printSubjectBadge(parentSubject)}
+        <span class="lk-wp-task-subject-label">${escapeHtml(subjectLabel)}</span>
+        ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
+        <span class="lk-wp-day-task-copy"><strong>${escapeHtml(pageText(item))}</strong></span>
+      </span>
+    `;
+  }
+
+  function renderPrintDayCompact(plan, day, animal, options) {
+    const items = printableItems(plan, day, animal, options);
+    const groups = groupPrintItems(items);
+
+    const content = groups.length ? groups.map((group) => `
+      <div class="lk-dayplan-group ${group.hasSymbol ? "has-symbol" : "no-symbol"}">
+        <div class="lk-dayplan-material ${group.hasSymbol ? "has-symbol" : "empty"}">
+          ${group.hasSymbol ? group.symbolHtml : ""}
+        </div>
+        <div class="lk-dayplan-group-rows">
+          ${group.items.map((item) => {
+            const subject = printDisplaySection(item);
+            const subjectClass = printSubjectClass(subject);
+            return `
+              <div class="lk-dayplan-row ${subjectClass} ${item.isExtraTask ? "starred" : ""} ${dayTaskTextClass(item)}">
+                <div class="lk-dayplan-assignment">${renderDayTaskContent(item)}</div>
+                <div class="lk-dayplan-done"><span class="lk-wp-circle"></span></div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `).join("") : `
+      <div class="lk-dayplan-group no-symbol">
+        <div class="lk-dayplan-material empty"></div>
+        <div class="lk-dayplan-group-rows">
+          <div class="lk-dayplan-row blank">
+            <div class="lk-dayplan-assignment">${renderDayTaskContent(null)}</div>
+            <div class="lk-dayplan-done"><span class="lk-wp-circle"></span></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return `
+      <section class="lk-dayplan-day">
+        <div class="lk-dayplan-dayname">${escapeHtml(day)}</div>
+        <div class="lk-dayplan-taskarea">${content}</div>
+      </section>
+    `;
+  }
+
+  function renderFooterBox(title, kind = "", value = "") {
+    const text = String(value || "").trim();
+    return `
+      <section class="lk-wp-footer-box ${escapeAttribute(kind)} ${text ? "has-text" : ""}">
+        <h3>${escapeHtml(title)}</h3>
+        ${text
+          ? `<div class="lk-wp-footer-text">${escapeHtml(text).replace(/\n/g, "<br>")}</div>`
+          : `<div class="lk-wp-footer-lines"><span></span><span></span><span></span></div>`}
+      </section>
+    `;
+  }
+
+  function allPrintableItems(plan, animal, options) {
+    let items = WEEK_DAYS.flatMap((day) => weeklyPlanItemsForDay(plan, day, animal?.id || "")
+      .map((item) => ({ ...item, sourceDay: day })));
+    if (options?.showExtra === false) items = items.filter((item) => !item.isExtraTask);
+    return items;
+  }
+
+  function renderSelectedFooter(options) {
+    const notes = options?.footerNotes || {};
+    const boxes = [];
+    if (notes.rememberEnabled) boxes.push(renderFooterBox("Daran denke ich", "remember", notes.remember));
+    if (notes.teacherEnabled) boxes.push(renderFooterBox("Mitteilung Lehrkraft", "teacher-note", notes.teacher));
+    if (notes.parentEnabled) boxes.push(renderFooterBox("Mitteilung Eltern", "parent-note", notes.parent));
+    if (!boxes.length) return "";
+    return `<footer class="lk-wp-footer footer-count-${boxes.length}">${boxes.join("")}</footer>`;
+  }
+
+  function weekLayoutGroupMeta(item = null, fallbackIndex = 0) {
+    const section = printDisplaySection(item);
+    const workbook = String(item?.catalogItem?.workbook || "").trim();
+    if (workbook) {
+      return {
+        key: `workbook:${section}:${workbook}`,
+        type: "workbook",
+        section,
+        catalogItem: item.catalogItem || null,
+        symbolHtml: renderWorkbookCoverImage(item.catalogItem, "lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    if (item?.isWorksheetTask) {
+      return {
+        key: `worksheet:${section}`,
+        type: "worksheet",
+        section,
+        catalogItem: null,
+        symbolHtml: renderWorksheetCoverImage("lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    if (item?.isMicrophoneTask) {
+      return {
+        key: `microphone:${section}`,
+        type: "microphone",
+        section,
+        catalogItem: null,
+        symbolHtml: renderMicrophoneImage("lk-wp-book-cover grouped"),
+        hasSymbol: true
+      };
+    }
+    return {
+      key: `plain:${section}:${fallbackIndex}`,
+      type: "plain",
+      section,
+      catalogItem: null,
+      symbolHtml: "",
+      hasSymbol: false
+    };
+  }
+
+  function groupPrintItems(items) {
+    const groups = [];
+    (items || []).forEach((item, index) => {
+      const meta = weekLayoutGroupMeta(item, index);
+      const last = groups[groups.length - 1];
+      if (last && last.key === meta.key) {
+        last.items.push(item);
+        return;
+      }
+      // Bei freien AB-/Mikrofon-Bloecken markiert die erste Aufgabe das Material.
+      // Direkt folgende freie Aufgaben derselben Unterrichtssektion gehoeren zum
+      // selben Block, bis ein neues Materialsymbol/ein Buch/eine Sektion beginnt.
+      if (
+        last
+        && meta.type === "plain"
+        && meta.section === last.section
+        && (last.type === "worksheet" || last.type === "microphone")
+      ) {
+        last.items.push(item);
+        return;
+      }
+      groups.push({ ...meta, items: [item] });
+    });
+    return groups;
+  }
+
+  function renderWeekLayoutRows(items) {
+    if (!items.length) return `<div class="lk-wp-week-empty">keine Aufgabe</div>`;
+    const groups = groupPrintItems(items);
+
+    return groups.map((group) => `
+      <div class="lk-wp-workbook-group ${group.hasSymbol ? "has-symbol" : "no-symbol"} ${group.type === "workbook" ? "has-cover" : ""}" style="--group-weight:${Math.max(1, group.items.length)}">
+        ${group.hasSymbol
+          ? `<div class="lk-wp-workbook-cover-cell ${group.type !== "workbook" ? "icon-only" : ""}">${group.symbolHtml}</div>`
+          : ""}
+        <div class="lk-wp-workbook-tasks">
+          ${group.items.map((item) => `
+            <div class="lk-wp-week-row">
+              <div class="lk-wp-week-row-main">
+                ${item.isExtraTask ? `<b class="lk-wp-star">★</b>` : ""}
+                ${item.socialForm && typeof weeklySocialFormIconHtml === "function" ? weeklySocialFormIconHtml(item.socialForm, "lk-wp-social-form") : ""}
+                <div class="lk-wp-task-copy">
+                  <strong>${escapeHtml(pageText(item))}</strong>
+                </div>
+              </div>
+              <span class="lk-wp-circle"></span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function renderWeekLayoutSection(title, items, className = "") {
+    return `
+      <section class="lk-wp-week-section ${escapeAttribute(className)}" style="--section-weight:${Math.max(1, items.length)}">
+        <h2>${escapeHtml(title)}</h2>
+        <div class="lk-wp-week-list">${renderWeekLayoutRows(items)}</div>
+      </section>
+    `;
+  }
+
+  function renderWeekSubjectHeader(subject, subtitle = "") {
+    return `
+      <header class="lk-wp-week-subject-head ${escapeAttribute(printSubjectClass(subject))}">
+        ${printSubjectBadge(subject)}
+        <div class="lk-wp-week-subject-copy">
+          <strong>${escapeHtml(subject)}</strong>
+          ${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ""}
+        </div>
+      </header>
+    `;
+  }
+
+  function printPageWeekLayout(className, plan, animal, options) {
+    const code = codeForAnimal(animal, options);
+    const items = allPrintableItems(plan, animal, options);
+    // Reihenfolge aus dem Wochenplan beibehalten. Pflicht- und Zusatzaufgaben
+    // werden nicht mehr künstlich in zwei Blöcke getrennt; Zusatz bleibt am ★ erkennbar.
+    const deutschItems = items.filter((item) => printSubject(item) === "Deutsch" && !item.weeklySection);
+    const lesezeitItems = items.filter((item) => item.weeklySection === "Lesezeit");
+    const lernwoerterItems = items.filter((item) => item.weeklySection === "Lernwörter");
+    const matheItems = items.filter((item) => printSubject(item) === "Mathe");
+    const extra = items.filter((item) => !["Deutsch", "Mathe"].includes(printSubject(item)));
+
+    const densityClass = printDensityClass(items.length);
+    return `
+      <section class="lk-wp-page lk-wp-week-layout ${densityClass}">
+        <header class="lk-wp-header">
+          <div class="lk-wp-title-wrap">
+            <h1>Wochenplan</h1>
+            <div class="lk-wp-wave" aria-hidden="true">~~~~~~~</div>
+          </div>
+          ${animal ? `<div class="lk-wp-animal-corner">${escapeHtml(printAudienceLabel(animal))}</div>` : ""}
+          <div class="lk-wp-meta">
+            <div><strong>Name:</strong><span class="lk-wp-write-line"></span></div>
+            <div class="lk-wp-period">
+              <strong>Woche vom:</strong>
+              <span>${escapeHtml(germanDate(plan.validFrom))}</span>
+              <strong>bis:</strong>
+              <span>${escapeHtml(germanDate(plan.validTo))}</span>
+            </div>
+          </div>
+          <div class="lk-wp-small-meta">
+            <span>${escapeHtml(className || "")}</span>
+            ${plan.weekLabel ? `<span>${escapeHtml(plan.weekLabel)}</span>` : ""}
+          </div>
+        </header>
+
+        <main class="lk-wp-week-groups">
+          <section class="lk-wp-week-subject-block deutsch-group">
+            ${renderWeekSubjectHeader("Deutsch", "Arbeitsaufträge · Lesezeit · Lernwörter")}
+            <div class="lk-wp-week-subsections">
+              ${printDeutschSectionOrder(plan).map((section) => {
+                const sectionItems = section === "Deutsch" ? deutschItems : section === "Lesezeit" ? lesezeitItems : lernwoerterItems;
+                const cssClass = section === "Deutsch" ? "deutsch" : section === "Lesezeit" ? "lesezeit" : "lernwoerter";
+                return sectionItems.length ? renderWeekLayoutSection(printSectionTitle(section), sectionItems, cssClass) : "";
+              }).join("")}
+            </div>
+          </section>
+
+          <section class="lk-wp-week-subject-block mathe-group">
+            ${renderWeekSubjectHeader("Mathe")}
+            <div class="lk-wp-week-subsections">
+              ${renderWeekLayoutSection("Aufgaben", matheItems, "mathe")}
+            </div>
+          </section>
+
+          ${extra.length ? renderWeekLayoutSection("Sonstiges", extra, "extra") : ""}
+        </main>
+
+        ${renderSelectedFooter(options)}
+      </section>
+    `;
+  }
+
+  function printPage9f(className, plan, animal, options) {
+    const code = codeForAnimal(animal, options);
+    const densityClass = printDensityClass(allPrintableItems(plan, animal, options).length);
+    return `
+      <section class="lk-wp-page ${densityClass}">
+        <header class="lk-wp-header">
+          <div class="lk-wp-title-wrap">
+            <h1>Wochenplan</h1>
+            <div class="lk-wp-wave" aria-hidden="true">~~~~~~~</div>
+          </div>
+          ${animal ? `<div class="lk-wp-animal-corner">${escapeHtml(printAudienceLabel(animal))}</div>` : ""}
+          <div class="lk-wp-meta">
+            <div><strong>Name:</strong><span class="lk-wp-write-line"></span></div>
+            <div class="lk-wp-period">
+              <strong>Woche vom:</strong>
+              <span>${escapeHtml(germanDate(plan.validFrom))}</span>
+              <strong>bis:</strong>
+              <span>${escapeHtml(germanDate(plan.validTo))}</span>
+            </div>
+          </div>
+          <div class="lk-wp-small-meta">
+            <span>${escapeHtml(className || "")}</span>
+            ${plan.weekLabel ? `<span>${escapeHtml(plan.weekLabel)}</span>` : ""}
+          </div>
+        </header>
+
+        <div class="lk-dayplan-wrap">
+          <div class="lk-dayplan-head">
+            <div>Tag</div>
+            <div>Aufgaben</div>
+            <div>Erledigt</div>
+          </div>
+          <div class="lk-dayplan-days">
+            ${WEEK_DAYS.map((day) => renderPrintDayCompact(plan, day, animal, options)).join("")}
+          </div>
+        </div>
+
+        ${renderSelectedFooter(options)}
+      </section>
+    `;
+  }
+
+  window.lkFitWeeklyPrintPages = function lkFitWeeklyPrintPages() {
+    const pages = Array.from(document.querySelectorAll(".lk-wp-page"));
+    if (!pages.length) return;
+
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:1mm;height:296mm;left:-9999px;top:-9999px;";
+    document.body.appendChild(probe);
+    const targetHeight = probe.getBoundingClientRect().height;
+    probe.remove();
+
+    pages.forEach((page) => {
+      // Zuerst neutral messen. 296 mm nutzt die A4-Seite fast vollständig;
+      // nur bei echtem Überlauf wird moderat verkleinert.
+      page.style.zoom = "1";
+      page.style.width = "210mm";
+      page.style.minHeight = "0";
+      page.style.height = "auto";
+
+      const measured = Math.max(page.scrollHeight, page.getBoundingClientRect().height);
+      // Ein Ausdruck soll pro Kind wirklich auf genau einer A4-Seite bleiben.
+      // Bei normalen Plaenen bleibt 100 %, nur bei echtem Ueberlauf wird exakt
+      // auf die verfuegbare Hoehe skaliert. Keine kuenstliche Verteilung freien
+      // Platzes auf die Zeilen.
+      let scale = measured > targetHeight ? (targetHeight / measured) * 0.992 : 1;
+      scale = Math.max(0.24, Math.min(1, scale));
+
+      if (scale < 0.999) {
+        // CSS zoom wird von Chromium und Safari auch beim Drucken in die
+        // Seitengestaltung einbezogen. Die Breite wird gegengerechnet,
+        // damit die sichtbare Seite weiterhin 210 mm breit bleibt.
+        page.style.zoom = String(scale);
+        page.style.width = `${(210 / scale).toFixed(2)}mm`;
+      }
+      page.dataset.printScale = scale.toFixed(3);
+    });
+  };
+
+  window.lkPrintFittedWeeklyPlan = function lkPrintFittedWeeklyPlan() {
+    try { window.lkFitWeeklyPrintPages?.(); } catch (error) { console.warn("Druckanpassung fehlgeschlagen", error); }
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  };
+
+  renderPrintWeeklyPlan = function renderPrintWeeklyPlan9f(className) {
+    const plan = currentWeeklyPrintPlan;
+    const options = currentWeeklyPrintOptions || {};
+    if (!plan) return typeof printEmpty === "function"
+      ? printEmpty("Es ist kein Wochenplan für den Druck ausgewählt.")
+      : "<p>Kein Wochenplan ausgewählt.</p>";
+
+    const selected = options.target === "selected"
+      ? (options.animalIds || []).map((id) => animalsForActiveClass().find((animal) => animal.id === id)).filter(Boolean)
+      : [];
+
+    const targets = selected.length ? selected : [null];
+
+    return `
+      <style id="lk-weekly-print-9f-inline">
+        @page { size: A4 portrait; margin: 0; }
+
+        .print-page.weekly-print-sheet {
+          padding: 0 !important;
+          margin: 0 !important;
+          max-width: none !important;
+          width: auto !important;
+          background: #fff !important;
+          box-shadow: none !important;
+        }
+
+        .lk-wp-page {
+          box-sizing: border-box;
+          width: 210mm;
+          min-height: 297mm;
+          padding: 5mm 7mm 5mm;
+          margin: 0 auto;
+          background: #fff;
+          color: #232323;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+          break-after: page;
+          page-break-after: always;
+        }
+        .lk-wp-page:last-child {
+          break-after: auto;
+          page-break-after: auto;
+        }
+
+        .lk-wp-header {
+          position: relative;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 2mm 5mm;
+          margin-bottom: 2.5mm;
+        }
+        .lk-wp-title-wrap {
+          grid-column: 1 / -1;
+          text-align: center;
+          padding: 0 28mm;
+        }
+        .lk-wp-title-wrap h1 {
+          margin: 0;
+          font-size: 27pt;
+          font-weight: 500;
+          line-height: 1;
+          letter-spacing: .2mm;
+        }
+        .lk-wp-wave {
+          margin-top: -1.2mm;
+          color: #9fcfbc;
+          font-size: 13pt;
+          letter-spacing: 1mm;
+          height: 3.5mm;
+          overflow: hidden;
+        }
+        .lk-wp-animal-corner {
+          position: absolute;
+          right: 0;
+          top: 0;
+          max-width: 42mm;
+          padding: 1.5mm 2.5mm;
+          border-radius: 3mm;
+          background: #f4f8f6;
+          border: .3mm solid #c8ddd4;
+          font-family: Arial, sans-serif;
+          font-size: 11.5pt;
+          font-weight: 700;
+          line-height: 1.15;
+          white-space: nowrap;
+        }
+        .lk-wp-meta {
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns: 1fr 1.15fr;
+          gap: 8mm;
+          align-items: end;
+          font-size: 11.8pt;
+        }
+        .lk-wp-meta > div {
+          display: flex;
+          align-items: end;
+          gap: 2mm;
+          white-space: nowrap;
+        }
+        .lk-wp-write-line {
+          display: inline-block;
+          flex: 1;
+          min-width: 35mm;
+          height: 5mm;
+          border-bottom: .3mm solid #555;
+        }
+        .lk-wp-period span {
+          display: inline-block;
+          min-width: 21mm;
+          text-align: center;
+          border-bottom: .3mm solid #555;
+          font-family: Arial, sans-serif;
+          font-size: 10.2pt;
+          padding-bottom: .5mm;
+        }
+        .lk-wp-small-meta {
+          grid-column: 1 / -1;
+          display: flex;
+          justify-content: center;
+          gap: 5mm;
+          font-family: Arial, sans-serif;
+          font-size: 8.8pt;
+          color: #666;
+          min-height: 3mm;
+        }
+
+        .lk-wp-audience-badge {
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          width:max-content;
+          max-width:150mm;
+          margin:1.2mm auto .2mm;
+          padding:.8mm 3.2mm;
+          border-radius:999px;
+          background:#edf5ff;
+          border:.3mm solid #9fc0df;
+          color:#244f73;
+          font-family:Arial,sans-serif;
+          font-size:10.5pt;
+          font-weight:700;
+          line-height:1.1;
+        }
+
+        .lk-wp-density-medium .lk-wp-task-main,
+        .lk-wp-density-medium .lk-wp-week-row > div { font-size:12.1pt; }
+        .lk-wp-density-medium .lk-wp-task-copy strong,
+        .lk-wp-density-medium .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:15pt; }
+        .lk-wp-density-medium .lk-wp-week-row { min-height:7mm; height:7mm; flex-basis:7mm; }
+        .lk-wp-density-compact .lk-wp-task-main,
+        .lk-wp-density-compact .lk-wp-week-row > div { font-size:11.4pt; }
+        .lk-wp-density-compact .lk-wp-task-copy strong,
+        .lk-wp-density-compact .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:14pt; }
+        .lk-wp-density-compact .lk-wp-week-row { min-height:6mm; height:6mm; flex-basis:6mm; }
+        .lk-wp-density-compact .lk-wp-book-cover.grouped { width:12mm; height:17mm; }
+        .lk-wp-density-compact .lk-wp-workbook-group { grid-template-columns:16mm minmax(0,1fr); }
+        .lk-wp-density-compact .lk-wp-week-groups { gap:1.2mm; }
+        .lk-wp-density-compact .lk-wp-week-subsections { gap:.6mm; }
+
+        .lk-dayplan-wrap {
+          width:100%;
+          border:.35mm solid #444;
+          border-radius:4mm;
+          overflow:hidden;
+          box-sizing:border-box;
+          background:#fff;
+        }
+        .lk-dayplan-head {
+          display:grid;
+          grid-template-columns:28mm minmax(0,1fr) 16mm;
+          min-height:9mm;
+          background:#eef6fb;
+          border-bottom:.3mm solid #555;
+          font-size:11pt;
+          font-weight:600;
+          text-align:center;
+        }
+        .lk-dayplan-head > div {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:1mm;
+          border-right:.25mm solid #666;
+        }
+        .lk-dayplan-head > div:last-child { border-right:0; }
+        .lk-dayplan-days { display:block; }
+        .lk-dayplan-day {
+          position:relative;
+          display:block;
+          min-height:0 !important;
+          height:auto !important;
+          padding-left:28mm;
+          border-bottom:.3mm solid #555;
+          break-inside:avoid;
+          page-break-inside:avoid;
+          background:#fff;
+        }
+        .lk-dayplan-day:last-child { border-bottom:0; }
+        .lk-dayplan-dayname {
+          position:absolute;
+          left:0;
+          top:0;
+          bottom:0;
+          width:28mm;
+          box-sizing:border-box;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:1.2mm 1mm;
+          border-right:.3mm solid #555;
+          background:#fff;
+          font-size:13.5pt;
+          font-weight:500;
+          text-align:center;
+          pointer-events:none;
+        }
+        .lk-dayplan-taskarea {
+          min-width:0;
+          width:100%;
+          display:block;
+          background:#fff;
+        }
+        .lk-dayplan-group {
+          position:relative;
+          display:block;
+          min-width:0;
+          min-height:0 !important;
+          height:auto !important;
+          padding-left:12.5mm;
+          border-bottom:.22mm solid #c8c8c8;
+        }
+        .lk-dayplan-group:last-child { border-bottom:0; }
+        .lk-dayplan-material {
+          position:absolute;
+          left:0;
+          top:0;
+          bottom:0;
+          width:12.5mm;
+          box-sizing:border-box;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          min-width:0;
+          padding:.35mm .55mm;
+          border-right:.2mm solid #d1d1d1;
+          background:rgba(255,255,255,.58);
+          pointer-events:none;
+        }
+        .lk-dayplan-material.empty { background:rgba(255,255,255,.34); }
+        .lk-dayplan-material .lk-wp-book-cover {
+          display:block;
+          width:7.8mm;
+          height:9.2mm;
+          max-width:7.8mm;
+          max-height:9.2mm;
+          margin:auto;
+          object-fit:contain;
+        }
+        .lk-dayplan-group-rows {
+          min-width:0;
+          display:block;
+          height:auto !important;
+          min-height:0 !important;
+        }
+        .lk-dayplan-row {
+          display:grid;
+          grid-template-columns:minmax(0,1fr) 16mm;
+          height:8mm !important;
+          min-height:8mm !important;
+          max-height:8mm !important;
+          box-sizing:border-box;
+          border-bottom:.22mm solid #c8c8c8;
+        }
+        .lk-dayplan-row.text-long,
+        .lk-dayplan-row.text-xlong {
+          height:10.2mm !important;
+          min-height:10.2mm !important;
+          max-height:10.2mm !important;
+        }
+        .lk-dayplan-row:last-child { border-bottom:0; }
+        .lk-dayplan-assignment {
+          display:flex;
+          align-items:center;
+          min-width:0;
+          padding:.8mm 1.6mm 1.05mm;
+          border-right:.2mm solid #777;
+          overflow:visible;
+        }
+        .lk-dayplan-done {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          background:#fff;
+        }
+        .lk-dayplan-row.deutsch .lk-dayplan-assignment { background:rgba(255,249,228,.72); }
+        .lk-dayplan-row.lesezeit .lk-dayplan-assignment { background:rgba(232,247,237,.72); }
+        .lk-dayplan-row.lernwoerter .lk-dayplan-assignment { background:rgba(244,237,250,.72); }
+        .lk-dayplan-row.mathe .lk-dayplan-assignment { background:rgba(234,247,255,.78); }
+        .lk-dayplan-row.extra .lk-dayplan-assignment { background:rgba(247,247,247,.82); }
+        .lk-dayplan-row.starred .lk-dayplan-assignment { background:#fff6d9; }
+        .lk-wp-day-task-main {
+          display:flex;
+          align-items:center;
+          gap:.9mm;
+          min-width:0;
+          width:100%;
+          font-family:"Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
+          line-height:1.14;
+          white-space:normal;
+        }
+        .lk-wp-day-task-copy {
+          min-width:0;
+          flex:1 1 auto;
+          overflow:visible;
+          text-overflow:clip;
+        }
+        .lk-wp-day-task-copy strong {
+          display:block;
+          font-size:13.2pt;
+          line-height:1.14;
+          font-weight:700;
+          white-space:normal;
+          overflow-wrap:anywhere;
+        }
+        .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:13.2pt; }
+        .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:11.8pt; }
+        .lk-wp-day-task-main.text-long .lk-wp-day-task-copy strong { font-size:10.4pt; line-height:1.12; }
+        .lk-wp-day-task-main.text-xlong .lk-wp-day-task-copy strong { font-size:9.4pt; line-height:1.1; }
+        .lk-dayplan-wrap .lk-wp-task-subject-label {
+          min-width:27mm;
+          font-size:7.4pt;
+        }
+        .lk-dayplan-wrap .lk-wp-social-form {
+          width:5.8mm;
+          height:5.8mm;
+          flex:0 0 5.8mm;
+        }
+        .lk-dayplan-wrap .lk-wp-circle {
+          display:inline-block;
+          width:4.3mm;
+          height:4.3mm;
+          border:.35mm solid #555;
+          border-radius:50%;
+          background:#fff;
+        }
+        .lk-wp-day-empty-copy { display:block; min-height:5mm; }
+        .lk-wp-density-medium .lk-dayplan-row { height:7.6mm !important; min-height:7.6mm !important; max-height:7.6mm !important; }
+        .lk-wp-density-medium .lk-dayplan-row.text-long,
+        .lk-wp-density-medium .lk-dayplan-row.text-xlong { height:9.6mm !important; min-height:9.6mm !important; max-height:9.6mm !important; }
+        .lk-wp-density-medium .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:12.6pt; }
+        .lk-wp-density-medium .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:11.2pt; }
+        .lk-wp-density-compact .lk-dayplan-row { height:7.1mm !important; min-height:7.1mm !important; max-height:7.1mm !important; }
+        .lk-wp-density-compact .lk-dayplan-row.text-long,
+        .lk-wp-density-compact .lk-dayplan-row.text-xlong { height:9mm !important; min-height:9mm !important; max-height:9mm !important; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-short .lk-wp-day-task-copy strong { font-size:11.8pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-medium .lk-wp-day-task-copy strong { font-size:10.6pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-long .lk-wp-day-task-copy strong { font-size:9.7pt; }
+        .lk-wp-density-compact .lk-wp-day-task-main.text-xlong .lk-wp-day-task-copy strong { font-size:8.9pt; }
+        .lk-wp-density-compact .lk-dayplan-material .lk-wp-book-cover { width:7mm; height:8.2mm; }
+        .lk-wp-task-row {
+          display: grid;
+          grid-template-columns: minmax(0,1fr) 16mm;
+          min-height: 7.4mm;
+          border-bottom: .2mm solid #b9b9b9;
+        }
+        .lk-wp-task-row:last-child { border-bottom: 0; }
+        .lk-wp-task-row.deutsch { background: rgba(255,249,228,.55); }
+        .lk-wp-task-row.lesezeit { background: rgba(232,247,237,.58); }
+        .lk-wp-task-row.lernwoerter { background: rgba(244,237,250,.58); }
+        .lk-wp-task-row.mathe { background: rgba(234,247,255,.62); }
+        .lk-wp-task-row.extra { background: rgba(247,247,247,.72); }
+        .lk-wp-task-row.starred { background: #fff6d9; }
+        .lk-wp-day .lk-wp-task-row.subject-break { border-top:0; }
+        .lk-wp-task-text {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: .7mm 1.6mm;
+          line-height: 1.12;
+          overflow: hidden;
+        }
+        .lk-wp-task-main {
+          display: flex;
+          align-items: center;
+          gap: .9mm;
+          min-width: 0;
+          width:100%;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
+          font-size: 12.4pt;
+          line-height: 1.08;
+        }
+        .lk-wp-task-subject-label {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .lk-wp-social-form {
+          width: 7.5mm;
+          height: 7.5mm;
+          flex: 0 0 7.5mm;
+        }
+        .lk-wp-social-form img {
+          max-width: none !important;
+        }
+        .lk-wp-task-main .lk-wp-task-copy {
+          min-height:0;
+          flex:1 1 auto;
+        }
+        .lk-wp-task-main .lk-wp-task-copy strong {
+          font-size:13.5pt;
+          white-space:normal;
+        }
+        .lk-wp-task-assignment {
+          display:grid;
+          grid-template-columns:16mm minmax(0,1fr);
+          align-items:center;
+          column-gap:2.5mm;
+          min-width:0;
+          margin-top:.4mm;
+        }
+        .lk-wp-task-copy {
+          display:flex;
+          align-items:center;
+          min-width:0;
+          min-height:12mm;
+        }
+        .lk-wp-task-copy strong {
+          font-size:16pt;
+          line-height:1.03;
+          font-weight:700;
+          white-space:nowrap;
+        }
+        .lk-wp-book-cover {
+          width:14mm;
+          height:17mm;
+          object-fit:contain;
+          justify-self:center;
+          align-self:center;
+          flex:none;
+        }
+        .lk-wp-microphone-image { object-fit:contain; background:#fff; }
+        .lk-wp-book-cover.small {
+          width:13mm;
+          height:18mm;
+        }
+        .lk-wp-book-cover-spacer {
+          width:19mm;
+          height:1px;
+          display:block;
+        }
+        .lk-wp-book-cover-spacer.small {
+          width:15mm;
+        }
+        .lk-wp-subject-badge {
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          gap:.35mm;
+          min-width:10mm;
+          height:5mm;
+          padding:0 1.9mm;
+          border-radius:999px;
+          border:.25mm solid rgba(47,111,145,.18);
+          background:#fff;
+          font-family:Arial, sans-serif;
+          font-size:8.5pt;
+          font-weight:800;
+          line-height:1;
+          flex:none;
+        }
+        .lk-wp-subject-badge.deutsch {
+          background:linear-gradient(180deg,#fffdf2 0%,#fff4c3 100%);
+          border-color:rgba(220,189,85,.55);
+          color:#2e608e;
+        }
+        .lk-wp-subject-badge.deutsch .a { color:#df5b46; }
+        .lk-wp-subject-badge.deutsch .b { color:#ef9b1f; }
+        .lk-wp-subject-badge.deutsch .c { color:#2e608e; }
+        .lk-wp-subject-badge.lesezeit {
+          background:#e5f5eb;
+          border-color:rgba(83,155,112,.38);
+          color:#386e4d;
+          font-size:8pt;
+        }
+        .lk-wp-subject-badge.lernwoerter {
+          background:#f1e8f8;
+          border-color:rgba(130,94,170,.35);
+          color:#72539b;
+          font-family:Arial,sans-serif;
+          font-size:7.8pt;
+        }
+        .lk-wp-subject-badge.mathe {
+          background:linear-gradient(180deg,#f5fbff 0%,#d8f1ff 100%);
+          border-color:rgba(83,180,219,.55);
+          color:#1d728e;
+        }
+        .lk-wp-subject-badge.mathe .n1 { color:#efb52b; }
+        .lk-wp-subject-badge.mathe .n2 { color:#3bb171; }
+        .lk-wp-subject-badge.mathe .n3 { color:#7b63c9; }
+        .lk-wp-subject-badge.extra {
+          background:linear-gradient(180deg,#ffffff 0%,#f4f4f4 100%);
+          border-color:rgba(0,0,0,.12);
+          color:#666;
+          font-size:8.2pt;
+        }
+        .lk-wp-task-subject-label {
+          flex:none;
+          font-size:7.8pt;
+          font-weight:700;
+          color:#31586e;
+          min-width:25mm;
+          white-space:nowrap;
+        }
+        .lk-wp-star {
+          color: #c89400;
+          font-size: 13pt;
+          line-height: 1;
+          margin-right: .4mm;
+        }
+        .lk-wp-task-text small {
+          display: block;
+          margin-top: .5mm;
+          padding-left: 0;
+          color: #666;
+          font-family: Arial, sans-serif;
+          font-size: 7.8pt;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .lk-wp-circle {
+          align-self: center;
+          justify-self: center;
+          width: 4.3mm;
+          height: 4.3mm;
+          border: .35mm solid #555;
+          border-radius: 50%;
+        }
+        .lk-wp-task-row .lk-wp-circle {
+          position: relative;
+        }
+        .lk-wp-task-row::after {
+          content: "";
+          grid-column: 2;
+          grid-row: 1;
+          border-left: .25mm solid #777;
+          align-self: stretch;
+          justify-self: stretch;
+          pointer-events: none;
+        }
+        .lk-wp-circle {
+          grid-column: 2;
+          grid-row: 1;
+          z-index: 1;
+          background: #fff;
+        }
+
+        .lk-wp-week-layout {
+          display:flex;
+          flex-direction:column;
+          height:297mm;
+          min-height:297mm;
+        }
+        .lk-wp-week-layout .lk-wp-header { flex:0 0 auto; }
+        .lk-wp-week-groups {
+          display:flex;
+          flex-direction:column;
+          flex:0 0 auto;
+          min-height:0;
+          gap:3mm;
+          margin-top:1.8mm;
+        }
+        .lk-wp-week-subject-block {
+          display:flex;
+          flex-direction:column;
+          flex:0 0 auto;
+          min-height:0;
+          gap:1mm;
+          break-inside:auto;
+          padding:0 1.5mm 1.5mm;
+          border:.4mm solid #777;
+          border-radius:4mm;
+          background:#fff;
+          overflow:hidden;
+        }
+        .lk-wp-week-subject-block.deutsch-group { border-color:#d9bc59; }
+        .lk-wp-week-subject-block.mathe-group { border-color:#59aeca; }
+        .lk-wp-week-subject-head {
+          display:flex !important;
+          align-items:center;
+          gap:2.2mm;
+          min-height:8.5mm;
+          margin:0 -1.5mm;
+          padding:1mm 3mm;
+          border-bottom:.35mm solid currentColor;
+        }
+        .lk-wp-week-subject-head .lk-wp-week-subject-copy {
+          display:flex;
+          align-items:baseline;
+          gap:2mm;
+          min-width:0;
+        }
+        .lk-wp-week-subject-head strong {
+          display:inline-block !important;
+          font-size:15pt;
+          line-height:1;
+          font-weight:700;
+        }
+        .lk-wp-week-subject-head small {
+          display:inline-block !important;
+          font-family:Arial,sans-serif;
+          font-size:7.2pt;
+          color:#666;
+        }
+        .lk-wp-week-subject-head.deutsch { background:#fff2a8; color:#5a4a13; }
+        .lk-wp-week-subject-head.mathe { background:#d9f2ff; color:#24536a; }
+        .lk-wp-week-subject-head .lk-wp-subject-badge {
+          min-width:12mm;
+          height:6mm;
+          font-size:10.6pt;
+        }
+        .lk-wp-week-subsections {
+          display:flex;
+          flex-direction:column;
+          flex:0 0 auto;
+          min-height:0;
+          gap:1mm;
+        }
+        .lk-wp-week-section {
+          display:flex;
+          flex-direction:column;
+          flex:0 0 auto;
+          min-height:0;
+          border:.35mm solid #6b6b6b;
+          border-radius:3.5mm;
+          overflow:hidden;
+          break-inside:auto;
+        }
+        .lk-wp-week-section h2 {
+          margin:0;
+          padding:1mm 3mm;
+          font-size:12.4pt;
+          font-weight:600;
+          border-bottom:.25mm solid #9a9a9a;
+        }
+        .lk-wp-week-section.deutsch h2 { background:#fff5c8; }
+        .lk-wp-week-section.lesezeit h2 { background:#e5f5eb; }
+        .lk-wp-week-section.lernwoerter h2 { background:#f1e8f8; }
+        .lk-wp-week-section.mathe h2 { background:#dff4ff; }
+        .lk-wp-week-section.star h2 { background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,244,190,.55)); }
+        .lk-wp-week-section.extra h2 { background:#f4f4f4; }
+        .lk-wp-week-list {
+          display:flex;
+          flex-direction:column;
+          flex:0 0 auto;
+          min-height:0;
+        }
+        .lk-wp-workbook-group {
+          display:grid;
+          grid-template-columns:20mm minmax(0,1fr);
+          flex:0 0 auto;
+          min-height:0;
+          border-bottom:.32mm solid #aeb8be;
+        }
+        .lk-wp-workbook-group:last-child { border-bottom:0; }
+        .lk-wp-workbook-group.no-symbol { grid-template-columns:1fr; }
+        .lk-wp-workbook-cover-cell {
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          align-self:stretch;
+          padding:1mm 1.2mm;
+          border-right:.2mm solid #d1d1d1;
+          background:rgba(255,255,255,.56);
+        }
+        .lk-wp-workbook-cover-cell.icon-only {
+          background:rgba(255,255,255,.42);
+        }
+                .lk-wp-book-cover.grouped {
+          width:13mm;
+          height:16mm;
+          object-fit:contain;
+        }
+        .lk-wp-workbook-tasks {
+          min-width:0;
+          min-height:0;
+          display:flex;
+          flex-direction:column;
+        }
+        .lk-wp-week-row {
+          min-height:8.5mm;
+          height:8.5mm;
+          flex:0 0 8.5mm;
+          display:grid;
+          grid-template-columns:1fr 12mm;
+          align-items:center;
+          border-bottom:.22mm solid #d0d0d0;
+        }
+        .lk-wp-week-row:last-child { border-bottom:0; }
+        .lk-wp-week-row > div {
+          display:flex;
+          align-items:center;
+          gap:1.5mm;
+          padding:.65mm 2.2mm;
+          font-size:15.5pt;
+        }
+        .lk-wp-week-row-main {
+          min-width:0;
+          display:flex !important;
+          align-items:center;
+          gap:1.6mm;
+        }
+        .lk-wp-week-row-main .lk-wp-task-copy { min-height:0; }
+                .lk-wp-week-row-main .lk-wp-task-copy strong { font-size:16pt; line-height:1.03; }
+        .lk-wp-week-row .lk-wp-circle {
+          position:static;
+          grid-column:2;
+          grid-row:auto;
+        }
+        .lk-wp-week-row::after { display:none; }
+        .lk-wp-week-empty {
+          min-height:8mm;
+          display:flex;
+          align-items:center;
+          padding:1mm 3mm;
+          color:#999;
+          font-family:Arial,sans-serif;
+          font-size:8pt;
+        }
+
+        .lk-wp-footer {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0,1fr));
+          gap: 3mm;
+          margin-top: 2.5mm;
+        }
+        .lk-wp-footer.footer-count-1 { grid-template-columns: 1fr; }
+        .lk-wp-footer.footer-count-2 { grid-template-columns: 1fr 1fr; }
+        .lk-wp-footer.footer-count-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .lk-wp-footer-box {
+          min-height: 18mm;
+          border: .35mm solid #555;
+          border-radius: 4mm;
+          overflow: hidden;
+        }
+        .lk-wp-footer-box h3 {
+          margin: 0;
+          padding: 1.8mm 2mm;
+          border-bottom: .25mm solid #888;
+          text-align: center;
+          font-size: 10.5pt;
+          font-weight: 500;
+        }
+        .lk-wp-footer-box.remember h3 { background: #edf8f3; }
+        .lk-wp-footer-box.teacher-note h3 { background: #fff9df; }
+        .lk-wp-footer-box.parent-note h3 { background: #fff0f2; }
+        .lk-wp-footer-lines {
+          display: grid;
+          gap: 5mm;
+          padding: 4mm;
+        }
+        .lk-wp-footer-lines span {
+          border-bottom: .2mm solid #c0c0c0;
+        }
+        .lk-wp-footer-text {
+          padding: 3.2mm 3.4mm;
+          font-family: "Chalkboard SE", "Noteworthy", "Segoe Print", "Bradley Hand", Arial, sans-serif;
+          font-size: 9.6pt;
+          line-height: 1.35;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        @media print {
+          html, body {
+            width: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
+          .print-toolbar { display: none !important; }
+          .lk-wp-page {
+            margin: 0 !important;
+            box-shadow: none !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .page-break {
+            break-before: page !important;
+            page-break-before: always !important;
+          }
+        }
+      </style>
+
+      ${targets.map((animal, index) => `
+        ${index > 0 ? `<div class="page-break"></div>` : ""}
+        ${options.layout === "week"
+          ? printPageWeekLayout(className, plan, animal, options)
+          : printPage9f(className, plan, animal, options)}
+      `).join("")}
+    `;
+  };
+
+  /* ---------- Gestaltung der Verwaltungs-/Druckdialoge ---------- */
+
+  const style = document.createElement("style");
+  style.id = "lk-weekly-plan-9f-style";
+  style.textContent = `
+    .lk-weekly-code-panel { border:2px solid rgba(47,111,145,.10); }
+    .lk-code-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .lk-code-head h2 { margin-top:0; }
+    .lk-code-example {
+      width:38px; height:38px; display:grid; place-items:center;
+      border:1px solid rgba(0,0,0,.22); border-radius:8px;
+      font-family:Arial,sans-serif; font-weight:800; background:#fff;
+    }
+    .lk-code-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:12px 0; }
+    .lk-code-row {
+      display:grid; grid-template-columns:minmax(0,1fr) 75px; align-items:center; gap:10px;
+      padding:9px 10px; border-radius:12px; background:rgba(47,111,145,.045);
+    }
+    .lk-code-input { text-align:center; text-transform:uppercase; font-weight:800; }
+
+    .lk-print9f-card { max-width:780px; }
+    .lk-print9f-head h2 { margin:.2rem 0 .35rem; }
+    .lk-print9f-steps { display:grid; gap:14px; margin-top:14px; }
+    .lk-print9f-steps > section {
+      display:grid; gap:8px; padding:13px; border:1px solid rgba(0,0,0,.08);
+      border-radius:16px; background:rgba(255,255,255,.78);
+    }
+    .lk-print-choice {
+      display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:start;
+      padding:10px; border-radius:13px; background:rgba(47,111,145,.045); cursor:pointer;
+    }
+    .lk-print-choice span { display:grid; gap:2px; }
+    .lk-print-choice small { opacity:.67; line-height:1.35; }
+    .lk-print-section-head { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .lk-print-animal-grid {
+      display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px;
+      max-height:300px; overflow:auto; padding-right:3px;
+    }
+    .lk-print-fixed-audience {
+      border:1px solid rgba(69,139,102,.18);
+      border-radius:14px;
+      padding:13px;
+      background:rgba(237,248,243,.68);
+    }
+    .lk-print-fixed-summary {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:9px 0 11px;
+      padding:10px 12px;
+      border-radius:11px;
+      background:#fff;
+      border:1px solid rgba(69,139,102,.14);
+    }
+    .lk-print-fixed-summary > span,
+    .lk-print-fixed-mark {
+      display:grid;
+      place-items:center;
+      flex:none;
+      width:25px;
+      height:25px;
+      border-radius:50%;
+      background:#e0f3e8;
+      color:#31704b;
+      font-weight:900;
+    }
+    .lk-print-fixed-summary div { display:grid; gap:2px; }
+    .lk-print-fixed-summary small { opacity:.68; }
+    .lk-print-animal-row-fixed { cursor:default; }
+    .lk-print-fixed-grid { margin-top:4px; }
+    .lk-print-layout-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:9px;
+    }
+    .lk-print-layout-choice {
+      display:grid;
+      grid-template-columns:auto auto minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      padding:11px;
+      border-radius:13px;
+      border:1px solid rgba(47,111,145,.14);
+      background:#fff;
+      cursor:pointer;
+    }
+    .lk-print-layout-choice:has(input:checked) {
+      background:#eef8fd;
+      border-color:rgba(47,111,145,.42);
+      box-shadow:inset 0 0 0 1px rgba(47,111,145,.08);
+    }
+    .lk-print-layout-choice.disabled {
+      opacity:.48;
+      cursor:not-allowed;
+    }
+    .lk-print-layout-choice > span { font-size:1.35rem; }
+    .lk-print-layout-choice > div { display:grid; gap:2px; }
+    .lk-print-layout-choice small { opacity:.68; }
+    .lk-print-layout-choice em {
+      font-style:normal;
+      font-size:.68rem;
+      color:#8a5b3b;
+    }
+    @media (max-width:700px) {
+      .lk-print-layout-grid { grid-template-columns:1fr; }
+    }
+
+    .lk-print-footer-inputs {
+      display:grid;
+      gap:10px;
+      padding-top:2px;
+    }
+    .lk-print-footer-inputs-head {
+      display:grid;
+      gap:2px;
+    }
+    .lk-print-footer-inputs-head strong span {
+      font-size:.72rem;
+      font-weight:500;
+      opacity:.58;
+      margin-left:4px;
+    }
+    .lk-print-footer-inputs-head small { opacity:.66; }
+    .lk-print-footer-input-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:9px;
+    }
+    .lk-print-footer-input-grid .field {
+      margin:0;
+      min-width:0;
+    }
+    .lk-print-footer-text {
+      width:100%;
+      min-height:76px;
+      resize:vertical;
+      line-height:1.35;
+    }
+    @media (max-width:800px) {
+      .lk-print-footer-input-grid { grid-template-columns:1fr; }
+    }
+
+    .lk-print-animal-row {
+      display:grid; grid-template-columns:auto minmax(0,1fr) auto 52px; gap:7px; align-items:center;
+      padding:8px; border-radius:12px; background:rgba(0,0,0,.03);
+    }
+    .lk-print-code-label { font-size:.72rem; opacity:.58; }
+    .lk-print-code-input { text-align:center; text-transform:uppercase; font-weight:800; padding-inline:5px; }
+    .lk-print-toggle { padding:9px 10px; border-radius:12px; background:#fff9df; }
+    .lk-print9f-actions { justify-content:flex-end; }
+    .lk-print-individual.hidden { display:none !important; }
+
+    @media (max-width:720px) {
+      .lk-code-grid, .lk-print-animal-grid { grid-template-columns:1fr; }
+      .lk-print-animal-row { grid-template-columns:auto minmax(0,1fr) auto 48px; }
+    }
+  `;
+  if (!document.getElementById(style.id)) document.head.appendChild(style);
+
+  window.LKWeeklyPlan9f = {
+    normalizeCode,
+    ricoTopicForPage,
+    migrateRicoTopics9f,
+    pageText,
+    detailText
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => migrateRicoTopics9f().catch((error) => {
+      console.warn("Rico-Schnabel-Themen konnten nicht aktualisiert werden.", error);
+    }), 1800);
+  });
+
+  const footerChoiceStyle = document.createElement("style");
+  footerChoiceStyle.id = "lk-print-footer-choice-style";
+  footerChoiceStyle.textContent = `
+    .lk-print-footer-choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:10px 0; }
+    .lk-print-footer-choice { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid rgba(47,111,145,.14); border-radius:12px; background:#fff; cursor:pointer; }
+    .lk-print-footer-choice input { width:18px; height:18px; }
+    .lk-print-footer-field.hidden { display:none !important; }
+    @media(max-width:760px){ .lk-print-footer-choice-grid { grid-template-columns:1fr; } }
+  `;
+  document.head.appendChild(footerChoiceStyle);
+})();

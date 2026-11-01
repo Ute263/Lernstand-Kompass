@@ -4587,3 +4587,7 @@ body {
 .weekly-audience-child-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .weekly-audience-child{display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid rgba(47,111,145,.15);border-radius:11px;background:#fff}
 .weekly-audience-child-grid.is-disabled{opacity:.52}
+
+button.weekly-worked-page { font: inherit; color: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; }
+button.weekly-worked-page:hover { filter: brightness(.98); transform: translateY(-1px); }
+button.weekly-worked-page:focus-visible { outline: 2px solid #2caeb2; outline-offset: 2px; }

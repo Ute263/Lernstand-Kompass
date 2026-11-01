@@ -4627,3 +4627,7 @@ body {
 @media(max-width:1000px){.lk-dev-children-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:760px){.lk-dev-children-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.lk-dev-header{grid-template-columns:1fr!important}.lk-dev-print-actions{justify-content:flex-start}}
 @media(max-width:520px){.lk-dev-children-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+button.weekly-worked-page { font: inherit; color: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; }
+button.weekly-worked-page:hover { filter: brightness(.98); transform: translateY(-1px); }
+button.weekly-worked-page:focus-visible { outline: 2px solid #2caeb2; outline-offset: 2px; }
