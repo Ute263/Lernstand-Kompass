@@ -51,6 +51,20 @@
         <p class="legal-note"><strong>Hinweis:</strong> Sollte für eine konkrete öffentliche oder geschäftsmäßige Bereitstellung eine vollständige gesetzliche Anbieterkennzeichnung erforderlich sein, müssen vor einer entsprechenden Nutzung insbesondere eine ladungsfähige Anschrift und eine direkte elektronische Kontaktmöglichkeit ergänzt werden.</p>
       `
     },
+    thirdparty: {
+      title: "Drittanbieter-Lizenzen",
+      html: `
+        <p><strong>Der Lernstand-Kompass selbst steht unter den Nutzungsbedingungen von Ute Holzschneider-Riedl.</strong></p>
+        <p>Für einzelne technisch eingebundene Fremdbibliotheken gelten zusätzlich ausschließlich deren eigene Open-Source-Lizenzen:</p>
+        <ul>
+          <li><strong>jsQR</strong> – Apache License 2.0 (QR-Code-Erkennung)</li>
+          <li><strong>ExcelJS</strong> – MIT License (Excel-Export)</li>
+        </ul>
+        <p>Diese Fremdlizenzen beziehen sich nur auf die genannten Bibliotheken und nicht auf den Lernstand-Kompass als Gesamtwerk.</p>
+        <p><a href="./THIRD_PARTY_LICENSES/jsQR-Apache-2.0.txt" target="_blank" rel="noopener">Lizenztext jsQR</a><br>
+        <a href="./THIRD_PARTY_LICENSES/ExcelJS-MIT.txt" target="_blank" rel="noopener">Lizenztext ExcelJS</a></p>
+      `
+    },
     about: {
       title: "Über den Lernstand-Kompass",
       html: `
@@ -86,6 +100,7 @@
             <button type="button" data-legal-section="copyright">Urheberrecht & Nutzung</button>
             <button type="button" data-legal-section="privacy">Datenschutz</button>
             <button type="button" data-legal-section="imprint">Impressum</button>
+            <button type="button" data-legal-section="thirdparty">Drittanbieter</button>
             <button type="button" data-legal-section="about">Über die App</button>
           </nav>
         </div>

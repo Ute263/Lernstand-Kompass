@@ -135,6 +135,7 @@ const runtimeFiles = new Set([
 // Assets vollständig übernehmen, damit neue Cover/Icons nicht einzeln gepflegt werden müssen.
 copyDirectory('materials');
 copyDirectory('icons');
+copyDirectory('THIRD_PARTY_LICENSES');
 
 writeBuildStamp();
 validateDist();
