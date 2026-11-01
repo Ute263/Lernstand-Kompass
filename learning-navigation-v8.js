@@ -148,16 +148,22 @@
     const matchedItems = [];
 
     group.items.forEach((catalog) => {
-      const start = Number(catalog.page || 0);
-      const end = Number(catalog.pageEnd || catalog.page || 0);
-      let completed = requestedPages.filter((page) => page >= start && page <= end);
-      if (isSingleTarget && requestedPages[0] >= start && requestedPages[0] <= end) {
-        completed = Array.from({ length: requestedPages[0] - start + 1 }, (_, index) => start + index);
-      }
+      const allCatalogPages = weeklyCatalogPages(catalog)
+        .map(Number)
+        .filter((page) => Number.isFinite(page) && page > 0);
+      if (!allCatalogPages.length) return;
+
+      // Eine einzelne Zahl bedeutet bewusst „bis einschließlich dieser Seite“.
+      // Damit werden auch alle vorherigen Katalogeinträge desselben Hefts als
+      // erledigt übernommen. Bei einer Liste/einem Bereich werden dagegen nur
+      // die ausdrücklich genannten Seiten markiert.
+      const completed = isSingleTarget
+        ? allCatalogPages.filter((page) => page <= requestedPages[0])
+        : allCatalogPages.filter((page) => requestedPages.includes(page));
       if (!completed.length) return;
+
       matchedItems.push(catalog);
-      const allCatalogPages = weeklyCatalogPages(catalog).map(Number);
-      const finished = allCatalogPages.length > 0 && allCatalogPages.every((page) => completed.includes(page));
+      const finished = allCatalogPages.every((page) => completed.includes(page));
       nextState = upsertWorkbookProgressEntry(nextState, {
         classId: state.activeClassId,
         animal,
