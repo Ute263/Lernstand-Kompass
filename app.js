@@ -2203,9 +2203,9 @@ function renderTeacherHome() {
   const cards = [
     { title: "Startseite", text: "Alle Bereiche im Überblick", icon: "🏠", action: "setTeacherGroup('teacherHomeGroup')" },
     { title: "Wochenplan", text: currentPlans ? `${currentPlans} aktueller Plan · ${openWeeklyStatuses} offene Markierungen` : "Klassenplan und individuelle Pläne erstellen", icon: "🗓️", action: "setTeacherGroup('weeklyPlansGroup')" },
-    { title: "Lernübersicht", text: pendingReports ? `${pendingReports} Kindmeldungen warten` : "Fortschritt, Lernstände und Bearbeitungen ansehen", icon: "📈", action: "setTeacherGroup('learning')" },
+    { title: "Lernstand", text: pendingReports ? `${pendingReports} Kindmeldungen warten` : "Heftseiten eintragen und den aktuellen Stand der Kinder ansehen", icon: "📈", action: "setTeacherGroup('learning')" },
     { title: "Lernspiele", text: "Nomen-Probe üben, testen und Ergebnisse auswerten", icon: "🎮", action: "setTeacherGroup('learningGamesGroup')" },
-    { title: "Lernzielkontrolle", text: "Tests anlegen und Ergebnisse erfassen", icon: "✅", action: "setTeacherGroup('assessmentGroup')" },
+    { title: "Lernzielkontrollen", text: "ABC-Lernstandsheft, MiniMax Teste dich und weitere Lernzielkontrollen", icon: "✅", action: "setTeacherGroup('assessmentGroup')" },
     { title: "Klassenverwaltung", text: `${activeAnimals} aktive Tiere · Gruppen, Namen und QR-Zugänge`, icon: "🐾", action: "setTeacherGroup('children')" },
     { title: "Druck und Material", text: "Wochenpläne, QR-Karten, Material und Exporte", icon: "🖨️", action: "setTeacherGroup('materialsGroup')" },
     { title: "Backup und Einstellungen", text: "Sichern, zusammenführen und Kinderansicht steuern", icon: "⚙️", action: "setTeacherGroup('settingsGroup')" }
