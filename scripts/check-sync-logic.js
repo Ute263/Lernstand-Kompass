@@ -25,6 +25,7 @@ const context = {
   }
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(root, 'minimax-katalog-daten.js'), 'utf8'), context, { filename: 'minimax-katalog-daten.js' });
 vm.runInContext(fs.readFileSync(path.join(root, 'models.js'), 'utf8'), context, { filename: 'models.js' });
 vm.runInContext(fs.readFileSync(path.join(root, 'export.js'), 'utf8'), context, { filename: 'export.js' });
 

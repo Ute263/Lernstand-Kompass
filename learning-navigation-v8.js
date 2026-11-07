@@ -240,9 +240,20 @@
       ${selectedAnimal ? renderQuickWorkbookForm(selectedAnimal, quickSubject) : `<section class="panel"><div class="empty">Bitte lege zuerst ein aktives Kind an.</div></section>`}`;
   };
 
+  // Aus learning-navigation-v7.js übernommen (dort der einzige noch wirksame Teil).
+  function renderAbcLearningWorkbook() {
+    return `<section class="panel lk-learning-clean">
+      <div class="backup-actions"><button class="secondary" type="button" onclick="setTeacherTab('learningGerman')">← Deutsch</button></div>
+      <div class="lk-learning-clean-head"><h2>Lernstandsheft · ABC der Tiere</h2></div>
+      <p class="message">Das Heft bleibt unter den Arbeitsheften. Eine Punkteauswertung kann hier später ergänzt werden.</p>
+      <div class="backup-actions"><button class="primary" type="button" onclick="setTeacherTab('workbookCatalog')">Arbeitshefte öffnen</button></div>
+    </section>`;
+  }
+
   const baseRender = renderTeacherSection;
   renderTeacherSection = function renderTeacherSectionV8(tab) {
     if (tab === "assessmentHub") return renderAssessmentHubV8();
+    if (tab === "abcLearningWorkbook") return renderAbcLearningWorkbook();
     return baseRender(tab);
   };
 

@@ -26,6 +26,21 @@
     return "";
   }
 
+  // Feste Reihenfolge der MiniMax-Heftteile, unabhängig vom Alphabet.
+  function mmPartRank(part) {
+    const value = String(part || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (/zahlen und rechnen.*(?:teil )?a\b|^teil a$/.test(value)) return 0;
+    if (/zahlen und rechnen.*(?:teil )?b\b|^teil b$/.test(value)) return 1;
+    if (/größen und sachrechnen|groessen und sachrechnen|sachrechnen/.test(value)) return 2;
+    if (/geometrie/.test(value)) return 3;
+    if (/teste dich/.test(value)) return 4;
+    return 10;
+  }
+
+  function mmCompareParts(a, b) {
+    return mmPartRank(a) - mmPartRank(b) || mmCompareText(a, b);
+  }
+
   function mmCompareText(a, b) {
     return mmText(a).localeCompare(mmText(b), "de", { numeric: true });
   }
@@ -207,7 +222,7 @@
         return !item.schoolYear || item.schoolYear === activeYear;
       }
     });
-    return matching.length ? matching : classOnly;
+    return matching; // Kein Fallback auf falsche Jahrgänge: Klasse 3/4 darf keine Klasse-1/2-Hefte anzeigen.
   }
 
   function mmPageLabel(page) {
@@ -353,10 +368,10 @@
     if (!weeklyPickRequest) return;
     const supportMode = Boolean(enabled);
     const pickerSchoolYear = String(weeklyPickRequest.filters?.schoolYear || activeClassSchoolYear(state.activeClassId) || "2");
-    const items = mmCatalog(weeklyPickRequest.subject, false, pickerSchoolYear)
+    const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
         mmCompareText(a.workbook, b.workbook)
-        || String(a.part || "").localeCompare(String(b.part || ""), "de", { numeric: true })
+        || mmCompareParts(a.part, b.part)
         || mmStart(a) - mmStart(b)
       );
     const first = items[0] || null;
@@ -376,7 +391,7 @@
 
   window.lkSetPickerSchoolYear = function lkSetPickerSchoolYear(schoolYear) {
     if (!weeklyPickRequest) return;
-    const pickerSchoolYear = ["1", "2"].includes(String(schoolYear)) ? String(schoolYear) : "2";
+    const pickerSchoolYear = ["1", "2", "3", "4"].includes(String(schoolYear)) ? String(schoolYear) : "2";
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
     const items = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
@@ -514,9 +529,9 @@
 
     const supportMode = Boolean(weeklyPickRequest.filters?.supportMode);
     const activeYear = String(activeClassSchoolYear(state.activeClassId) || "2");
-    const pickerSchoolYear = ["1", "2"].includes(String(weeklyPickRequest.filters?.schoolYear || ""))
+    const pickerSchoolYear = ["1", "2", "3", "4"].includes(String(weeklyPickRequest.filters?.schoolYear || ""))
       ? String(weeklyPickRequest.filters.schoolYear)
-      : (["1", "2"].includes(activeYear) ? activeYear : "2");
+      : (["1", "2", "3", "4"].includes(activeYear) ? activeYear : "2");
     const catalog = mmCatalog(weeklyPickRequest.subject, supportMode, pickerSchoolYear)
       .sort((a, b) =>
         mmCompareText(a.workbook, b.workbook)
@@ -529,7 +544,7 @@
     const selectedWorkbook = workbooks.includes(requestedWorkbook) ? requestedWorkbook : workbooks[0] || "";
 
     const workbookItems = catalog.filter((item) => item.workbook === selectedWorkbook);
-    const parts = mmUnique(workbookItems.map((item) => item.part || ""));
+    const parts = mmUnique(workbookItems.map((item) => item.part || "")).sort(mmCompareParts);
     const requestedPart = weeklyPickRequest.filters?.part ?? "";
     const selectedPart = parts.includes(requestedPart) ? requestedPart : parts[0] ?? "";
 
@@ -547,7 +562,10 @@
     });
 
     const areaGroups = mmAreaGroups(partItems);
-    const useAreaGrouping = !mmIsMiniMaxWorkbook(selectedWorkbook) && areaGroups.length > 1;
+    // Fuer ALLE Jahrgaenge und Lehrwerke die Kapitel des Inhaltsverzeichnisses nutzen.
+    // Nur wenn keine unterscheidbaren Themen vorliegen, auf Seitenbloecke ausweichen.
+    const useAreaGrouping = areaGroups.length > 1
+      && areaGroups.some((group) => group.areaKey !== "__ohne_bereich__");
 
     const requestedAreaKey = String(weeklyPickRequest.filters?.areaKey || "");
     const selectedAreaGroup = useAreaGrouping
@@ -589,106 +607,69 @@
 
           <div class="lk-picker-head">
             <div>
-              <span class="weekly-editor-badge">${escapeHtml(weeklyPickRequest.day)}</span>
               <h2 id="lkWeeklyPickerTitle">${escapeHtml(weeklyPickRequest.subject)} – Seite auswählen</h2>
             </div>
             <button class="secondary" type="button" onclick="lkOpenWorkbookManagerFromPicker()">Hefte verwalten</button>
           </div>
 
+          <div class="lk-picker-form-grid">
+            <label class="lk-picker-field">
+              <span>Jahrgang</span>
+              <select class="lk-picker-select" aria-label="Jahrgang auswählen" onchange="lkSetPickerSchoolYear(this.value)" ${supportMode ? "disabled" : ""}>
+                ${["1", "2", "3", "4"].map((year) => `<option value="${year}" ${pickerSchoolYear === year ? "selected" : ""}>Klasse ${year}</option>`).join("")}
+              </select>
+            </label>
+            <label class="lk-picker-field">
+              <span>Materialart</span>
+              <select class="lk-picker-select" aria-label="Materialart auswählen" onchange="lkSetPickerSupportMode(this.value === 'support')">
+                <option value="class" ${!supportMode ? "selected" : ""}>Arbeitshefte</option>
+                <option value="support" ${supportMode ? "selected" : ""}>Förderhefte · alle Klassen</option>
+              </select>
+            </label>
+          </div>
           ${workbooks.length ? `
-            <div class="lk-picker-step">
-              <strong>1. Jahrgang</strong>
-              <div class="lk-picker-tabs lk-workbook-tabs lk-school-year-tabs">
-                <button
-                  class="lk-picker-tab ${!supportMode && pickerSchoolYear === "1" ? "active" : ""}"
-                  type="button"
-                  onclick="lkSetPickerSchoolYear('1')"
-                >Klasse 1</button>
-                <button
-                  class="lk-picker-tab ${!supportMode && pickerSchoolYear === "2" ? "active" : ""}"
-                  type="button"
-                  onclick="lkSetPickerSchoolYear('2')"
-                >Klasse 2</button>
-              </div>
-              <div class="lk-picker-tabs lk-workbook-tabs lk-support-filter-tabs">
-                <button
-                  class="lk-picker-tab ${supportMode ? "" : "active"}"
-                  type="button"
-                  onclick="lkSetPickerSupportMode(false)"
-                >Klassenhefte</button>
-                <button
-                  class="lk-picker-tab lk-support-tab ${supportMode ? "active" : ""}"
-                  type="button"
-                  onclick="lkSetPickerSupportMode(true)"
-                  title="Förder-, Inklusions- und Forderhefte aus allen Schuljahren anzeigen"
-                >Förderhefte</button>
-              </div>
-            </div>
-
-            <div class="lk-picker-step">
-              <strong>2. Heft</strong>
-              <div class="lk-picker-tabs lk-workbook-tabs">
-                ${workbooks.map((workbook) => `
-                  <button
-                    class="lk-picker-tab ${selectedWorkbook === workbook ? "active" : ""}"
-                    type="button"
-                    data-value="${escapeAttribute(workbook)}"
-                    onclick="lkSetPickerWorkbook(this.dataset.value)"
-                  >${escapeHtml(workbook)}</button>
-                `).join("")}
-              </div>
+            <div class="lk-picker-step lk-picker-compact-step">
+              <label class="lk-picker-field">
+                <span>Arbeitsheft</span>
+                <select class="lk-picker-select" aria-label="Arbeitsheft auswählen" onchange="lkSetPickerWorkbook(this.value)">
+                  ${workbooks.map((workbook) => `<option value="${escapeAttribute(workbook)}" ${selectedWorkbook === workbook ? "selected" : ""}>${escapeHtml(workbook)}</option>`).join("")}
+                </select>
+              </label>
             </div>
 
             ${parts.length > 1 || (parts.length === 1 && parts[0]) ? `
-              <div class="lk-picker-step">
-                <strong>3. Teil</strong>
-                <div class="lk-picker-tabs">
-                  ${parts.map((part) => `
-                    <button
-                      class="lk-picker-tab ${selectedPart === part ? "active" : ""}"
-                      type="button"
-                      data-value="${escapeAttribute(part)}"
-                      onclick="lkSetPickerPart(this.dataset.value)"
-                    >${escapeHtml(part || "ohne Teil")}</button>
-                  `).join("")}
-                </div>
+              <div class="lk-picker-step lk-picker-compact-step">
+                <label class="lk-picker-field">
+                  <span>Heftteil</span>
+                  <select class="lk-picker-select" aria-label="Heftteil auswählen" onchange="lkSetPickerPart(this.value)">
+                    ${parts.map((part) => `<option value="${escapeAttribute(part)}" ${selectedPart === part ? "selected" : ""}>${escapeHtml(part || "Ohne Teil")}</option>`).join("")}
+                  </select>
+                </label>
               </div>
             ` : ""}
 
             ${useAreaGrouping ? `
-              <div class="lk-picker-step">
-                <strong>${groupingStepNumber}. Bereich</strong>
-                <div class="lk-picker-tabs lk-range-tabs">
-                  ${areaGroups.map((group) => `
-                    <button
-                      class="lk-picker-tab ${selectedAreaGroup?.key === group.key ? "active" : ""}"
-                      type="button"
-                      data-value="${escapeAttribute(group.key)}"
-                      onclick="lkSetPickerArea(this.dataset.value)"
-                      title="${escapeAttribute(`${mmAreaLabel(group)} · ${mmPageSpanLabel(group.start, group.end)}`)}"
-                    >${escapeHtml(mmAreaLabel(group))}<small>${escapeHtml(mmPageSpanLabel(group.start, group.end))}</small></button>
-                  `).join("")}
-                </div>
+              <div class="lk-picker-step lk-picker-compact-step">
+                <label class="lk-picker-field"><span>Thema</span>
+                  <select class="lk-picker-select" aria-label="Thema auswählen" onchange="lkSetPickerArea(this.value)">
+                    ${areaGroups.map((group) => `<option value="${escapeAttribute(group.key)}" ${selectedAreaGroup?.key === group.key ? "selected" : ""}>${escapeHtml(mmAreaLabel(group))} · ${escapeHtml(mmPageSpanLabel(group.start, group.end))}</option>`).join("")}
+                  </select>
+                </label>
               </div>
             ` : rangeStarts.length > 1 ? `
-              <div class="lk-picker-step">
-                <strong>${groupingStepNumber}. Seitenbereich</strong>
-                <div class="lk-picker-tabs lk-range-tabs">
-                  ${rangeStarts.map((start) => `
-                    <button
-                      class="lk-picker-tab ${selectedRange === start ? "active" : ""}"
-                      type="button"
-                      onclick="lkSetPickerRange(${start})"
-                    >${start}–${start + 19}</button>
-                  `).join("")}
-                </div>
+              <div class="lk-picker-step lk-picker-compact-step">
+                <label class="lk-picker-field"><span>Seitenbereich</span>
+                  <select class="lk-picker-select" aria-label="Seitenbereich auswählen" onchange="lkSetPickerRange(Number(this.value))">
+                    ${rangeStarts.map((start) => `<option value="${start}" ${selectedRange === start ? "selected" : ""}>${start}–${start + 19}</option>`).join("")}
+                  </select>
+                </label>
               </div>
             ` : ""}
 
             <div class="lk-picker-step lk-page-step">
               <div class="lk-page-step-head">
-                <strong>${pageStepNumber}. Seite</strong>
-                <span>${visibleItems.length} Seiten${useAreaGrouping ? " in diesem Bereich" : rangeStarts.length > 1 ? " in diesem Bereich" : ""}</span>
+                <strong>Einzelne Seite auswählen</strong>
+                
               </div>
 
               <div class="lk-page-grid">

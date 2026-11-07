@@ -43,3 +43,13 @@ window.lkForceAppRefresh = async function lkForceAppRefresh() {
   url.searchParams.set("lk_build", window.LK_BUILD_INFO?.id || String(Date.now()));
   window.location.replace(url.toString());
 };
+
+// Bittet den Browser, den App-Speicher dauerhaft zu behalten (schützt vor automatischem Aufräumen bei Platzmangel
+// bzw. langer Nichtnutzung). Ändert keine Daten; Ergebnis nur zur Diagnose in window.LK_STORAGE_PERSISTED.
+(() => {
+  try {
+    if (navigator.storage && typeof navigator.storage.persist === "function") {
+      navigator.storage.persist().then((granted) => { window.LK_STORAGE_PERSISTED = granted; }).catch(() => {});
+    }
+  } catch { /* optional */ }
+})();

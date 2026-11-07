@@ -1,0 +1,181 @@
+
+> lernstand-kompass@1.3.0 verify
+> npm run check && npm run check:weekly && npm run check:weekly-selection && npm run check:roundtrip && npm run check:autosave && npm run check:backup && npm run check:child-sync && npm run check:sync && npm run check:onedrive && npm run check:print && npm run build && npm run check:runtime && npm run check:structure && npm run check:minimax-extension && npm run check:picker-years && npm run check:status-order && npm run check:ipad-status-storage && npm run check:child-required && npm run check:materials
+
+
+> lernstand-kompass@1.3.0 check
+> node scripts/check-syntax.js
+
+OK  app.js
+OK  build-info.js
+OK  child-qr-fix.js
+OK  child-sync.js
+OK  colleague-mode.js
+OK  export.js
+OK  learning-development.js
+OK  learning-games-plus.js
+OK  learning-navigation-v7.js
+OK  learning-navigation-v8.js
+OK  learning-overview-simple.js
+OK  learning-subjects.js
+OK  legal-info.js
+OK  minimax-tests.js
+OK  models.js
+OK  nomen-activity.js
+OK  nomen-feedback.js
+OK  nomen-plural-flex.js
+OK  nomen-probe.js
+OK  print-overview-fix.js
+OK  progress-children-overview.js
+OK  pwa.js
+OK  safety-tools.js
+OK  school-year-archive.js
+OK  service-worker.js
+OK  simple-ui.js
+OK  storage.js
+OK  sync.js
+OK  teacher-cockpit.js
+OK  teacher-editor-redesign.js
+OK  teacher-inbox.js
+OK  weekly-autosave.js
+OK  weekly-calendar-overview.js
+OK  weekly-dialog-safety.js
+OK  weekly-editor-compact.js
+OK  weekly-extra-tasks.js
+OK  weekly-fix-172.js
+OK  weekly-minimax-pages.js
+OK  weekly-plan-9e.js
+OK  weekly-plan-9f.js
+OK  weekly-ui-cleanup.js
+OK  worker.js
+OK  cloudflare-worker/worker.js
+OK  scripts/build.js
+OK  scripts/check-autosave.js
+OK  scripts/check-backup-roundtrip.js
+OK  scripts/check-child-required-and-individual.js
+OK  scripts/check-child-sync-logic.js
+OK  scripts/check-editor-redesign.js
+OK  scripts/check-editor-structure.js
+OK  scripts/check-ipad-status-storage.js
+OK  scripts/check-material-refs.js
+OK  scripts/check-minimax-extension.js
+OK  scripts/check-onedrive-sync.js
+OK  scripts/check-picker-years.js
+OK  scripts/check-print-logic.js
+OK  scripts/check-runtime.js
+OK  scripts/check-status-and-order.js
+OK  scripts/check-structure.js
+OK  scripts/check-sync-logic.js
+OK  scripts/check-syntax.js
+OK  scripts/check-weekly-roundtrip.js
+OK  scripts/check-weekly-selection.js
+OK  scripts/check-weekly-structure.js
+
+Syntaxprüfung erfolgreich: 64 Dateien geprüft.
+
+> lernstand-kompass@1.3.0 check:weekly
+> node scripts/check-weekly-structure.js
+
+Wochenplan-Strukturprüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:weekly-selection
+> node scripts/check-weekly-selection.js
+
+Wochenplan-Auswahlprüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:roundtrip
+> node scripts/check-weekly-roundtrip.js
+
+Wochenplan-Roundtrip-Prüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:autosave
+> node scripts/check-autosave.js
+
+Wochenplan-Autosave-Prüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:backup
+> node scripts/check-backup-roundtrip.js
+
+Gesamtbackup-Roundtrip-Prüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:child-sync
+> node scripts/check-child-sync-logic.js
+
+Kinder-/Cloudflare-Sync-Prüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:sync
+> node scripts/check-sync-logic.js
+
+Sync-/Merge-Prüfung erfolgreich.
+Lösch-Synchronisierung für Wochenpläne erfolgreich.
+
+> lernstand-kompass@1.3.0 check:onedrive
+> node scripts/check-onedrive-sync.js
+
+OneDrive-Konflikt-/Reihenfolgeprüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 check:print
+> node scripts/check-print-logic.js
+
+Drucklogik-Prüfung erfolgreich.
+
+> lernstand-kompass@1.3.0 build
+> node scripts/build.js
+
+App-Version: 07.11.2026 · 11:32:18 Uhr
+Runtime-Prüfung erfolgreich: 59 referenzierte Dateien vorhanden.
+Build fertig: dist
+
+> lernstand-kompass@1.3.0 check:runtime
+> node scripts/check-runtime.js
+
+Dist-Laufzeitprüfung erfolgreich: 58 Dateien geprüft.
+
+> lernstand-kompass@1.3.0 check:structure
+> node scripts/check-structure.js
+
+Strukturprüfung erfolgreich: 41 Skripte in unveränderter Reihenfolge; dynamische Bibliotheken im Build.
+
+> lernstand-kompass@1.3.0 check:minimax-extension
+> node scripts/check-minimax-extension.js
+
+MiniMax-Erweiterung erfolgreich: 261 Themen-/Bereichseinträge, 12 Heftgruppen, stabile Zusammenführung und erhaltenes MiniMax 2.
+
+> lernstand-kompass@1.3.0 check:picker-years
+> node scripts/check-picker-years.js
+
+Klasse 1: MiniMax 1 sichtbar, Seitenbedienung vorhanden
+Klasse 2: MiniMax 2 sichtbar, Seitenbedienung vorhanden
+Klasse 3: MiniMax 3 sichtbar, Seitenbedienung vorhanden
+Klasse 4: MiniMax 4 sichtbar, Seitenbedienung vorhanden
+Jahrgangs-Picker erfolgreich: 1 bis 4 und Förderheftumschaltung.
+
+> lernstand-kompass@1.3.0 check:status-order
+> node scripts/check-status-and-order.js
+
+Regressionstest erfolgreich: Status-Rückkehr, neuerer Status, Dialog-Tag und MiniMax A/B/Sachrechnen/Geometrie/Teste dich.
+
+> lernstand-kompass@1.3.0 check:ipad-status-storage
+> node scripts/check-ipad-status-storage.js
+
+IndexedDB konnte nicht speichern, nutze localStorage. Error: IndexedDB unavailable
+    at storage.writeRecord (/tmp/claude-0/-home-claude/91b85616-1c1a-5a6b-8e48-2ad68789474d/scratchpad/p3/Lernstand-Kompass-Original-Schritt3p/scripts/check-ipad-status-storage.js:59:39)
+    at AppStorage.save (evalmachine.<anonymous>:40:18)
+    at async waitForActual (node:assert:644:5)
+    at async Function.rejects (node:assert:767:25)
+    at async /tmp/claude-0/-home-claude/91b85616-1c1a-5a6b-8e48-2ad68789474d/scratchpad/p3/Lernstand-Kompass-Original-Schritt3p/scripts/check-ipad-status-storage.js:60:3
+iPad-/Status-Regressionstest bestanden: Fortschritt zurücknehmen, unabhängige Daten schützen, Seitenstatus ersetzen und vollen Gerätespeicher melden.
+
+> lernstand-kompass@1.3.0 check:child-required
+> node scripts/check-child-required-and-individual.js
+
+Aufgabe ist abgehakt; Übernahme in den Lernstand fehlgeschlagen. Error: Übernahme fehlgeschlagen
+    at linkWeeklyStatusToProgress (/tmp/claude-0/-home-claude/91b85616-1c1a-5a6b-8e48-2ad68789474d/scratchpad/p3/Lernstand-Kompass-Original-Schritt3p/scripts/check-child-required-and-individual.js:27:65)
+    at Object.updateChildWeeklyStatus (evalmachine.<anonymous>:59:22)
+    at async /tmp/claude-0/-home-claude/91b85616-1c1a-5a6b-8e48-2ad68789474d/scratchpad/p3/Lernstand-Kompass-Original-Schritt3p/scripts/check-child-required-and-individual.js:38:3
+Kinder-Funktionstest bestanden: Pflichtaufgabe und Sternchen, Rücksetzen, Übernahmefehler, individueller Plan und Klassenplan.
+
+> lernstand-kompass@1.3.0 check:materials
+> node scripts/check-material-refs.js
+
+Bildreferenz-Prüfung erfolgreich: 68 Verweise, alle Dateien vorhanden.

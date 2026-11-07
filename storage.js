@@ -46,9 +46,17 @@ class AppStorage {
       return nextState;
     } catch (error) {
       console.warn("IndexedDB konnte nicht speichern, nutze localStorage.", error);
+      // Nur nach erfolgreichem Ersatz-Speichern darf die App einen Erfolg melden.
+      // Bei vollem localStorage IndexedDB für den nächsten Versuch nicht dauerhaft abschalten.
+      try {
+        this.saveToLocalStorage(nextState);
+      } catch (fallbackError) {
+        const failure = new Error("Weder IndexedDB noch localStorage konnten die Daten sichern (Gerätespeicher prüfen).");
+        failure.cause = fallbackError;
+        throw failure;
+      }
       this.usesIndexedDB = false;
       this.lastStorageType = "localStorage";
-      this.saveToLocalStorage(nextState);
       return nextState;
     }
   }
@@ -124,7 +132,10 @@ class AppStorage {
         }
       };
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        this.dbPromise = null;
+        reject(request.error);
+      };
     });
     return this.dbPromise;
   }

@@ -1,24 +1,69 @@
-async function saveFileWithPickerOrDownload(filename, mimeType, content) {
+// Schreibt eine Datei über den Speichern-Dialog (Chrome/Edge) oder als Download (Safari).
+// Ergebnis: { ok, via: "picker" | "download" | "cancelled" }. Ein Abbruch im Dialog ist kein Fehler.
+async function writeFileWithPickerOrDownload(filename, mimeType, content) {
   const blob = new Blob([content], { type: mimeType });
   if ("showSaveFilePicker" in window) {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: filename,
-      types: [{ description: mimeType, accept: { [mimeType]: [`.${filename.split(".").pop()}`] } }]
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-  } else {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: mimeType, accept: { [mimeType]: [`.${filename.split(".").pop()}`] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { ok: true, via: "picker" };
+    } catch (error) {
+      if (error?.name === "AbortError") return { ok: false, via: "cancelled" };
+      throw error;
+    }
   }
-  return "Datei erstellt. Bitte an einem geschützten Ort ablegen.";
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return { ok: true, via: "download" };
+}
+
+const FILE_SAVED_MESSAGE = "Datei erstellt. Bitte an einem geschützten Ort ablegen.";
+const FILE_DOWNLOADED_HINT = " Sie liegt im Download-Ordner. In den Safari-Einstellungen unter „Downloads“ kannst du einen anderen Ordner festlegen.";
+
+async function saveFileWithPickerOrDownload(filename, mimeType, content) {
+  const result = await writeFileWithPickerOrDownload(filename, mimeType, content);
+  if (result.via === "cancelled") return "Speichern abgebrochen. Es wurde keine Datei erstellt.";
+  return result.via === "download" ? FILE_SAVED_MESSAGE + FILE_DOWNLOADED_HINT : FILE_SAVED_MESSAGE;
+}
+
+// Teilen-Dialog mit Datei (iPad: „In Dateien sichern“ mit freier Ordnerwahl).
+function canShareFiles() {
+  try {
+    if (typeof File === "undefined" || !navigator.share || !navigator.canShare) return false;
+    return navigator.canShare({ files: [new File(["x"], "test.json", { type: "application/json" })] });
+  } catch {
+    return false;
+  }
+}
+
+async function shareFileToFiles(filename, mimeType, content) {
+  try {
+    await navigator.share({ title: filename, files: [new File([content], filename, { type: mimeType })] });
+    return { ok: true, via: "share" };
+  } catch (error) {
+    if (error?.name === "AbortError") return { ok: false, via: "cancelled" };
+    throw error;
+  }
+}
+
+// Zeitpunkt der letzten Sicherungsdatei: bewusst NICHT im App-Datenbestand (Datenformat bleibt unverändert).
+const LAST_BACKUP_KEY = "lk_last_backup_at";
+function rememberBackupSaved() {
+  try { localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch { /* optional */ }
+}
+function lastBackupSavedAt() {
+  try { return localStorage.getItem(LAST_BACKUP_KEY) || ""; } catch { return ""; }
 }
 
 function makeActiveClassBackup(state, classId) {

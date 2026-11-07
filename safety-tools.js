@@ -403,7 +403,6 @@
 
         <div class="backup-actions lk-safety-actions">
           <button class="primary" type="button" onclick="runLKSafetyCheck()">✓ Systemcheck starten</button>
-          <button class="secondary" type="button" onclick="exportFullBackup()">💾 Gesamtbackup speichern</button>
           <button class="secondary" type="button" onclick="cleanupLKActivityData()">🧹 Aktivitätsdaten aufräumen</button>
         </div>
 

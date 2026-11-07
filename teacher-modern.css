@@ -1,0 +1,229 @@
+/* Schritt 3b – leichtes Lehrerdesign. Reines Bildschirm-CSS, Druck und Kinderbereich bleiben unberuehrt. */
+@media screen {
+  .app-shell:not(.child):not(.setup-shell) {
+    --teacher-ink:#243344; --teacher-muted:#738292; --teacher-border:#e5ebef;
+    --brand:#276a91; --brand-dark:#1e587b; --text:#243344; --muted:#738292;
+    --line:#e5ebef; --panel:#fff;
+    background:#fafbfc;
+    color:#243344;
+    font-family:"Manrope","Avenir Next","Helvetica Neue",Arial,sans-serif;
+    font-weight:400; letter-spacing:0;
+    padding:24px clamp(16px,2.2vw,36px) 36px;
+  }
+  .app-shell:not(.child) button,
+  .app-shell:not(.child) input,
+  .app-shell:not(.child) select,
+  .app-shell:not(.child) textarea,
+  #teacherMaterialPickerOverlay {
+    font-family:"Manrope","Avenir Next","Helvetica Neue",Arial,sans-serif;
+    letter-spacing:0;
+  }
+  .app-shell:not(.child) .topbar {
+    gap:16px; margin:0 0 26px; padding:0 0 17px;
+    border-bottom:1px solid #e5ebef; align-items:center;
+  }
+  .app-shell:not(.child) .brand {flex-direction:row;align-items:center;gap:13px;}
+  .app-shell:not(.child) .teacher-topbar-logo {width:47px;height:47px;object-fit:contain;}
+  .app-shell:not(.child) .brand-title {
+    font-size:clamp(1.25rem,1.7vw,1.6rem);line-height:1.2;
+    font-weight:650; letter-spacing:-.025em; color:#20374a;
+  }
+  .app-shell:not(.child) .brand-subtitle,.app-shell:not(.child) .active-note {
+    font-size:.82rem; font-weight:400; color:#7e8d9a;
+  }
+  .app-shell:not(.child) .app-home-button {
+    min-height:34px;font-size:.81rem;padding:7px 12px;border:1px solid #dfe7ed;
+    color:#526c80;box-shadow:none;background:#fff;border-radius:8px;font-weight:500;
+  }
+  .app-shell:not(.child) .teacher-layout {
+    grid-template-columns:195px minmax(0,1fr); gap:34px;
+    max-width:1560px;margin:0 auto;align-items:start;
+  }
+  .app-shell:not(.child) .teacher-workspace {min-width:0;}
+  .app-shell:not(.child) .tabs.modern-teacher-nav {
+    position:sticky;top:16px;display:grid;gap:2px;
+    border:0;border-right:1px solid #e6ebef;box-shadow:none;
+    padding:0 17px 0 0;border-radius:0;background:transparent;
+  }
+  .app-shell:not(.child) .teacher-nav-heading {
+    font-size:.63rem;font-weight:650;letter-spacing:.07em;
+    color:#9ba6b0;padding:18px 10px 6px;text-transform:uppercase;
+  }
+  .app-shell:not(.child) .teacher-nav-heading:first-child {padding-top:0;}
+  .app-shell:not(.child) .tab-button {
+    min-height:38px; padding:8px 10px; font-size:.88rem;
+    font-weight:450; color:#586a7b;border-radius:8px;
+    background:transparent;box-shadow:none;
+  }
+  .app-shell:not(.child) .tab-button:hover {color:#234e6b;background:#f0f5f7;}
+  .app-shell:not(.child) .tab-button.active {
+    font-weight:650;background:#eaf3f7;color:#225f83;
+    box-shadow:none;
+  }
+  .app-shell:not(.child) .panel,
+  .app-shell:not(.child) .teacher-group-panel > .panel,
+  .app-shell:not(.child) .active-class-banner,
+  .app-shell:not(.child) .big-card {
+    border:1px solid #e7ebee;border-radius:12px;
+    box-shadow:none;background:#fff;
+  }
+  .app-shell:not(.child) .panel h2,.app-shell:not(.child) .teacher-group-panel h2,
+  .app-shell:not(.child) .teacher-home-welcome h2 {
+    color:#24384b;font-size:clamp(1.15rem,1.6vw,1.55rem);
+    font-weight:650;letter-spacing:-.02em;
+  }
+  .app-shell:not(.child) .teacher-group-panel {
+    padding:14px 18px;gap:8px;margin-bottom:14px;
+    background:#fff;border:1px solid #e6ebef;
+  }
+  .app-shell:not(.child) .teacher-group-panel h2 {margin:0 0 5px;}
+  .app-shell:not(.child) .section-tabs {gap:5px;}
+  .app-shell:not(.child) .section-tabs .small-button {
+    background:transparent;color:#67798b;border:1px solid transparent;
+    min-height:34px;padding:7px 11px;font-size:.82rem;font-weight:500;border-radius:7px;box-shadow:none;
+  }
+  .app-shell:not(.child) .section-tabs .small-button.active {
+    background:#eaf3f7;color:#225f83;border-color:#dceaf0;font-weight:650;
+  }
+  .app-shell:not(.child) .primary,.app-shell:not(.child) .secondary,
+  .app-shell:not(.child) .small-button {
+    min-height:36px;padding:8px 13px;border-radius:8px;
+    font-size:.86rem;font-weight:550;box-shadow:none;
+  }
+  .app-shell:not(.child) .primary {background:#276f94;color:#fff;}
+  .app-shell:not(.child) .secondary,.app-shell:not(.child) .small-button {
+    background:#f4f7fa;color:#345771;box-shadow:none;
+  }
+  .app-shell:not(.child) .active-class-banner {
+    width:max-content;max-width:100%;padding:6px 10px;
+    margin:0 0 14px;font-size:.8rem;font-weight:450;
+  }
+  .app-shell:not(.child) .teacher-home-panel.modern-teacher-home {
+    background:transparent;border:0;box-shadow:none;padding:0;
+  }
+  .app-shell:not(.child) .teacher-home-welcome {
+    gap:4px;margin-bottom:17px;
+  }
+  .app-shell:not(.child) .teacher-home-welcome > span {
+    font-size:.68rem;letter-spacing:.055em;background:transparent;
+    color:#8b99a5;padding:0;border:0;font-weight:600;text-transform:uppercase;
+  }
+  .app-shell:not(.child) .teacher-home-welcome p {
+    color:#83919e;font-size:.88rem;font-weight:400;
+  }
+  .app-shell:not(.child) .teacher-home-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .app-shell:not(.child) .teacher-home-card {
+    min-height:117px;padding:16px;border:1px solid #e8ecf0;
+    border-radius:10px;box-shadow:none;gap:6px;background:#fff;
+  }
+  .app-shell:not(.child) .teacher-home-card:hover,
+  .app-shell:not(.child) .teacher-home-card:focus-visible {
+    transform:none;box-shadow:0 4px 14px rgba(33,58,73,.045);border-color:#bacfdc;background:#fff;
+  }
+  .app-shell:not(.child) .teacher-home-card span {
+    width:34px;height:34px;font-size:1.2rem;border-radius:8px;background:#f2f6f8;
+  }
+  .app-shell:not(.child) .teacher-home-card strong {font-size:.95rem;font-weight:650;color:#2d4658;}
+  .app-shell:not(.child) .teacher-home-card small {font-size:.75rem;color:#84929d;font-weight:400;}
+  .app-shell:not(.child) .modern-start {
+    min-height:calc(100vh - 95px); width:min(920px,100%);gap:26px;
+  }
+  .app-shell:not(.child) .modern-start-hero {
+    grid-template-columns:84px minmax(0,1fr);gap:22px;padding:0;
+  }
+  .app-shell:not(.child) .modern-start-logo {width:84px;height:84px;filter:none;}
+  .app-shell:not(.child) .modern-start-kicker {font-size:.75rem;font-weight:650;letter-spacing:.06em;}
+  .app-shell:not(.child) .modern-start-copy h1 {
+    font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.13;font-weight:650;letter-spacing:-.035em;
+  }
+  .app-shell:not(.child) .modern-start-copy p {font-size:.95rem;font-weight:400;}
+  .app-shell:not(.child) .modern-start-main-card {
+    padding:24px 28px;border-radius:13px;background:#fff;
+    border:1px solid #e4ebee;box-shadow:none;gap:18px;
+  }
+  .app-shell:not(.child) .modern-start-eyebrow {
+    padding:0;background:transparent;color:#548c89;border-radius:0;
+    font-size:.73rem;font-weight:650;
+  }
+  .app-shell:not(.child) .modern-start-main-card h2 {
+    font-size:clamp(1.35rem,2vw,1.8rem);font-weight:650;color:#254b60;
+  }
+  .app-shell:not(.child) .modern-start-main-card p {font-size:.91rem;font-weight:400;}
+  .app-shell:not(.child) .modern-start-feature-row span {
+    padding:4px 8px;font-size:.74rem;font-weight:450;border-color:#e9eef0;
+  }
+  .app-shell:not(.child) .modern-start-primary {
+    min-width:125px;min-height:42px;padding:10px 16px;
+    border-radius:9px;font-size:.9rem;font-weight:600;
+    background:#237b97;box-shadow:none;
+  }
+  .app-shell:not(.child) .modern-teacher-entry {
+    min-height:36px;padding:7px 12px;font-size:.84rem;font-weight:550;
+    border-radius:8px;box-shadow:none;background:#fff;
+  }
+  .app-shell:not(.child) .modern-start-class {font-size:.82rem;}
+  .app-shell:not(.child) :is(button,input,select,textarea):focus-visible,
+  #teacherMaterialPickerOverlay :is(button,input,select,textarea):focus-visible {
+    outline:2px solid #277ba1;outline-offset:2px;
+  }
+  @media(max-width:950px) {
+    .app-shell:not(.child) .teacher-layout {grid-template-columns:160px minmax(0,1fr);gap:16px;}
+    .app-shell:not(.child) .teacher-home-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+  @media(max-width:680px) {
+    .app-shell:not(.child) .teacher-layout {grid-template-columns:minmax(0,1fr);gap:12px;}
+    .app-shell:not(.child) .tabs.modern-teacher-nav {
+      position:static;display:flex;flex-wrap:wrap;gap:5px;border-right:0;
+      border-bottom:1px solid #e6ebef;padding:0 0 10px;
+    }
+    .app-shell:not(.child) .teacher-nav-heading {display:none;}
+    .app-shell:not(.child) .tab-button {min-height:34px;padding:7px 9px;}
+    .app-shell:not(.child) .teacher-home-grid {grid-template-columns:minmax(0,1fr);}
+    .app-shell:not(.child) .modern-start-hero {grid-template-columns:64px 1fr;gap:12px;text-align:left;}
+    .app-shell:not(.child) .modern-start-logo {width:64px;height:64px;}
+  }
+}
+
+/* Schritt 3c: tatsächliche Editor-Struktur, nur Lehreransicht. */
+@media screen {
+  .app-shell:not(.child) .weekly-editor-clean {padding:20px !important; max-width:none;}
+  .app-shell:not(.child) .weekly-clean-head {margin:0 0 15px;gap:14px;align-items:center;}
+  .app-shell:not(.child) .weekly-clean-title h2 {font-size:1.35rem;font-weight:600;letter-spacing:-.035em;margin:0 0 3px;}
+  .app-shell:not(.child) .weekly-clean-title p {font-size:.84rem;font-weight:450;color:#687a88;}
+  .app-shell:not(.child) .weekly-clean-head-actions {gap:8px;}
+  .app-shell:not(.child) .weekly-clean-settings {
+    grid-template-columns:minmax(0,1fr) auto;align-items:end;
+    padding:13px 0 16px;margin:0 0 13px;background:transparent;border:0;border-bottom:1px solid #e6eaee;border-radius:0;
+  }
+  .app-shell:not(.child) .weekly-clean-period {gap:9px;}
+  .app-shell:not(.child) .weekly-clean-period .field {font-size:.72rem;font-weight:550;color:#71818e;}
+  .app-shell:not(.child) .weekly-clean-settings .text-input {min-height:35px;padding:7px 10px;font-size:.88rem;}
+  .app-shell:not(.child) .weekly-clean-mode {align-self:end;}
+  .app-shell:not(.child) .weekly-clean-mode .weekly-planning-mode-actions {gap:4px;padding:3px;background:#f1f5f7;border-radius:9px;}
+  .app-shell:not(.child) .weekly-clean-mode .weekly-planning-mode-actions button {min-width:105px;border-radius:7px;background:transparent;font-size:.82rem;font-weight:500;box-shadow:none;}
+  .app-shell:not(.child) .weekly-clean-mode .weekly-planning-mode-actions .active {background:white;color:#1a6387;box-shadow:0 1px 4px rgba(25,45,60,.1);}
+  .app-shell:not(.child) .weekly-audience-editor {margin:0 0 15px;padding:10px 0 14px;background:transparent;border:0;border-bottom:1px solid #e6eaee;border-radius:0;}
+  .app-shell:not(.child) .weekly-audience-editor .weekly-clean-section-title {margin-bottom:5px;}
+  .app-shell:not(.child) .weekly-audience-editor .weekly-clean-section-title h3 {font-size:.86rem;color:#566b7c;font-weight:550;}
+  .app-shell:not(.child) .weekly-audience-editor .weekly-clean-audience {font-size:.73rem;color:#92a0ab;}
+  .app-shell:not(.child) .weekly-audience-mode {display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px;}
+  .app-shell:not(.child) .weekly-audience-radio {display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:#fff;border:1px solid #dde6eb;border-radius:8px;font-size:.82rem;min-height:36px;box-shadow:none;}
+  .app-shell:not(.child) .weekly-audience-radio:focus-within {background:#ebf5f8;border-color:#a9d3e3;color:#225c7c;}
+  .app-shell:not(.child) .weekly-audience-radio strong {font-weight:550;}
+  .app-shell:not(.child) .lk-audience-chooser {margin:8px 0 4px;border:1px solid #e0e9ee;border-radius:9px;overflow:hidden;}
+  .app-shell:not(.child) .lk-audience-chooser > summary {list-style:none;cursor:pointer;padding:9px 12px;font-size:.82rem;font-weight:550;color:#37586c;background:#f8fafb;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .app-shell:not(.child) .lk-audience-chooser > summary::-webkit-details-marker {display:none;}
+  .app-shell:not(.child) .lk-audience-count {font-size:.72rem;color:#82919c;font-weight:400;}
+  .app-shell:not(.child) .lk-audience-chooser .weekly-audience-child-grid {padding:9px;gap:7px;}
+  .app-shell:not(.child) .lk-audience-chooser .weekly-audience-child {padding:7px 9px;min-height:35px;border-radius:7px;}
+  .app-shell:not(.child) .lk-audience-helper {font-size:.74rem;color:#8998a4;margin:6px 0 0;font-weight:400;}
+  .app-shell:not(.child) .weekly-clean-form > .weekly-clean-section-title {margin:10px 0 8px;padding:0;}
+  .app-shell:not(.child) .weekly-clean-form > .weekly-clean-section-title h3 {font-size:1rem;font-weight:600;}
+  .app-shell:not(.child) .lk-weekly-day-accordion {gap:7px;}
+  .app-shell:not(.child) .weekly-day-editor-card {border:1px solid #e2eaf0;border-radius:10px;box-shadow:none;}
+  .app-shell:not(.child) .weekly-clean-more {margin-top:14px;}
+  @media (max-width:900px) {
+    .app-shell:not(.child) .weekly-clean-settings {grid-template-columns:1fr;}
+    .app-shell:not(.child) .weekly-clean-mode .weekly-planning-mode-actions {width:max-content;max-width:100%;}
+  }
+}

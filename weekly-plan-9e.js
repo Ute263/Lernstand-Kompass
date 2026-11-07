@@ -757,13 +757,13 @@
       </details>`;
     };
     return `<div class="lk-whole-week-editor lk-subject-collapsible-editor">
-      <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") ? " open" : ""}>
+      <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") || !lkSubjectHasContent(data, "Mathe") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
         <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
         <div class="lk-planner-subject-body">
           ${sectionOrder.map((subject) => renderSection(subject, "weekly-deutsch")).join("")}
         </div>
       </details>
-      <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") ? " open" : ""}>
+      <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") && !lkSubjectHasContent(data, "Deutsch") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
         <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
         <div class="lk-planner-subject-body">${renderSection("Mathe", "weekly-mathe")}</div>
       </details>
@@ -847,11 +847,11 @@
                 <span>${count ? `${count} ${count === 1 ? "Aufgabe" : "Aufgaben"}` : "noch leer"}</span>
               </summary>
               <div class="lk-weekly-day-content lk-subject-collapsible-editor">
-                <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") ? " open" : ""}>
+                <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") || !lkSubjectHasContent(data, "Mathe") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
                   <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
                   <div class="lk-planner-subject-body">${sectionOrder.map(renderDeutschSub).join("")}</div>
                 </details>
-                <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") ? " open" : ""}>
+                <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") && !lkSubjectHasContent(data, "Deutsch") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
                   <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
                   <div class="lk-planner-subject-body">
                     <section class="weekly-editor-subject lk-editor-subject mathe">
@@ -870,6 +870,19 @@
         }).join("")}
       </div>
     `;
+  };
+
+  // Hauptfaecher: Nur ein Bereich pro Woche bzw. Tag darf geoeffnet sein.
+  // Keine State-Aenderung und kein Render-Aufruf: bewahrt ungespeicherte Eingaben.
+  window.lkExclusiveMainSubject = function lkExclusiveMainSubject(current) {
+    if (!current || !current.open) return;
+    var parent = current.parentElement;
+    if (!parent) return;
+    Array.prototype.forEach.call(parent.children, function (other) {
+      if (other !== current && other.matches && other.matches('details.lk-planner-subject-details')) {
+        other.open = false;
+      }
+    });
   };
 
   window.lkExclusivePlannerDetails = function lkExclusivePlannerDetails(current) {
@@ -1217,15 +1230,29 @@
     renderChildWeek = function renderChildWeek9e() {
       const animal = selectedAnimal();
       const plans = animal ? weeklyPlansForAnimal(animal.id) : [];
-      // Kinder wählen keinen Wochenplan selbst aus. Es gilt dieselbe zentrale
-      // Auswahlregel wie in der Lernübersicht: datierter aktueller Plan, danach
-      // der zuletzt begonnene datierte Plan; undatiert nur als letzter Fallback.
       const selected = animal && typeof relevantWeeklyPlanForAnimal === "function"
         ? relevantWeeklyPlanForAnimal(animal.id)
         : (plans.find((plan) => weeklyPlanIsCurrent(plan)) || plans[0] || null);
       if (selected) lkChildWeekPlanId = selected.id;
       if (!lkChildWeekDay) lkChildWeekDay = todayGerman();
 
+      // Ein individueller Plan darf den Klassenplan derselben Woche nicht
+      // unsichtbar machen. Zeige alle für das Kind gültigen Pläne desselben
+      // Zeitraums, mit dem individuellen Plan zuerst. Ältere Wochen bleiben aus.
+      const samePeriod = selected ? plans.filter((plan) => {
+        if (plan.id === selected.id) return true;
+        if (!selected.validFrom && !selected.validTo) return !plan.validFrom && !plan.validTo;
+        if (!plan.validFrom && !plan.validTo) return false;
+        const start = selected.validFrom || selected.validTo;
+        const end = selected.validTo || selected.validFrom;
+        return (!plan.validFrom || plan.validFrom <= end)
+          && (!plan.validTo || plan.validTo >= start);
+      }) : [];
+      samePeriod.sort((a, b) => {
+        if (a.id === selected?.id) return -1;
+        if (b.id === selected?.id) return 1;
+        return weeklyPlanAudiencePriority(b, animal.id) - weeklyPlanAudiencePriority(a, animal.id);
+      });
       return `
         <section class="step-wrap child-week-wrap lk-child-week-wrap">
           <div class="lk-child-week-home-row">
@@ -1239,8 +1266,10 @@
             </div>
             ${selected && weeklyPlanIsCurrent(selected) ? `<span class="lk-current-pill">Diese Woche</span>` : ""}
           </div>
-
-          ${selected ? renderChildWeeklyPlan(selected, animal) : `<div class="empty lk-child-empty-week">Für dich ist noch kein Wochenplan eingetragen.</div>`}
+          ${samePeriod.length ? samePeriod.map((plan) => `
+            ${samePeriod.length > 1 ? `<h3 class="lk-child-plan-subheading">${plan.assignmentMode === "selected" ? "Mein individueller Plan" : "Unser Klassenplan"}</h3>` : ""}
+            ${renderChildWeeklyPlan(plan, animal)}
+          `).join("") : `<div class="empty lk-child-empty-week">Für dich ist noch kein Wochenplan eingetragen.</div>`}
         </section>
       `;
     };

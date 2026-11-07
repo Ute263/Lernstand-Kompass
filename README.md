@@ -53,6 +53,7 @@ Wichtige Dateien und Verzeichnisse:
 index.html                 Einstieg und definierte Script-Ladereihenfolge
 app.js                     zentrale Navigation und Kernlogik
 models.js                  Datenmodelle
+minimax-katalog-daten.js   MiniMax-Katalogdaten (nur Daten, vor models.js geladen)
 storage.js                 lokale Persistenz
 sync.js                    Microsoft/OneDrive und Klassen-Sync
 export.js                  Exporte
@@ -62,8 +63,12 @@ service-worker.js          Offline-Cache
 manifest.json              PWA-Metadaten
 materials/                 Druck- und Lehrwerksmaterialien
 icons/                     App-Icons
+fonts/                     Schrift „Grundschrift von Christian Urff“ (CC BY 3.0)
+docs/                      Änderungsprotokoll, Testprotokolle, Archiv früherer Schritte
 scripts/build.js            Build der statischen Distribution
 scripts/check-syntax.js     Syntaxprüfung eigener JavaScript-Dateien
+scripts/check-browser-snapshot.js  Browser-Test der Ansichten (npm run check:snapshot, benötigt Playwright)
+scripts/check-material-refs.js     prüft Bild- und Schriftverweise
 cloudflare-worker/         optionaler Klassen-Sync-Dienst
 ```
 
@@ -88,6 +93,8 @@ Komplette Prüfung:
 ```bash
 npm run verify
 ```
+
+Optional, nach `npm run build`: `npm run check:snapshot` rendert Lehrkraft-, Druck- und Kinderansichten im Browser und vergleicht sie mit einer Referenz (nur mit installiertem Playwright).
 
 Der Build wird nach `dist/` geschrieben. Lokale Browserdaten, Vornamen, Lernstände, Bewertungen und Notizen werden nicht in den Build übernommen.
 

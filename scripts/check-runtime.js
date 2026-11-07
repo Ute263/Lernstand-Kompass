@@ -23,6 +23,7 @@ if (!fs.existsSync(dist)) throw new Error('dist fehlt. Zuerst npm run build ausf
 const index = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
 const sw = fs.readFileSync(path.join(dist, 'service-worker.js'), 'utf8');
 const refs = new Set([...refsFromIndex(index), ...refsFromSw(sw)]);
+['exceljs.min.js', 'jsqr.js'].forEach(file => refs.add(file));
 const missing = [...refs].filter((file) => !fs.existsSync(path.join(dist, file)));
 if (missing.length) throw new Error(`Fehlende Laufzeitdateien in dist:\n- ${missing.join('\n- ')}`);
 console.log(`Dist-Laufzeitprüfung erfolgreich: ${refs.size} Dateien geprüft.`);

@@ -497,11 +497,17 @@ async function persist(nextState = state) {
     console.error("Lokales Speichern fehlgeschlagen.", error);
   });
 
+  let saveFailed = false;
   try {
     return await operation;
+  } catch (error) {
+    saveFailed = true;
+    globalMessage = "ACHTUNG: Die Daten konnten nicht gespeichert werden. Bitte keine weiteren Eingaben machen und die Datensicherung prüfen.";
+    if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(globalMessage);
+    throw error;
   } finally {
     persistPendingCount = Math.max(0, persistPendingCount - 1);
-    hasUnsavedChanges = persistPendingCount > 0;
+    hasUnsavedChanges = saveFailed || persistPendingCount > 0;
   }
 }
 
@@ -521,9 +527,14 @@ function persistOptimisticSnapshot(snapshot) {
   persistQueue = operation.catch((error) => {
     console.error("Lokales Speichern fehlgeschlagen.", error);
   });
-  operation.finally(() => {
+  operation.then(() => {
     persistPendingCount = Math.max(0, persistPendingCount - 1);
     hasUnsavedChanges = persistPendingCount > 0;
+  }, (error) => {
+    persistPendingCount = Math.max(0, persistPendingCount - 1);
+    hasUnsavedChanges = true;
+    globalMessage = "ACHTUNG: Seitenstatus nicht gespeichert. Bitte Datensicherung prüfen.";
+    if (typeof window !== "undefined" && typeof window.alert === "function") window.alert(globalMessage);
   });
   return operation;
 }
@@ -690,7 +701,7 @@ function renderStart() {
           <img class="modern-start-logo" src="./lernstand-kompass.png" alt="Lernstand-Kompass">
           <div class="modern-start-copy">
             <span class="modern-start-kicker">Lernstand-Kompass</span>
-            <h1>Dein Weg durch die Lernwoche.</h1>
+            <h1>Willkommen zu deiner Lernreise.</h1>
             <p>${APP_SUBTITLE}</p>
           </div>
         </div>
@@ -699,12 +710,12 @@ function renderStart() {
           <div class="modern-start-main-copy">
             <span class="modern-start-eyebrow">Für Kinder</span>
             <h2>${CHILD_AREA_NAME}</h2>
-            <p>Wochenplan ansehen und Aufgaben bearbeiten.</p>
+            <p>Hier findest du deinen Wochenplan, deine Aufgaben und kleine Lernspiele.</p>
             <div class="modern-start-feature-row" aria-hidden="true">
               <span>📘 Wochenplan</span><span>🎮 Lernspiele</span>
             </div>
           </div>
-          <button class="modern-start-primary" type="button" onclick="startChildFlow()">Los geht's <span>→</span></button>
+          <button class="modern-start-primary" type="button" onclick="startChildFlow()">Zur Lernreise <span>→</span></button>
         </div>
 
         <div class="modern-start-bottom">
@@ -1354,50 +1365,71 @@ function renderChildSelfReportConfirm() {
 
 async function updateChildWeeklyStatus(planId, day, field, status) {
   const animal = selectedAnimal();
-  const plan = (state.weeklyPlans || []).find((item) => item.id === planId);
-  if (!animal || !plan || !WEEKLY_PLAN_STATUSES.includes(status)) return;
-  const timestamp = nowIso();
+  const plan = (state.weeklyPlans || []).find((entry) => entry.id === planId && entry.active !== false);
+  if (!animal || !plan || !WEEKLY_PLAN_STATUSES.includes(status) || !weeklyPlanAppliesToAnimal(plan, animal.id)) return;
   const item = weeklyPlanItemsForDay(plan, day, animal.id).find((entry) => entry.field === field);
-  const pages = item?.catalogItem ? weeklyCatalogPages(item.catalogItem).map(String) : [];
-  const childCompletedPages = status === "fertig" ? pages : status === "teilweise" && pages.length === 1 ? pages : [];
-  const existing = (state.weeklyPlanStatuses || []).find((entry) => (
-    entry.planId === planId && entry.animalId === animal.id && entry.day === day && entry.field === field
-  ));
+  if (!item) {
+    globalMessage = "Diese Aufgabe wurde im Wochenplan verändert. Bitte den Wochenplan erneut öffnen.";
+    render();
+    return;
+  }
+  const timestamp = nowIso();
+  const pages = item.catalogItem ? weeklyCatalogPages(item.catalogItem).map(String) : [];
+  const completedPages = status === "fertig" ? pages : status === "teilweise" && pages.length === 1 ? pages : [];
+  const existing = weeklyPlanStatusRecord(planId, animal.id, day, field);
+  const statusId = existing?.id || weeklyPlanStatusStableId(planId, animal.id, day, field);
+
+  // Status und optionaler Lernstand-Eintrag sind zwei verschiedene Vorgänge.
+  // Sonst konnten gerade Pflicht-/Heftaufgaben ohne Rückmeldung bleiben,
+  // wenn die zusätzliche Lernstandsübernahme scheiterte.
+  let nextState = state;
+  if (existing?.progressLinked && status !== "fertig") {
+    nextState = removeWeeklyProgressLink(nextState, existing.id);
+  }
   const nextStatus = {
     ...(existing || {}),
-    id: existing?.id || weeklyPlanStatusStableId(planId, animal.id, day, field),
-    classId: state.activeClassId,
+    id: statusId,
+    classId: plan.classId,
     planId,
     animalId: animal.id,
     day,
     field,
-    workbookCatalogId: item?.workbookCatalogId || "",
-    freeText: item?.freeText || "",
+    workbookCatalogId: item.workbookCatalogId || item.catalogItem?.id || "",
+    freeText: item.freeText || "",
     status,
     markedByChild: true,
-    reviewStatus: weeklyPlanProgressMode(plan) === "auto" ? "bestätigt" : "wartet",
-    completedPages: childCompletedPages,
-    openPages: pages.filter((page) => !childCompletedPages.includes(page)),
+    reviewStatus: "wartet",
+    completedPages,
+    openPages: pages.filter((page) => !completedPages.includes(page)),
     completedAt: status === "fertig" ? timestamp : "",
+    progressLinked: status === "fertig" && existing?.progressLinked === true,
+    progressEntryId: status === "fertig" ? existing?.progressEntryId || "" : "",
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp
   };
-  let nextState = {
-    ...state,
+  nextState = {
+    ...nextState,
     weeklyPlanStatuses: existing
-      ? (state.weeklyPlanStatuses || []).map((entry) => entry.id === existing.id ? nextStatus : entry)
-      : [...(state.weeklyPlanStatuses || []), nextStatus]
+      ? (nextState.weeklyPlanStatuses || []).map((entry) => entry.id === existing.id ? nextStatus : entry)
+      : [...(nextState.weeklyPlanStatuses || []), nextStatus]
   };
 
-  if (status === "fertig" && weeklyPlanProgressMode(plan) === "auto" && item?.catalogItem) {
-    nextState = linkWeeklyStatusToProgress(nextState, nextStatus.id, { confirmed: true });
-  }
-  if (status === "offen" && existing?.progressLinked) {
-    nextState = removeWeeklyProgressLink(nextState, existing.id);
-  }
-
+  // Das Häkchen muss unabhängig von der optionalen Lernstandsübernahme
+  // gespeichert werden. Insbesondere auf älteren iPads keine große
+  // Fortschrittsliste vor dem eigentlichen Aufgabenstatus schreiben.
   await persist(nextState);
   render();
+  if (status === "fertig" && weeklyPlanProgressMode(plan) === "auto" && item.catalogItem) {
+    try {
+      const linked = linkWeeklyStatusToProgress(state, statusId, { confirmed: true });
+      if (linked !== state) await persist(linked);
+      render();
+    } catch (error) {
+      console.warn("Aufgabe ist abgehakt; Übernahme in den Lernstand fehlgeschlagen.", error);
+      globalMessage = "Die Aufgabe ist abgehakt. Die automatische Übernahme in den Lernstand konnte nicht abgeschlossen werden.";
+      render();
+    }
+  }
 }
 
 async function updateChildWorkbookAssignmentStatus(assignmentId, status) {
@@ -1765,12 +1797,15 @@ function renderLogin() {
         </div>
         <div class="teacher-login-copy">
           <span class="teacher-login-kicker">Für Lehrkräfte</span>
-          <h2>Dein Überblick über die Lernwoche</h2>
-          <p>Wochenpläne · Lernstände · Lernspiele</p>
+          <h2>Wochenpläne und Lernstände</h2>
+          <p>Dein Überblick über die Lernwoche</p>
         </div>
-        <div class="teacher-login-pin-wrap">
-          <span class="teacher-login-lock" aria-hidden="true">🔒</span>
-          <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="PIN für den Lehrerbereich">
+        <div class="teacher-login-form-fields">
+          <label class="teacher-login-field-label" for="pinInput">Deine PIN</label>
+          <div class="teacher-login-pin-wrap">
+            <span class="teacher-login-lock" aria-hidden="true">🔒</span>
+            <input class="pin-input" id="pinInput" type="password" inputmode="numeric" placeholder="PIN eingeben" autocomplete="off" aria-label="PIN für den Lehrerbereich">
+          </div>
         </div>
         ${loginError ? `<p class="message ${loginMessageClass}">${escapeHtml(loginError)}</p>` : ""}
         <button class="primary teacher-login-open" type="submit">Lehrerbereich öffnen</button>
@@ -2176,7 +2211,7 @@ function renderTeacher() {
           return `${heading ? `<div class="teacher-nav-heading">${heading}</div>` : ""}<button class="tab-button ${activeGroup.id === group.id ? "active" : ""}" type="button" onclick="setTeacherGroup('${group.id}')">${escapeHtml(group.label)}</button>`;
         }).join("")}
       </nav>
-      <div>
+      <div class="teacher-workspace">
         ${globalMessage ? `<div class="toast">${escapeHtml(globalMessage)}</div>` : ""}
         ${renderTeacherTab()}
       </div>
@@ -2329,7 +2364,7 @@ function weeklyRowPageStatus(row, page) {
 
 function weeklyRowMaterialLabel(row) {
   const catalog = row?.item?.catalogItem;
-  const workbook = String(row?.workbookLabel || catalog?.workbook || "Material").trim();
+  const workbook = String(catalog?.workbook || row?.workbookLabel || "Material").trim();
   return workbook || "Material";
 }
 
@@ -2467,12 +2502,11 @@ function workedPagesForAnimal(animalId, subject) {
   const rank = { offen: 0, teilweise: 1, fertig: 2 };
   const addPage = (material, page, status, updatedAt) => {
     const normalized = normalizeSimpleWorkStatus(status || "teilweise");
-    if (normalized === "offen") return;
     const materialLabel = String(material || "Material").trim() || "Material";
     const key = materialPageKey(materialLabel, page);
     const stamp = Date.parse(updatedAt || "") || 0;
     const previous = rows.get(key);
-    if (!previous || rank[normalized] > rank[previous.status] || (rank[normalized] === rank[previous.status] && stamp > previous.stamp)) {
+    if (!previous || stamp > previous.stamp || (stamp === previous.stamp && rank[normalized] > rank[previous.status])) {
       rows.set(key, { page: Number(page), status: normalized, stamp, material: materialLabel, key });
     }
   };
@@ -2493,7 +2527,7 @@ function workedPagesForAnimal(animalId, subject) {
             : (overall === "fertig" && !(entry.completedPages || []).length)
               ? "fertig"
               : "offen";
-        if (pageStatus !== "offen") addPage(material, page, pageStatus, entry.updatedAt || entry.datumUhrzeit || entry.createdAt);
+        if (pageStatus !== "offen" || Object.prototype.hasOwnProperty.call(explicitStatuses, String(page))) addPage(material, page, pageStatus, entry.updatedAt || entry.datumUhrzeit || entry.createdAt);
       });
     });
 
@@ -2523,7 +2557,7 @@ function workedPagesForAnimal(animalId, subject) {
               : overall === "teilweise" && pages.length === 1
                 ? "teilweise"
                 : "offen";
-        if (pageStatus !== "offen") addPage(material, page, pageStatus, status.updatedAt || status.completedAt || status.createdAt);
+        if (pageStatus !== "offen" || Object.prototype.hasOwnProperty.call(status.pageStatuses || {}, String(page))) addPage(material, page, pageStatus, status.updatedAt || status.completedAt || status.createdAt);
       });
     });
 
@@ -2583,7 +2617,7 @@ function cycleWorkedPageStatus(button, animalId, subject, material, page, curren
       completedPages,
       openPages: catalogPages.filter((catalogPage) => normalizeSimpleWorkStatus(pageStatuses[catalogPage]) === "offen"),
       workStatus,
-      status: workStatus === "fertig" ? "fertig" : entry.status,
+      status: workStatus,
       updatedAt: stamp,
       datumUhrzeit: stamp
     };
@@ -2645,21 +2679,14 @@ function cycleWorkedPageStatus(button, animalId, subject, material, page, curren
   state = nextState;
   workedPagesDataIndex = null;
 
-  if (button) {
-    if (nextStatus === "offen") {
-      const group = button.closest(".weekly-worked-material-group");
-      const container = button.closest(".weekly-worked-material-groups");
-      button.remove();
-      if (group && !group.querySelector(".weekly-worked-page")) group.remove();
-      if (container && !container.querySelector(".weekly-worked-page")) container.remove();
-    } else {
-      button.classList.remove("fertig", "teilweise", "offen");
-      button.classList.add(nextStatus);
-      button.innerHTML = `S. ${page}<b>${nextStatus === "fertig" ? "✓" : "◐"}</b>`;
-      button.title = "Klicken: Status ändern";
-      button.setAttribute("aria-label", `${material}, Seite ${page}: ${label}. Status ändern`);
-      button.setAttribute("onclick", `cycleWorkedPageStatus(this,${JSON.stringify(animalId)},${JSON.stringify(subject)},${JSON.stringify(material)},${Number(page)},${JSON.stringify(nextStatus)})`);
-    }
+  // Fertige Seiten verlassen die offene Aufgabenliste. Beim Zurücksetzen
+  // muss die Übersicht aus dem neuen State neu berechnet werden, damit die
+  // Seite in der richtigen Ebene wieder erscheint und nicht nur aus dem DOM
+  // gelöscht wird. Die Scrollposition bleibt nach Möglichkeit erhalten.
+  const previousScrollY = typeof window !== "undefined" ? window.scrollY : 0;
+  render();
+  if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => window.scrollTo(0, previousScrollY));
   }
 
   // Speichern/Auto-Backup asynchron; weitere Klicks bleiben währenddessen möglich.
@@ -2681,10 +2708,10 @@ function renderWorkedPages(animalId, subject, currentRows = []) {
     groups.get(material).push(item);
   });
 
-  return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Bearbeitet: <small>Seite anklicken: ✓ → ◐ → offen</small></span>${[...groups.entries()].map(([material, items]) => `
+  return `<div class="weekly-worked-material-groups"><span class="weekly-worked-pages-label">Weitere Seiten: <small>Status: ✓ fertig · ◐ angefangen · ○ offen</small></span>${[...groups.entries()].map(([material, items]) => `
     <div class="weekly-worked-material-group">
       <span class="weekly-worked-material-label">${escapeHtml(material)}</span>
-      <div class="weekly-worked-pages">${items.map((item) => `<button type="button" class="weekly-worked-page ${item.status}" title="Klicken: Status ändern" aria-label="${escapeAttribute(`${material}, Seite ${item.page}: ${item.status === "fertig" ? "fertig" : "in Bearbeitung"}. Status ändern`)}" onclick="cycleWorkedPageStatus(this,'${escapeAttribute(animalId)}','${escapeAttribute(subject)}','${escapeAttribute(material)}','${item.page}','${escapeAttribute(item.status)}')">S. ${item.page}<b>${item.status === "fertig" ? "✓" : "◐"}</b></button>`).join("")}</div>
+      <div class="weekly-worked-pages">${items.map((item) => `<button type="button" class="weekly-worked-page ${item.status}" title="Klicken: Status ändern" aria-label="${escapeAttribute(`${material}, Seite ${item.page}: ${item.status === "fertig" ? "fertig" : item.status === "teilweise" ? "angefangen" : "offen"}. Status ändern`)}" onclick="cycleWorkedPageStatus(this,'${escapeAttribute(animalId)}','${escapeAttribute(subject)}','${escapeAttribute(material)}','${item.page}','${escapeAttribute(item.status)}')">S. ${item.page}<b>${item.status === "fertig" ? "✓" : item.status === "teilweise" ? "◐" : "○"}</b></button>`).join("")}</div>
     </div>
   `).join("")}</div>`;
 }
@@ -2699,8 +2726,11 @@ function renderOverview() {
     const stars = rows.filter((row) => row.item?.isExtraTask);
     const deutsch = required.filter((row) => row.subject === "Deutsch");
     const mathe = required.filter((row) => row.subject === "Mathe");
+    const deutschStars = stars.filter((row) => row.subject === "Deutsch");
+    const matheStars = stars.filter((row) => row.subject === "Mathe");
+    const sonstigeStars = stars.filter((row) => row.subject !== "Deutsch" && row.subject !== "Mathe");
     const stateInfo = weeklyAnimalOverviewState(rows);
-    return { animal, rows, required, stars, deutsch, mathe, stateInfo };
+    return { animal, rows, required, stars, deutsch, mathe, deutschStars, matheStars, sonstigeStars, stateInfo };
   });
 
   const counts = {
@@ -2734,15 +2764,15 @@ function renderOverview() {
         <button class="small-button ${classOverviewFilter === "not-started" ? "active" : ""}" type="button" onclick="setClassOverviewFilter('not-started')">Nicht begonnen</button>
       </div>
       <div class="weekly-class-list">
-        ${visible.map(({ animal, deutsch, mathe, stars, stateInfo }) => `
+        ${visible.map(({ animal, deutsch, mathe, deutschStars, matheStars, sonstigeStars, stateInfo }) => `
           <article class="weekly-class-child ${stateInfo.key}">
             <div class="weekly-class-child-title">
               <strong>${teacherAnimalLabel(animal)}</strong>
               <span class="weekly-class-progress ${stateInfo.key}">${stateInfo.total ? `${stateInfo.done}/${stateInfo.total} Pflicht · ` : ""}${escapeHtml(stateInfo.label)}</span>
             </div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}${renderWorkedPages(animal.id, "Deutsch", deutsch)}</div></div>
-            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}${renderWorkedPages(animal.id, "Mathe", mathe)}</div></div>
-            ${stars.length ? `<div class="weekly-class-subject star"><span class="weekly-class-subject-label">⭐ Sternchen</span><div>${compactWeeklyTaskList(stars)}</div></div>` : ""}
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Deutsch</span><div>${compactWeeklyTaskList(deutsch)}${renderWorkedPages(animal.id, "Deutsch", deutsch)}${deutschStars.length ? `<div class="weekly-class-starline"><span class="weekly-class-starlabel">⭐</span><div>${compactWeeklyTaskList(deutschStars)}</div></div>` : ""}</div></div>
+            <div class="weekly-class-subject"><span class="weekly-class-subject-label">Mathe</span><div>${compactWeeklyTaskList(mathe)}${renderWorkedPages(animal.id, "Mathe", mathe)}${matheStars.length ? `<div class="weekly-class-starline"><span class="weekly-class-starlabel">⭐</span><div>${compactWeeklyTaskList(matheStars)}</div></div>` : ""}</div></div>
+            ${sonstigeStars.length ? `<div class="weekly-class-subject star"><span class="weekly-class-subject-label">⭐</span><div>${compactWeeklyTaskList(sonstigeStars)}</div></div>` : ""}
           </article>
         `).join("") || `<div class="empty">Für diesen Filter gibt es keine Kinder.</div>`}
       </div>
@@ -4904,6 +4934,29 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
       <form class="weekly-plan-form weekly-clean-form" onsubmit="saveWeeklyPlan(event)">
         <input type="hidden" id="weeklyPlanId" value="${escapeAttribute(draftId)}">
 
+        <div class="weekly-clean-settings">
+          <div class="weekly-clean-period">
+            <label class="field">Zeitraum
+              <input class="text-input" id="weeklyLabel" value="${escapeAttribute(weekLabel)}" placeholder="KW 37">
+            </label>
+            <label class="field">Von
+              <input class="text-input" type="date" id="weeklyFrom" value="${escapeAttribute(validFrom)}">
+            </label>
+            <label class="field">Bis
+              <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
+            </label>
+          </div>
+
+          <div class="weekly-clean-mode">
+            <span class="weekly-clean-setting-label">Planungsform</span>
+            <input type="hidden" id="weeklyPlanningMode" value="${escapeAttribute(planningMode)}">
+            <div class="weekly-planning-mode-actions" role="group" aria-label="Planungsansicht">
+              <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">Wochenplan</button>
+              <button class="secondary ${planningMode === "days" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('days')">Tagesplan</button>
+            </div>
+          </div>
+        </div>
+
         <div class="weekly-audience-editor">
           <div class="weekly-clean-section-title">
             <h3>Plan gilt für</h3>
@@ -4919,6 +4972,8 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
               <strong>Ausgewählte Kinder</strong>
             </label>
           </div>
+          <details class="lk-audience-chooser" id="lkAudienceChooser" ${assignmentMode !== "all" ? "open" : ""}>
+            <summary>Kinder auswählen <span class="lk-audience-count">${assignmentMode === "all" ? "Nur bei individuellen Plänen" : `${selectedAnimals.size} ausgewählt`}</span></summary>
           <div id="weeklyAudienceChildren" class="weekly-audience-child-grid ${assignmentMode === "all" ? "is-disabled" : ""}">
             ${animals.map((animal) => `
               <label class="weekly-audience-child">
@@ -4928,30 +4983,8 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
               </label>
             `).join("")}
           </div>
-          <p class="message">Du kannst Kinder jederzeit hinzufügen oder entfernen. Die Aufgaben des Plans bleiben dabei erhalten.</p>
-        </div>
-
-        <div class="weekly-clean-settings">
-          <div class="weekly-clean-period">
-            <label class="field">Zeitraum
-              <input class="text-input" id="weeklyLabel" value="${escapeAttribute(weekLabel)}" placeholder="KW 37">
-            </label>
-            <label class="field">Von
-              <input class="text-input" type="date" id="weeklyFrom" value="${escapeAttribute(validFrom)}">
-            </label>
-            <label class="field">Bis
-              <input class="text-input" type="date" id="weeklyTo" value="${escapeAttribute(validTo)}">
-            </label>
-          </div>
-
-          <div class="weekly-clean-mode">
-            <span class="weekly-clean-setting-label">Ansicht</span>
-            <input type="hidden" id="weeklyPlanningMode" value="${escapeAttribute(planningMode)}">
-            <div class="weekly-planning-mode-actions" role="group" aria-label="Planungsansicht">
-              <button class="secondary ${planningMode === "week" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('week')">Ganze Woche</button>
-              <button class="secondary ${planningMode === "days" ? "active" : ""}" type="button" onclick="setWeeklyPlanningMode('days')">Nach Tagen</button>
-            </div>
-          </div>
+          </details>
+          <p class="lk-audience-helper">Die Auswahl bestimmt, für wen dieser Plan gilt. Die Aufgabeneingabe erfolgt darunter.</p>
         </div>
 
         ${focusAnimal ? `
@@ -5442,6 +5475,8 @@ function lkWeeklyAudienceModeChanged(mode) {
   const boxes = [...document.querySelectorAll(".weeklyAnimalCheckbox")];
   boxes.forEach((input) => { input.disabled = !selected; });
   document.getElementById("weeklyAudienceChildren")?.classList.toggle("is-disabled", !selected);
+  const chooser = document.getElementById("lkAudienceChooser");
+  if (chooser) chooser.open = selected;
 
   // Beim Wechsel von "Ganze Klasse" zu "Ausgewählte Kinder" nie einen
   // versehentlich leeren Zielkreis speichern. Wenn noch niemand markiert ist,
@@ -7254,27 +7289,26 @@ function renderBackup() {
   return `
     <section class="panel">
       <h2>Datensicherung</h2>
-      <p class="privacy-text">Die Lernstände werden weiterhin lokal auf diesem iPad/in diesem Browser gespeichert. Zusätzlich kannst du im Bereich „Microsoft & Sync“ eine OneDrive-Sicherung aktivieren. Ohne Cloud-Anbindung bleibt der bisherige Datei-Backup-Weg vollständig erhalten.</p>
+      <p class="privacy-text">Die Lernstände werden weiterhin lokal auf diesem iPad/in diesem Browser gespeichert. Zusätzlich kannst du unter „Sicherung & Kindergeräte“ eine OneDrive-Sicherung aktivieren. Ohne Cloud-Anbindung bleibt der bisherige Datei-Backup-Weg vollständig erhalten.</p>
       <p class="message success">Alle Änderungen gespeichert. Zuletzt gespeichert: ${state.lastSavedAt ? formatDateTime(state.lastSavedAt) : "noch nicht gespeichert"}.</p>
       <div class="backup-actions">
         <button class="primary" type="button" onclick="saveCurrentData()">Daten speichern</button>
       </div>
       <p class="privacy-text">Beim normalen Speichern wird keine Datei heruntergeladen. Ein Backup ist eine bewusste Sicherungsdatei.</p>
+      ${renderLastBackupStatus()}
       <div class="backup-actions">
         <button class="primary" type="button" onclick="exportActiveClassBackup()">Backup aktive Klasse speichern</button>
         <button class="primary" type="button" onclick="exportFullBackup()">Gesamtbackup speichern</button>
+        ${canShareFiles() ? `<button class="secondary" type="button" onclick="exportFullBackupShare()">Gesamtbackup in Dateien sichern (Teilen)</button>` : ""}
         <button class="secondary" type="button" onclick="exportActiveClassCsv()">CSV aktive Klasse speichern</button>
       </div>
     </section>
     <section class="panel">
       <h2>Mehrere Geräte verwenden</h2>
-      <p class="privacy-text">Ohne eingerichteten Cloud-Sync kannst du weiterhin mehrere iPads über Backup-Dateien abgleichen. Wenn Microsoft & Sync eingerichtet ist, steht zusätzlich der OneDrive-Abgleich zur Verfügung.</p>
-      <p class="message"><strong>Ohne Cloud-Sync:</strong> Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen.</p>
+      <p class="privacy-text">Ohne eingerichteten Cloud-Sync kannst du weiterhin mehrere iPads über Backup-Dateien abgleichen. Wenn unter „Sicherung & Kindergeräte“ die OneDrive-Sicherung eingerichtet ist, steht zusätzlich der OneDrive-Abgleich zur Verfügung.</p>
+      <p class="message"><strong>Ohne Cloud-Sync:</strong> Nutze auf dem Hauptgerät immer „Backup zusammenführen“, nicht „Backup wiederherstellen“, damit keine Einträge verloren gehen. Nach dem Einlesen einer Datei wählst du, was geschehen soll.</p>
       <div class="backup-actions">
-        <button class="primary" type="button" onclick="exportFullBackup()">Backup exportieren</button>
-        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Lernpost zusammenführen</button>
-        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Backup zusammenführen</button>
-        <button class="danger" type="button" onclick="openBackupFilePicker()">Backup wiederherstellen</button>
+        <button class="primary recommended-action" type="button" onclick="openBackupFilePicker()">Backup-Datei einlesen</button>
         <button class="secondary" type="button" onclick="startMultiDeviceSyncGuide()">Mehrgeräte-Abgleich starten</button>
       </div>
       <input class="visually-hidden" id="backupFile" type="file" accept="application/json,.json" onchange="handleBackupFileSelected(event)">
@@ -9018,7 +9052,10 @@ async function exportActiveClassBackup() {
     const classItem = activeClass();
     const filename = `lernstand-kompass-${safeFilePart(classItem?.name)}-backup-${formatFileDate(new Date())}.json`;
     const content = JSON.stringify(makeActiveClassBackup(state, state.activeClassId), null, 2);
-    globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
+    const result = await writeFileWithPickerOrDownload(filename, "application/json", content);
+    if (result.ok) rememberBackupSaved();
+    globalMessage = result.via === "cancelled" ? "Speichern abgebrochen. Es wurde keine Datei erstellt."
+      : result.via === "download" ? FILE_SAVED_MESSAGE + FILE_DOWNLOADED_HINT : FILE_SAVED_MESSAGE;
   } catch {
     globalMessage = "Die Datei konnte nicht erstellt werden.";
   }
@@ -9029,11 +9066,40 @@ async function exportFullBackup() {
   try {
     const filename = `lernstand-kompass-gesamtbackup-${formatFileDate(new Date())}.json`;
     const content = JSON.stringify(makeFullBackup(state), null, 2);
-    globalMessage = await saveFileWithPickerOrDownload(filename, "application/json", content);
+    const result = await writeFileWithPickerOrDownload(filename, "application/json", content);
+    if (result.ok) rememberBackupSaved();
+    globalMessage = result.via === "cancelled" ? "Speichern abgebrochen. Es wurde keine Datei erstellt."
+      : result.via === "download" ? FILE_SAVED_MESSAGE + FILE_DOWNLOADED_HINT : FILE_SAVED_MESSAGE;
   } catch {
     globalMessage = "Die Datei konnte nicht erstellt werden.";
   }
   render();
+}
+
+// iPad: Gesamtbackup über den Teilen-Dialog („In Dateien sichern“), Ordner frei wählbar.
+async function exportFullBackupShare() {
+  try {
+    const filename = `lernstand-kompass-gesamtbackup-${formatFileDate(new Date())}.json`;
+    const result = await shareFileToFiles(filename, "application/json", JSON.stringify(makeFullBackup(state), null, 2));
+    if (result.ok) rememberBackupSaved();
+    globalMessage = result.ok ? "Backup wurde weitergegeben. Wähle „In Dateien sichern“, um den Ordner selbst zu bestimmen."
+      : "Teilen abgebrochen. Es wurde keine Datei erstellt.";
+  } catch {
+    globalMessage = "Die Datei konnte nicht erstellt werden.";
+  }
+  render();
+}
+
+function renderLastBackupStatus() {
+  const iso = lastBackupSavedAt();
+  const ts = iso ? new Date(iso).getTime() : NaN;
+  if (!Number.isFinite(ts)) {
+    return `<p class="message warning">Auf diesem Gerät wurde noch keine Sicherungsdatei gespeichert. Die Daten liegen nur im Browser.</p>`;
+  }
+  const days = Math.floor((Date.now() - ts) / 86400000);
+  const when = days <= 0 ? "heute" : days === 1 ? "gestern" : `vor ${days} Tagen`;
+  const cls = days > 14 ? "warning" : "success";
+  return `<p class="message ${cls}">Letzte Sicherungsdatei: ${escapeHtml(formatDateTime(iso))} (${when}).${days > 14 ? " Bitte eine neue Sicherung erstellen." : ""}</p>`;
 }
 
 async function saveCurrentData() {
@@ -9402,7 +9468,7 @@ function renderPrivacy() {
         <li>freie Leistungs- oder Verhaltenskommentare</li>
         <li>KI-Auswertungen</li>
       </ul>
-      <p>Die Daten werden grundsätzlich lokal auf diesem iPad/in diesem Browser gespeichert. Wenn die Lehrkraft Microsoft & Sync bewusst aktiviert, kann zusätzlich ein Gesamtbackup im privaten OneDrive-Appordner gespeichert werden. Beim optionalen Klassen-Sync werden Lernspiel-Daten ohne Vornamen vor dem Versand im Browser verschlüsselt.</p>
+      <p>Die Daten werden grundsätzlich lokal auf diesem iPad/in diesem Browser gespeichert. Wenn die Lehrkraft die OneDrive-Sicherung bewusst aktiviert, kann zusätzlich ein Gesamtbackup im privaten OneDrive-Appordner gespeichert werden. Beim optionalen Klassen-Sync werden Lernspiel-Daten ohne Vornamen vor dem Versand im Browser verschlüsselt.</p>
     </section>
   `;
 }
@@ -10297,18 +10363,21 @@ function linkWeeklyStatusToProgress(currentState, statusId, options = {}) {
 function removeWeeklyProgressLink(currentState, statusId) {
   const status = (currentState.weeklyPlanStatuses || []).find((item) => item.id === statusId);
   if (!status) return currentState;
-  const entries = (currentState.entries || []).map((entry) => {
-    if (entry.id !== status.progressEntryId) return entry;
+  const entries = (currentState.entries || []).flatMap((entry) => {
+    if (entry.id !== status.progressEntryId) return [entry];
     const sources = String(entry.source || "").split(/[,+]/).map((item) => item.trim()).filter((item) => item && item !== "Wochenplan");
-    return {
+    // Ein ausschließlich über den Wochenplan erzeugter Fortschritt darf beim
+    // Zurücksetzen nicht als erledigte Aufgabe im unteren Bereich stehen bleiben.
+    if (!sources.length) return [];
+    return [{
       ...entry,
       weeklyPlanId: "",
       weeklyPlanDay: "",
       weeklyPlanField: "",
       weeklyPlanSource: "",
-      source: sources.join(" + ") || "Korrektur",
+      source: sources.join(" + "),
       updatedAt: nowIso()
-    };
+    }];
   });
   const weeklyPlanStatuses = (currentState.weeklyPlanStatuses || []).map((item) => item.id === statusId ? {
     ...item,
@@ -11020,8 +11089,11 @@ function upsertWorkbookProgressEntry(currentState, { classId, animal, catalog, s
     ? pages.map(String)
     : (completedPages || []).map(String);
   const existing = findWorkbookProgressDuplicate(currentState.entries || [], classId, animal.id, catalog);
+  const sameWeeklySource = source === "Wochenplan" && weeklyStatus && existing?.weeklyPlanId === weeklyPlan?.id &&
+    existing?.weeklyPlanDay === weeklyStatus.day && existing?.weeklyPlanField === weeklyStatus.field &&
+    String(existing?.source || "").split(/[,+]/).map((part) => part.trim()).filter(Boolean).every((part) => part === "Wochenplan");
   const mergedCompletedPages = [...new Set([
-    ...((existing?.completedPages || []).map(String)),
+    ...(sameWeeklySource ? [] : (existing?.completedPages || []).map(String)),
     ...incomingCompletedPages
   ])]
     .filter((page) => pages.includes(Number(page)))

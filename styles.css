@@ -1,8 +1,14 @@
 @font-face {
   font-family: "Grundschrift";
-  src:
-    local("Grundschrift"),
-    url("fonts/Grundschrift.woff2") format("woff2");
+  font-weight: 400;
+  src: url("fonts/Grundschrift-Regular.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Grundschrift";
+  font-weight: 700;
+  src: url("fonts/Grundschrift-Bold.otf") format("opentype");
   font-display: swap;
 }
 
@@ -3845,6 +3851,23 @@ th {
   margin-top: 2px;
   color: #5b5367;
 }
+.weekly-class-starline {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  margin-top: 6px;
+  font-size: .94rem;
+  color: #5b5367;
+}
+.weekly-class-starlabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .9rem;
+  line-height: 1;
+  margin-top: 2px;
+}
 .weekly-compact-task {
   white-space: nowrap;
 }
@@ -4665,3 +4688,134 @@ button.weekly-worked-page {
 }
 button.weekly-worked-page:hover { filter: brightness(.98); transform: translateY(-1px); }
 button.weekly-worked-page:focus-visible { outline: 2px solid #2caeb2; outline-offset: 2px; }
+
+/* Individueller und Klassenwochenplan in der Kinderansicht */
+.lk-child-plan-subheading { font-size:1rem; font-weight:600; margin:16px 0 6px; color:#34556b; }
+
+
+/* Schritt 3n: zurückhaltende, kompakte Anmeldung für Lehrkräfte. */
+@media screen {
+  .teacher-login-stage {
+    min-height: min(720px, calc(100vh - 155px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 16px 50px;
+  }
+  .teacher-login-card {
+    width: min(100%, 530px);
+    max-width: 530px;
+    padding: 32px 40px 30px;
+    gap: 0;
+    border: 1px solid #dde8e9;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 12px 36px rgba(32, 70, 91, .055);
+  }
+  .teacher-login-mark {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 18px;
+    border-radius: 19px;
+    background: #f1f9fa;
+    box-shadow: none;
+  }
+  .teacher-login-mark img {
+    width: 66px;
+    height: 66px;
+    border-radius: 16px;
+  }
+  .teacher-login-copy { gap: 9px; width: 100%; }
+  .teacher-login-kicker {
+    padding: 5px 12px;
+    font-size: .73rem;
+    font-weight: 600;
+    letter-spacing: .035em;
+    color: #377e81;
+    background: #eaf6f5;
+  }
+  .teacher-login-copy h2 {
+    max-width: 440px;
+    margin: 6px auto 0;
+    color: #25475a;
+    font-size: clamp(1.65rem, 3.4vw, 2.15rem);
+    font-weight: 650;
+    letter-spacing: -.026em;
+    line-height: 1.18;
+  }
+  .teacher-login-copy p {
+    font-size: .96rem;
+    color: #738994;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .teacher-login-form-fields { width: min(100%, 370px); margin-top: 26px; }
+  .teacher-login-field-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: .88rem;
+    font-weight: 600;
+    color: #526c7a;
+  }
+  .teacher-login-pin-wrap {
+    width: 100%;
+    grid-template-columns: 35px minmax(0,1fr);
+    min-height: 54px;
+    margin: 0;
+    padding: 0 11px;
+    border: 1px solid #ccdfe5;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+  .teacher-login-pin-wrap:focus-within {
+    border-color: #3182a0;
+    box-shadow: 0 0 0 3px rgba(49,130,160,.12);
+  }
+  .teacher-login-lock { font-size: 1.05rem; opacity: .72; }
+  .teacher-login-card .pin-input {
+    min-height: 52px;
+    padding: 10px 4px;
+    font-size: 1.08rem;
+    font-weight: 450;
+    text-align: left;
+    letter-spacing: .03em;
+  }
+  .teacher-login-card .pin-input::placeholder { color: #9aaab4; opacity: 1; }
+  .teacher-login-open {
+    width: min(100%, 370px);
+    min-height: 49px;
+    margin-top: 14px;
+    border-radius: 12px;
+    background: #257a9a;
+    box-shadow: none;
+    font-size: .99rem;
+    font-weight: 600;
+  }
+  .teacher-login-open:hover { background: #1e6682; }
+  .teacher-login-forgot {
+    margin-top: 13px;
+    color: #397a95;
+    font-size: .9rem;
+    font-weight: 500;
+  }
+  @media (max-width: 560px) {
+    .teacher-login-stage { min-height: 0; padding: 18px 12px 30px; }
+    .teacher-login-card { padding: 28px 22px; border-radius: 18px; }
+    .teacher-login-copy h2 { font-size: 1.7rem; }
+    .teacher-login-mark { width: 70px; height: 70px; }
+    .teacher-login-mark img { width: 62px; height: 62px; }
+  }
+}
+
+/* Lehrer-Login: kein zweiter Rahmen um das PIN-Feld, Überschrift einzeilig */
+.teacher-login-card .pin-input:focus,
+.teacher-login-card .pin-input:focus-visible {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+.teacher-login-card .teacher-login-copy h2 {
+  max-width: none;
+  white-space: nowrap;
+  font-size: clamp(1.25rem, 5.4vw, 2.15rem);
+}

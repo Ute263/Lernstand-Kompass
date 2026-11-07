@@ -1,0 +1,128 @@
+{
+  "summary": [
+    {
+      "source": "minimax_1_zahlen_und_rechnen_teil_a_Quellkatalog.json",
+      "grade": 1,
+      "part": "Zahlen und Rechnen Teil A",
+      "pages": 87,
+      "ranges": 29,
+      "min": 2,
+      "max": 88,
+      "gaps": []
+    },
+    {
+      "source": "minimax_1_zahlen_und_rechnen_teil_b_Quellkatalog.json",
+      "grade": 1,
+      "part": "Zahlen und Rechnen Teil B",
+      "pages": 78,
+      "ranges": 32,
+      "min": 2,
+      "max": 79,
+      "gaps": []
+    },
+    {
+      "source": "minimax_1_geometrie_Quellkatalog.json",
+      "grade": 1,
+      "part": "Geometrie",
+      "pages": 30,
+      "ranges": 12,
+      "min": 2,
+      "max": 31,
+      "gaps": []
+    },
+    {
+      "source": "minimax_1_groessen_und_sachrechnen_Quellkatalog.json",
+      "grade": 1,
+      "part": "Größen und Sachrechnen",
+      "pages": 38,
+      "ranges": 17,
+      "min": 2,
+      "max": 39,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_3_Zahlen_und_Rechnen_Teil_A_Quellkatalog.json",
+      "grade": 3,
+      "part": "Zahlen und Rechnen Teil A",
+      "pages": 79,
+      "ranges": 24,
+      "min": 2,
+      "max": 80,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_3_Zahlen_und_Rechnen_Teil_B_Quellkatalog.json",
+      "grade": 3,
+      "part": "Zahlen und Rechnen Teil B",
+      "pages": 71,
+      "ranges": 24,
+      "min": 2,
+      "max": 72,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_3_Geometrie_Quellkatalog.json",
+      "grade": 3,
+      "part": "Geometrie",
+      "pages": 39,
+      "ranges": 15,
+      "min": 2,
+      "max": 40,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_4_Zahlen_und_Rechnen_Teil_A_Quellkatalog.json",
+      "grade": 4,
+      "part": "Zahlen und Rechnen Teil A",
+      "pages": 79,
+      "ranges": 28,
+      "min": 2,
+      "max": 80,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_4_Zahlen_und_Rechnen_Teil_B_Quellkatalog.json",
+      "grade": 4,
+      "part": "Zahlen und Rechnen Teil B",
+      "pages": 63,
+      "ranges": 21,
+      "min": 2,
+      "max": 64,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_4_Groessen_und_Sachrechnen_Quellkatalog.json",
+      "grade": 4,
+      "part": "Größen und Sachrechnen",
+      "pages": 55,
+      "ranges": 22,
+      "min": 2,
+      "max": 56,
+      "gaps": []
+    },
+    {
+      "source": "MiniMax_4_Geometrie_Quellkatalog.json",
+      "grade": 4,
+      "part": "Geometrie",
+      "pages": 47,
+      "ranges": 17,
+      "min": 2,
+      "max": 48,
+      "gaps": []
+    },
+    {
+      "source": "Inhaltsverzeichnis MiniMax 3 Größen und Sachrechnen (Bild aus Gespräch)",
+      "grade": 3,
+      "part": "Größen und Sachrechnen",
+      "pages": 55,
+      "ranges": 20,
+      "min": 2,
+      "max": 56,
+      "gaps": []
+    }
+  ],
+  "unvollstaendig": [
+    "MiniMax 3 – Größen und Sachrechnen (kein geprüfter strukturierter Datensatz vorhanden)",
+    "Teste-dich-Bereich (separate Testverwaltung; hier noch nicht integriert)"
+  ]
+}

@@ -1,12 +1,14 @@
-const CACHE_NAME = "lernstand-kompass-20261101-perf1";
+const CACHE_NAME = "lernstand-kompass-20261107-schritt3a-lehrerdesign";
 const APP_FILES = [
   "./",
   "./index.html",
   "./build-info.js",
   "./styles.css",
+  "./teacher-modern.css",
   "./progress-children-overview.css",
   "./legal-info.css",
   "./minimax-tests.css",
+  "./minimax-katalog-daten.js",
   "./models.js",
   "./storage.js",
   "./export.js",
@@ -36,7 +38,6 @@ const APP_FILES = [
   "./simple-ui.js",
   "./minimax-tests.js",
   "./learning-subjects.js",
-  "./learning-navigation-v7.js",
   "./learning-development.js",
   "./learning-navigation-v8.js",
   "./weekly-fix-172.js",
@@ -46,6 +47,9 @@ const APP_FILES = [
   "./legal-info.js",
   "./THIRD_PARTY_LICENSES/jsQR-Apache-2.0.txt",
   "./THIRD_PARTY_LICENSES/ExcelJS-MIT.txt",
+  "./THIRD_PARTY_LICENSES/Grundschrift-CC-BY-3.0.md",
+  "./fonts/Grundschrift-Regular.otf",
+  "./fonts/Grundschrift-Bold.otf",
   "./pwa.js",
   "./manifest.json",
   "./lernstand-kompass.png",

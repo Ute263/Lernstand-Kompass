@@ -60,7 +60,10 @@ const WEEKLY_PLAN_FIELDS = [
 
 const WEEKLY_PLAN_STATUSES = ["offen", "teilweise", "fertig"];
 
+/* MiniMax-Katalogdaten (LK_MINIMAX_MATERIAL_ERGAENZUNG) stehen in minimax-katalog-daten.js und werden vor dieser Datei geladen. */
+
 const DEFAULT_WORKBOOK_CATALOG = completeWorkbookCatalogPageRanges([
+  ...LK_MINIMAX_MATERIAL_ERGAENZUNG,
   ...abc1WorkbookCatalog("Arbeitsheft Teil A", [
     ["3", "Die Symbole bedeuten", "", ""],
     ["4-7", "mu", "mu", "2, 3"],

@@ -3,6 +3,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
+const packageVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 
 function stripQuery(value) {
   return String(value || '').split('#')[0].split('?')[0].replace(/^\.\//, '');
@@ -79,7 +80,7 @@ function berlinBuildStamp() {
 
 function writeBuildStamp() {
   const stamp = berlinBuildStamp();
-  fs.writeFileSync(path.join(dist, 'build-info.js'), `window.LK_BUILD_INFO = ${JSON.stringify({ ...stamp, version: 'FINAL' }, null, 2)};\n`, 'utf8');
+  fs.writeFileSync(path.join(dist, 'build-info.js'), `window.LK_BUILD_INFO = ${JSON.stringify({ ...stamp, version: packageVersion }, null, 2)};\n`, 'utf8');
 
   const indexPath = path.join(dist, 'index.html');
   let index = fs.readFileSync(indexPath, 'utf8');
@@ -92,7 +93,7 @@ function writeBuildStamp() {
   let sw = fs.readFileSync(swPath, 'utf8');
   sw = sw.replace(/const CACHE_NAME = "[^"]+";/, `const CACHE_NAME = "lernstand-kompass-${stamp.id}";`);
   fs.writeFileSync(swPath, sw, 'utf8');
-  console.log(`App-Version: ${stamp.label}`);
+  console.log(`App-Version: ${stamp.label} (Release ${packageVersion})`);
 }
 
 function validateDist() {
@@ -110,7 +111,7 @@ function validateDist() {
     throw new Error(`Build unvollständig. Fehlende Laufzeitdateien:\n- ${missing.join('\n- ')}`);
   }
   // Zentraler Schutz gegen den früheren Fehler: Autosave und Wochenplan-Fix müssen im Produktionsbuild sein.
-  ['weekly-autosave.js', 'weekly-fix-172.js'].forEach((file) => {
+  ['weekly-autosave.js', 'weekly-fix-172.js', 'exceljs.min.js', 'jsqr.js'].forEach((file) => {
     if (!fs.existsSync(path.join(dist, file))) throw new Error(`Kritische Laufzeitdatei fehlt: ${file}`);
   });
   console.log(`Runtime-Prüfung erfolgreich: ${required.size} referenzierte Dateien vorhanden.`);
@@ -126,15 +127,20 @@ const runtimeFiles = new Set([
   ...localRefsFromIndex(sourceIndex),
   ...appFilesFromServiceWorker(sourceSw),
   ...manifestRefs(sourceManifest),
-  'index.html', 'service-worker.js', 'manifest.json', 'LICENSE', 'README.md', 'lernstand-kompass.png'
+  'index.html', 'service-worker.js', 'manifest.json', 'LICENSE', 'lernstand-kompass.png',
+  // Werden erst bei Excel-Export bzw. QR-Scan dynamisch geladen.
+  'exceljs.min.js', 'jsqr.js'
 ]);
 
 // Alle referenzierten Dateien werden automatisch übernommen. Damit kann eine neue
 // Script-Datei nicht mehr versehentlich in index.html stehen, aber im Build fehlen.
 [...runtimeFiles].sort().forEach(copyFile);
+// Dokumentation ist erwünscht, aber für eine lauffähige Cloud-Codeprüfungs-ZIP nicht erforderlich.
+if (fs.existsSync(path.join(root, 'README.md'))) copyFile('README.md');
 // Assets vollständig übernehmen, damit neue Cover/Icons nicht einzeln gepflegt werden müssen.
 copyDirectory('materials');
 copyDirectory('icons');
+copyDirectory('fonts');
 copyDirectory('THIRD_PARTY_LICENSES');
 
 writeBuildStamp();

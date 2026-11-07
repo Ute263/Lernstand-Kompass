@@ -60,9 +60,11 @@
           <li><strong>jsQR</strong> – Apache License 2.0 (QR-Code-Erkennung)</li>
           <li><strong>ExcelJS</strong> – MIT License (Excel-Export)</li>
         </ul>
+        <p>Schrift: <strong>Grundschrift von Christian Urff</strong> – Creative Commons Namensnennung 3.0 (CC BY 3.0), <a href="https://urff.app/grundschrift/" target="_blank" rel="noopener">urff.app/grundschrift</a>.</p>
         <p>Diese Fremdlizenzen beziehen sich nur auf die genannten Bibliotheken und nicht auf den Lernstand-Kompass als Gesamtwerk.</p>
         <p><a href="./THIRD_PARTY_LICENSES/jsQR-Apache-2.0.txt" target="_blank" rel="noopener">Lizenztext jsQR</a><br>
-        <a href="./THIRD_PARTY_LICENSES/ExcelJS-MIT.txt" target="_blank" rel="noopener">Lizenztext ExcelJS</a></p>
+        <a href="./THIRD_PARTY_LICENSES/ExcelJS-MIT.txt" target="_blank" rel="noopener">Lizenztext ExcelJS</a><br>
+        <a href="./THIRD_PARTY_LICENSES/Grundschrift-CC-BY-3.0.md" target="_blank" rel="noopener">Lizenz Grundschrift</a></p>
       `
     },
     about: {

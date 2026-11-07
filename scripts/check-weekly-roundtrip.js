@@ -39,7 +39,7 @@ const context = {
 };
 Object.assign(window, context);
 vm.createContext(context);
-['models.js', 'weekly-extra-tasks.js', 'weekly-plan-9e.js'].forEach((file) => {
+['minimax-katalog-daten.js', 'models.js', 'weekly-extra-tasks.js', 'weekly-plan-9e.js'].forEach((file) => {
   vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
 });
 

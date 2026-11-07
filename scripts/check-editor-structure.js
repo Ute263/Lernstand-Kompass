@@ -1,0 +1,13 @@
+const fs = require('fs');
+const app = fs.readFileSync('app.js', 'utf8');
+const css = fs.readFileSync('teacher-modern.css', 'utf8');
+const begin = app.indexOf('function renderWeeklyPlanEditor(');
+const end = app.indexOf('function renderWeeklyPlannerTable(', begin);
+if (begin < 0 || end < begin) throw Error('Wochenplan-Editor fehlt');
+const editor = app.slice(begin,end);
+const required = ['weekly-clean-settings','weekly-audience-editor','lkAudienceChooser','weeklyAnimalCheckbox','weeklyPlanningMode','Wochenplan</button>','Tagesplan</button>','renderWeeklyPlannerTable(draft.days','renderWeeklyPlannerTable(weeklyIndividualDaysForEditor'];
+for (const key of required) if (!editor.includes(key)) throw Error(`Editor enthält ${key} nicht`);
+if (!(editor.indexOf('weekly-clean-settings') < editor.indexOf('weekly-audience-editor') && editor.indexOf('weekly-audience-editor') < editor.indexOf('renderWeeklyPlannerTable(draft.days'))) throw Error('Editor-Blöcke falsch angeordnet');
+if (!app.includes('if (chooser) chooser.open = selected;')) throw Error('Kinder-Auswahl öffnet nicht bei Einzelzuweisung');
+if (!css.includes('.lk-audience-chooser')) throw Error('Kompakte Kinder-Auswahl fehlt');
+console.log('Editorstruktur: Zeitraum und Planungsform vor Kinderauswahl; Kinderliste einklappbar; Wochen-/Tagesbearbeitung weiter vorhanden.');
