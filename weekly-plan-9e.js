@@ -1098,7 +1098,7 @@
       const socialForms = socialFormList(source?.[keys.socialForms], ids.length);
 
       ids.forEach((id, index) => {
-        const catalogItem = catalog.find((entry) => String(entry.id) === String(id));
+        const catalogItem = weeklyPlanCatalogItemById(plan.classId, id);
         if (!catalogItem) return;
         const starred = Boolean(stars[index]);
         const taskNumber = numbers[index] || "";

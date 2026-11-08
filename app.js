@@ -9765,13 +9765,51 @@ function workbookCatalogForWeeklyPlanClass(classId) {
   return expandedWorkbookCatalogForClass(classId, true);
 }
 
+// Die Seiten-Aufteilung des Katalogs (über 1300 Hefte, tausende Einzelseiten) ist
+// teuer und wurde bisher bei jedem Aufruf neu berechnet - in der Klassenübersicht
+// tausendfach. Ergebnis wird zwischengespeichert, solange sich das Katalog-Array
+// nicht ändert (Änderungen am Katalog erzeugen immer ein neues Array).
 function expandedWorkbookCatalogForClass(classId, includeRangeParents = false) {
-  return workbookCatalogForClass(classId).flatMap((item) => {
-    const pages = workbookCatalogItemPages(item);
-    if (pages.length <= 1) return [item];
-    const pageItems = pages.map((page) => workbookCatalogPageItem(item, page));
-    return includeRangeParents ? [item, ...pageItems] : pageItems;
-  });
+  return expandedWorkbookCatalogShared(classId, includeRangeParents).slice();
+}
+
+function expandedWorkbookCatalogShared(classId, includeRangeParents = false) {
+  const source = state && state.workbookCatalog;
+  const cache = expandedWorkbookCatalogShared.cache || (expandedWorkbookCatalogShared.cache = { source: null, byKey: new Map(), indexByKey: new Map() });
+  if (cache.source !== source) {
+    cache.source = source;
+    cache.byKey = new Map();
+    cache.indexByKey = new Map();
+  }
+  const key = `${classId}|${includeRangeParents ? 1 : 0}`;
+  let result = cache.byKey.get(key);
+  if (!result) {
+    result = workbookCatalogForClass(classId).flatMap((item) => {
+      const pages = workbookCatalogItemPages(item);
+      if (pages.length <= 1) return [item];
+      const pageItems = pages.map((page) => workbookCatalogPageItem(item, page));
+      return includeRangeParents ? [item, ...pageItems] : pageItems;
+    });
+    cache.byKey.set(key, result);
+  }
+  return result;
+}
+
+// Schneller Einzelzugriff (Katalog-ID -> Heft/Seite) auf dieselbe Zwischenablage.
+function weeklyPlanCatalogItemById(classId, id) {
+  const rows = expandedWorkbookCatalogShared(classId, true);
+  const cache = expandedWorkbookCatalogShared.cache;
+  const key = `${classId}|1`;
+  let index = cache.indexByKey.get(key);
+  if (!index) {
+    index = new Map();
+    rows.forEach((entry) => {
+      const entryId = String(entry.id);
+      if (!index.has(entryId)) index.set(entryId, entry);
+    });
+    cache.indexByKey.set(key, index);
+  }
+  return index.get(String(id)) || null;
 }
 
 function workbookCatalogItemPages(item) {
@@ -10092,9 +10130,8 @@ function effectiveWeeklyDayData(plan, day, animalId = "") {
 
 function weeklyPlanItemsForDay(plan, day, animalId = "") {
   const dayData = effectiveWeeklyDayData(plan, day, animalId);
-  const catalog = workbookCatalogForWeeklyPlanClass(plan.classId);
-  const deutschItems = normalizeIdArray(dayData.deutschIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
-  const matheItems = normalizeIdArray(dayData.matheIds).map((id) => catalog.find((item) => item.id === id)).filter(Boolean);
+  const deutschItems = normalizeIdArray(dayData.deutschIds).map((id) => weeklyPlanCatalogItemById(plan.classId, id)).filter(Boolean);
+  const matheItems = normalizeIdArray(dayData.matheIds).map((id) => weeklyPlanCatalogItemById(plan.classId, id)).filter(Boolean);
   return [
     ...deutschItems.map((deutsch) => ({
       field: `Deutsch:${deutsch.id}`,
@@ -10138,10 +10175,23 @@ function weeklyPlanItemStatus(planId, animalId, day, field) {
   return normalizeSimpleWorkStatus(weeklyPlanStatusRecord(planId, animalId, day, field)?.status || "offen");
 }
 
+// Index der Status-Einträge (jüngster zuerst), gültig solange sich das Array nicht
+// ändert. Änderungen erzeugen immer ein neues Array.
 function weeklyPlanStatusRecord(planId, animalId, day, field) {
-  return (state.weeklyPlanStatuses || [])
-    .filter((item) => item.planId === planId && item.animalId === animalId && item.day === day && item.field === field)
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))[0];
+  const source = state.weeklyPlanStatuses || [];
+  const cache = weeklyPlanStatusRecord.cache || (weeklyPlanStatusRecord.cache = { source: null, map: null });
+  if (cache.source !== source) {
+    const map = new Map();
+    const stamp = (item) => new Date(item.updatedAt || item.createdAt || 0).getTime() || 0;
+    source.forEach((item) => {
+      const key = `${item.planId}\u0001${item.animalId}\u0001${item.day}\u0001${item.field}`;
+      const best = map.get(key);
+      if (!best || stamp(item) > stamp(best)) map.set(key, item);
+    });
+    cache.source = source;
+    cache.map = map;
+  }
+  return cache.map.get(`${planId}\u0001${animalId}\u0001${day}\u0001${field}`);
 }
 
 function weeklyStatusBadge(status) {
