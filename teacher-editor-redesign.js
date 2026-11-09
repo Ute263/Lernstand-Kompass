@@ -47,7 +47,9 @@
       audienceControl.innerHTML = '<div class="lk-v08-control-head"><span class="lk-v08-step">1</span> Für wen planst du?</div>';
       audienceControl.appendChild(audience);
       var animalChooser = audienceControl.querySelector(".lk-audience-chooser");
-      if (animalChooser) animalChooser.open = false;
+      // Bei "Ausgewählte Kinder" bleibt die Kinderliste offen, solange sie bewusst
+      // geöffnet wurde (Moduswechsel oder Klick); sonst ist sie eingeklappt.
+      if (animalChooser) animalChooser.open = Boolean(window.lkAudienceChooserOpen);
       var timeControl = document.createElement("section");
       timeControl.className = "lk-v08-control lk-v08-period";
       timeControl.innerHTML = '<div class="lk-v08-control-head"><span class="lk-v08-step">2</span> Zeitraum und Planungsansicht</div>';

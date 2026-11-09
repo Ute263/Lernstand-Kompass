@@ -4973,7 +4973,7 @@ function renderWeeklyPlanEditor(plan, focusAnimal = null) {
             </label>
           </div>
           <details class="lk-audience-chooser" id="lkAudienceChooser" ${assignmentMode !== "all" ? "open" : ""}>
-            <summary>Kinder auswählen <span class="lk-audience-count">${assignmentMode === "all" ? "Nur bei individuellen Plänen" : `${selectedAnimals.size} ausgewählt`}</span></summary>
+            <summary onclick="window.lkAudienceChooserOpen = !this.parentElement.open">Kinder auswählen <span class="lk-audience-count">${assignmentMode === "all" ? "Nur bei individuellen Plänen" : `${selectedAnimals.size} ausgewählt`}</span></summary>
           <div id="weeklyAudienceChildren" class="weekly-audience-child-grid ${assignmentMode === "all" ? "is-disabled" : ""}">
             ${animals.map((animal) => `
               <label class="weekly-audience-child">
@@ -5477,6 +5477,7 @@ function lkWeeklyAudienceModeChanged(mode) {
   document.getElementById("weeklyAudienceChildren")?.classList.toggle("is-disabled", !selected);
   const chooser = document.getElementById("lkAudienceChooser");
   if (chooser) chooser.open = selected;
+  window.lkAudienceChooserOpen = selected;
 
   // Beim Wechsel von "Ganze Klasse" zu "Ausgewählte Kinder" nie einen
   // versehentlich leeren Zielkreis speichern. Wenn noch niemand markiert ist,

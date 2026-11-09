@@ -718,6 +718,29 @@
     return lkPlannerOpenDetails[group] === value ? " open" : "";
   }
 
+  // Merkt pro Tag/Kind, welches Hauptfach (Deutsch/Mathe) bewusst aufgeklappt wurde,
+  // damit ein Neuaufbau der Ansicht (z. B. nach Heftauswahl oder Autospeichern)
+  // das Fach nicht wieder nach der Standardregel umschaltet.
+  const lkMainSubjectChoice = window.lkMainSubjectChoice || (window.lkMainSubjectChoice = {});
+  function lkMainSubjectKey(scope, animalId, day) {
+    const planId = (typeof weeklyPlanDraft !== "undefined" && weeklyPlanDraft && weeklyPlanDraft.id) || "neu";
+    return [planId, scope || "", animalId || "", day || ""].join("|");
+  }
+  function lkMainSubjectOpenAttr(key, subject, data) {
+    const chosen = lkMainSubjectChoice[key];
+    if (chosen !== undefined) return chosen === subject ? " open" : "";
+    const hasDeutsch = lkSubjectHasContent(data, "Deutsch");
+    const hasMathe = lkSubjectHasContent(data, "Mathe");
+    if (subject === "Deutsch") return hasDeutsch || !hasMathe ? " open" : "";
+    return hasMathe && !hasDeutsch ? " open" : "";
+  }
+  window.lkMainSubjectClicked = function lkMainSubjectClicked(summary, key, subject) {
+    const details = summary && summary.parentElement;
+    if (!details) return;
+    // Der Klick schaltet gleich um: war es offen, wird es geschlossen (und umgekehrt).
+    lkMainSubjectChoice[key] = details.open ? "none" : subject;
+  };
+
   function lkSubjectHasContent(data, subject) {
     if (!data) return false;
     if (subject === "Deutsch") {
@@ -757,14 +780,14 @@
       </details>`;
     };
     return `<div class="lk-whole-week-editor lk-subject-collapsible-editor">
-      <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") || !lkSubjectHasContent(data, "Mathe") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
-        <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
+      <details class="lk-planner-subject-details deutsch"${lkMainSubjectOpenAttr(lkMainSubjectKey(scope, animalId, "week"), "Deutsch", data)} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
+        <summary onclick="lkMainSubjectClicked(this,'${escapeAttribute(lkMainSubjectKey(scope, animalId, "week"))}','Deutsch')">${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
         <div class="lk-planner-subject-body">
           ${sectionOrder.map((subject) => renderSection(subject, "weekly-deutsch")).join("")}
         </div>
       </details>
-      <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") && !lkSubjectHasContent(data, "Deutsch") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
-        <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
+      <details class="lk-planner-subject-details mathe"${lkMainSubjectOpenAttr(lkMainSubjectKey(scope, animalId, "week"), "Mathe", data)} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
+        <summary onclick="lkMainSubjectClicked(this,'${escapeAttribute(lkMainSubjectKey(scope, animalId, "week"))}','Mathe')">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
         <div class="lk-planner-subject-body">${renderSection("Mathe", "weekly-mathe")}</div>
       </details>
       <details class="lk-planner-extra-details">
@@ -847,12 +870,12 @@
                 <span>${count ? `${count} ${count === 1 ? "Aufgabe" : "Aufgaben"}` : "noch leer"}</span>
               </summary>
               <div class="lk-weekly-day-content lk-subject-collapsible-editor">
-                <details class="lk-planner-subject-details deutsch"${lkSubjectHasContent(data, "Deutsch") || !lkSubjectHasContent(data, "Mathe") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
-                  <summary>${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
+                <details class="lk-planner-subject-details deutsch"${lkMainSubjectOpenAttr(lkMainSubjectKey(scope, animalId, day), "Deutsch", data)} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
+                  <summary onclick="lkMainSubjectClicked(this,'${escapeAttribute(lkMainSubjectKey(scope, animalId, day))}','Deutsch')">${weeklySubjectBadgeHtml("Deutsch")}<strong>Deutsch</strong><small>Arbeitsaufträge · Lesezeit · Lernwörter</small><span class="lk-details-chevron">⌄</span></summary>
                   <div class="lk-planner-subject-body">${sectionOrder.map(renderDeutschSub).join("")}</div>
                 </details>
-                <details class="lk-planner-subject-details mathe"${lkSubjectHasContent(data, "Mathe") && !lkSubjectHasContent(data, "Deutsch") ? " open" : ""} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
-                  <summary>${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
+                <details class="lk-planner-subject-details mathe"${lkMainSubjectOpenAttr(lkMainSubjectKey(scope, animalId, day), "Mathe", data)} ontoggle="if(this.open) lkExclusiveMainSubject(this)">
+                  <summary onclick="lkMainSubjectClicked(this,'${escapeAttribute(lkMainSubjectKey(scope, animalId, day))}','Mathe')">${weeklySubjectBadgeHtml("Mathe")}<strong>Mathe</strong><span class="lk-details-chevron">⌄</span></summary>
                   <div class="lk-planner-subject-body">
                     <section class="weekly-editor-subject lk-editor-subject mathe">
                       ${renderWeeklyPickCell("Mathe", day, dayIndex, matheIds, `${prefix}Mathe${dayIndex}`, scope, animalId, data.matheTaskNumber || "", data.matheTaskNumbers, data.matheTaskStars, data.matheTaskSocialForms)}
